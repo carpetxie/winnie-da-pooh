@@ -43,25 +43,25 @@ def fetch_all_settled_markets(client: KalshiClient, quick_test: bool = False, n_
     twelve_months_ago = int((datetime.now(timezone.utc) - timedelta(days=365)).timestamp())
 
     if quick_test:
-        # Quick test mode: fetch only ONE page (no pagination)
-        # Only fetch markets settled at least 2 days ago (so candlestick data exists)
-        two_days_ago = int((datetime.now(timezone.utc) - timedelta(days=2)).timestamp())
+        # Quick test mode: fetch from further back to find quality markets
+        # Recent markets are mostly same-day sports/esports (no candlestick data)
+        # Go back 30+ days to find multi-day markets with actual volume
+        thirty_days_ago = int((datetime.now(timezone.utc) - timedelta(days=30)).timestamp())
+        ninety_days_ago = int((datetime.now(timezone.utc) - timedelta(days=90)).timestamp())
 
-        print(f"Quick test mode: Fetching markets settled 2+ days ago...")
+        fetch_limit = 1000  # Fetch full page — most markets are short-lived, need pool to filter from
+
+        print(f"Quick test mode: Fetching up to {fetch_limit} markets (settled 30-90 days ago)...")
         response = client.get(
             "/markets",
             params={
                 "status": "settled",
-                "min_settled_ts": twelve_months_ago,
-                "max_settled_ts": two_days_ago,  # Only markets settled BEFORE 2 days ago
-                "limit": max(10, n_needed * 2),
+                "min_settled_ts": ninety_days_ago,
+                "max_settled_ts": thirty_days_ago,
+                "limit": fetch_limit,
             }
         )
         markets = response.get("markets", [])
-
-        # DEBUG: Print first market's keys to see available fields
-        if markets:
-            print(f"DEBUG: Market fields available: {list(markets[0].keys())}")
 
         print(f"✓ Fetched {len(markets)} settled markets")
         return pd.DataFrame(markets)
@@ -125,30 +125,52 @@ def fetch_all_settled_markets(client: KalshiClient, quick_test: bool = False, n_
     return pd.DataFrame(markets)
 
 
+MIN_VOLUME = 5       # Minimum trades for meaningful price data
+MIN_LIFESPAN_DAYS = 1  # Minimum days market was open
+
+
 def sample_markets(df: pd.DataFrame, n: int) -> pd.DataFrame:
     """
-    Sample N markets, prioritizing those with longer lifespans.
+    Sample N markets, filtering for quality first.
 
-    Strategy:
-    1. Filter to markets open for at least 2 days (so candlestick data exists)
-    2. Sample N markets with diversity
+    Filters:
+    1. Markets open for at least MIN_LIFESPAN_DAYS (so candlestick data exists)
+    2. Markets with at least MIN_VOLUME trades (so prices are meaningful)
     """
-    # Calculate market lifespan
+    before = len(df)
+
+    # Parse timestamps
     df['open_time'] = pd.to_datetime(df['open_time'], format='ISO8601')
     df['close_time'] = pd.to_datetime(df['close_time'], format='ISO8601')
     df['lifespan_days'] = (df['close_time'] - df['open_time']).dt.total_seconds() / 86400
 
-    # Filter to markets open for at least 2 days
-    df_long = df[df['lifespan_days'] >= 2].copy()
+    # Ensure volume is numeric
+    df['volume'] = pd.to_numeric(df['volume'], errors='coerce').fillna(0)
 
-    print(f"✓ Filtered {len(df)} markets → {len(df_long)} with lifespan ≥ 2 days")
+    # Diagnostics before filtering
+    pass_lifespan = (df['lifespan_days'] >= MIN_LIFESPAN_DAYS).sum()
+    pass_volume = (df['volume'] >= MIN_VOLUME).sum()
+    print(f"    Pass lifespan ≥ {MIN_LIFESPAN_DAYS} days: {pass_lifespan}/{before}")
+    print(f"    Pass volume ≥ {MIN_VOLUME}: {pass_volume}/{before}")
+    print(f"    Volume stats: min={df['volume'].min()}, median={df['volume'].median()}, max={df['volume'].max()}")
 
-    if len(df_long) <= n:
-        print(f"⚠ Only {len(df_long)} markets available, using all")
-        return df_long
+    # Apply filters
+    df_filtered = df[
+        (df['lifespan_days'] >= MIN_LIFESPAN_DAYS) &
+        (df['volume'] >= MIN_VOLUME)
+    ].copy()
+
+    print(f"✓ Quality filter: {before} → {len(df_filtered)} markets pass both filters")
+
+    if len(df_filtered) == 0:
+        raise RuntimeError("No markets passed quality filter. Try lowering MIN_VOLUME or MIN_LIFESPAN_DAYS.")
+
+    if len(df_filtered) <= n:
+        print(f"⚠ Only {len(df_filtered)} markets available, using all")
+        return df_filtered
 
     # Random sample
-    sampled = df_long.sample(n=n, random_state=42)
+    sampled = df_filtered.sample(n=n, random_state=42)
     print(f"✓ Sampled {n} markets")
     return sampled
 
