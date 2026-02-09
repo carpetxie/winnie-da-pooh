@@ -3,52 +3,120 @@ backtest/data_collection.py
 
 Phase 1: Universal Calibration Data Collection
 
-Fetches N=3000 random settled markets from Kalshi, computes features at
+Fetches N random settled markets from Kalshi, computes features at
 each market's midpoint, and saves to universal_features.csv.
 
-Run with: uv run python -m backtest.data_collection
+Run with:
+    uv run python -m backtest.data_collection --n-markets 5     # Quick test
+    uv run python -m backtest.data_collection --n-markets 3000  # Full run
+    uv run python -m backtest.data_collection                   # Default (3000)
 """
 
 import os
 import json
 import time
+import argparse
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta, timezone
+from tqdm import tqdm
 
 from backtest.kalshi_client import KalshiClient
 
 # Configuration
-N_MARKETS = 3000  # Target sample size
 RAW_DIR = "data/raw"
 PROCESSED_DIR = "data/processed"
 
 
-def fetch_all_settled_markets(client: KalshiClient) -> pd.DataFrame:
+def fetch_all_settled_markets(client: KalshiClient, quick_test: bool = False, n_needed: int = 5) -> pd.DataFrame:
     """
-    Fetch ALL settled markets from past 12 months.
+    Fetch settled markets from past 12 months.
+
+    Args:
+        client: KalshiClient instance
+        quick_test: If True, only fetch a small subset for testing (default: False)
+        n_needed: Number of markets needed (used for quick test sizing)
 
     Returns:
         DataFrame with all settled markets (ticker, series_ticker, open_time, close_time, result, etc.)
     """
     twelve_months_ago = int((datetime.now(timezone.utc) - timedelta(days=365)).timestamp())
 
-    cache_path = os.path.join(RAW_DIR, "all_settled_markets.json")
+    if quick_test:
+        # Quick test mode: fetch only ONE page (no pagination)
+        # Only fetch markets settled at least 2 days ago (so candlestick data exists)
+        two_days_ago = int((datetime.now(timezone.utc) - timedelta(days=2)).timestamp())
 
-    if os.path.exists(cache_path):
-        print("Loading cached settled markets...")
-        with open(cache_path) as f:
-            markets = json.load(f)
-    else:
-        print("Fetching ALL settled markets from Kalshi (this may take 2-3 minutes)...")
-        markets = client.get_all_pages(
+        print(f"Quick test mode: Fetching markets settled 2+ days ago...")
+        response = client.get(
             "/markets",
             params={
                 "status": "settled",
                 "min_settled_ts": twelve_months_ago,
-            },
-            result_key="markets",
+                "max_settled_ts": two_days_ago,  # Only markets settled BEFORE 2 days ago
+                "limit": max(10, n_needed * 2),
+            }
         )
+        markets = response.get("markets", [])
+
+        # DEBUG: Print first market's keys to see available fields
+        if markets:
+            print(f"DEBUG: Market fields available: {list(markets[0].keys())}")
+
+        print(f"✓ Fetched {len(markets)} settled markets")
+        return pd.DataFrame(markets)
+
+    # Full mode: fetch enough markets for sampling (not necessarily ALL)
+    # Only fetch markets settled at least 2 days ago (so candlestick data exists)
+    two_days_ago = int((datetime.now(timezone.utc) - timedelta(days=2)).timestamp())
+
+    # Fetch 2x what we need for sampling diversity (capped at reasonable limit)
+    target_fetch = min(n_needed * 2, 10000)  # Don't fetch more than 10k
+
+    cache_path = os.path.join(RAW_DIR, f"settled_markets_{target_fetch}.json")
+
+    if os.path.exists(cache_path):
+        print(f"Loading cached settled markets (target: {target_fetch})...")
+        with open(cache_path) as f:
+            markets = json.load(f)
+    else:
+        print(f"Fetching ~{target_fetch} settled markets (settled 2+ days ago)...")
+
+        # Fetch in batches until we have enough
+        all_markets = []
+        cursor = None
+        page_limit = 1000
+
+        pbar = tqdm(desc="Fetching markets", unit=" items", total=target_fetch)
+
+        while len(all_markets) < target_fetch:
+            params = {
+                "status": "settled",
+                "min_settled_ts": twelve_months_ago,
+                "max_settled_ts": two_days_ago,
+                "limit": page_limit,
+            }
+            if cursor:
+                params["cursor"] = cursor
+
+            resp = client.get("/markets", params=params)
+            items = resp.get("markets", [])
+
+            if not items:
+                break
+
+            all_markets.extend(items)
+            pbar.update(len(items))
+            pbar.set_postfix({"fetched": len(all_markets)})
+
+            cursor = resp.get("cursor", "")
+            if not cursor:
+                break
+
+            time.sleep(0.7)  # Rate limiting
+
+        pbar.close()
+        markets = all_markets
 
         with open(cache_path, "w") as f:
             json.dump(markets, f, indent=2, default=str)
@@ -59,30 +127,34 @@ def fetch_all_settled_markets(client: KalshiClient) -> pd.DataFrame:
 
 def sample_markets(df: pd.DataFrame, n: int) -> pd.DataFrame:
     """
-    Sample N markets, prioritizing weekly frequency.
+    Sample N markets, prioritizing those with longer lifespans.
 
     Strategy:
-    1. Group by series_ticker
-    2. Get series metadata (frequency)
-    3. Prioritize weekly series
-    4. Sample N markets with diversity across series
+    1. Filter to markets open for at least 2 days (so candlestick data exists)
+    2. Sample N markets with diversity
     """
-    # Add series frequency (requires fetching series metadata)
-    # For simplicity, just do random sampling across all markets
-    # You can enhance this later to filter by frequency
+    # Calculate market lifespan
+    df['open_time'] = pd.to_datetime(df['open_time'], format='ISO8601')
+    df['close_time'] = pd.to_datetime(df['close_time'], format='ISO8601')
+    df['lifespan_days'] = (df['close_time'] - df['open_time']).dt.total_seconds() / 86400
 
-    if len(df) <= n:
-        print(f"⚠ Only {len(df)} markets available, using all")
-        return df
+    # Filter to markets open for at least 2 days
+    df_long = df[df['lifespan_days'] >= 2].copy()
+
+    print(f"✓ Filtered {len(df)} markets → {len(df_long)} with lifespan ≥ 2 days")
+
+    if len(df_long) <= n:
+        print(f"⚠ Only {len(df_long)} markets available, using all")
+        return df_long
 
     # Random sample
-    sampled = df.sample(n=n, random_state=42)
+    sampled = df_long.sample(n=n, random_state=42)
     print(f"✓ Sampled {n} markets")
     return sampled
 
 
 def fetch_candlesticks(client: KalshiClient, ticker: str, series_ticker: str,
-                       start_ts: int, end_ts: int) -> list:
+                       start_ts: int, end_ts: int, debug: bool = False) -> list:
     """
     Fetch daily candlesticks for a market.
 
@@ -91,6 +163,7 @@ def fetch_candlesticks(client: KalshiClient, ticker: str, series_ticker: str,
         series_ticker: Series ticker (e.g., "KXJOBLESSCLAIMS")
         start_ts: Start timestamp (Unix seconds)
         end_ts: End timestamp (Unix seconds)
+        debug: Print debug info
 
     Returns:
         List of candlestick dicts
@@ -99,9 +172,15 @@ def fetch_candlesticks(client: KalshiClient, ticker: str, series_ticker: str,
 
     if os.path.exists(cache_path):
         with open(cache_path) as f:
-            return json.load(f)
+            candles = json.load(f)
+            if debug:
+                print(f"  ✓ Loaded {len(candles)} cached candles for {ticker}")
+            return candles
 
     try:
+        if debug:
+            print(f"  Fetching /series/{series_ticker}/markets/{ticker}/candlesticks")
+
         candles = client.get_all_pages(
             f"/series/{series_ticker}/markets/{ticker}/candlesticks",
             params={
@@ -115,10 +194,14 @@ def fetch_candlesticks(client: KalshiClient, ticker: str, series_ticker: str,
         with open(cache_path, "w") as f:
             json.dump(candles, f, indent=2, default=str)
 
+        if debug:
+            print(f"  ✓ Fetched {len(candles)} candles for {ticker}")
+
         return candles
 
     except Exception as e:
-        print(f"⚠ Candlestick fetch failed for {ticker}: {e}")
+        if debug:
+            print(f"  ✗ Candlestick fetch failed for {ticker}: {e}")
         return []
 
 
@@ -139,21 +222,41 @@ def extract_price_at_midpoint(candles: list, midpoint_ts: float) -> float:
     # Find closest candle
     closest = min(candles, key=lambda c: abs(c.get('end_period_ts', 0) - midpoint_ts))
 
-    # Extract price (in dollars, already 0.0-1.0)
+    # Try 1: price.close_dollars (direct price)
     price_obj = closest.get('price', {})
     close_dollars = price_obj.get('close_dollars')
-
     if close_dollars is not None:
         try:
             return float(close_dollars)
         except (ValueError, TypeError):
             pass
 
-    # Fallback to previous price
-    previous_dollars = price_obj.get('previous_dollars')
-    if previous_dollars:
+    # Try 2: Midpoint of bid-ask spread
+    yes_bid = closest.get('yes_bid', {})
+    yes_ask = closest.get('yes_ask', {})
+
+    bid_close = yes_bid.get('close_dollars')
+    ask_close = yes_ask.get('close_dollars')
+
+    if bid_close is not None and ask_close is not None:
         try:
-            return float(previous_dollars)
+            bid = float(bid_close)
+            ask = float(ask_close)
+            return (bid + ask) / 2.0  # Midpoint of bid-ask
+        except (ValueError, TypeError):
+            pass
+
+    # Try 3: Just use bid if available
+    if bid_close is not None:
+        try:
+            return float(bid_close)
+        except (ValueError, TypeError):
+            pass
+
+    # Try 4: Just use ask if available
+    if ask_close is not None:
+        try:
+            return float(ask_close)
         except (ValueError, TypeError):
             pass
 
@@ -182,11 +285,28 @@ def calculate_volatility(candles: list, midpoint_ts: float, lookback_days: int =
     for c in candles:
         ts = c.get('end_period_ts', 0)
         if lookback_start <= ts < midpoint_ts:
+            # Try price.close_dollars first
             price_obj = c.get('price', {})
             close_dollars = price_obj.get('close_dollars')
-            if close_dollars:
+
+            if close_dollars is not None:
                 try:
                     prices.append(float(close_dollars))
+                    continue
+                except (ValueError, TypeError):
+                    pass
+
+            # Fallback to bid-ask midpoint
+            yes_bid = c.get('yes_bid', {})
+            yes_ask = c.get('yes_ask', {})
+            bid_close = yes_bid.get('close_dollars')
+            ask_close = yes_ask.get('close_dollars')
+
+            if bid_close is not None and ask_close is not None:
+                try:
+                    bid = float(bid_close)
+                    ask = float(ask_close)
+                    prices.append((bid + ask) / 2.0)
                 except (ValueError, TypeError):
                     pass
 
@@ -206,13 +326,20 @@ def compute_features(client: KalshiClient, markets_df: pd.DataFrame) -> pd.DataF
     """
     results = []
 
-    for idx, row in markets_df.iterrows():
+    # Progress bar for feature computation
+    debug = len(markets_df) <= 10  # Enable debug for small samples
+
+    for idx, row in tqdm(markets_df.iterrows(), total=len(markets_df), desc="Computing features", disable=debug):
         ticker = row['ticker']
-        series_ticker = row.get('series_ticker', 'UNKNOWN')
+
+        # Infer series_ticker from ticker (no series_ticker field in API)
+        # Format: SERIESNAME-DATE-DETAILS → extract SERIESNAME
+        # Example: KXIPODEEL-26FEB01 → KXIPODEEL
+        series_ticker = ticker.split('-')[0] if '-' in ticker else 'UNKNOWN'
 
         # Parse timestamps
-        open_time = pd.to_datetime(row['open_time'])
-        close_time = pd.to_datetime(row['close_time'])
+        open_time = pd.to_datetime(row['open_time'], format='ISO8601')
+        close_time = pd.to_datetime(row['close_time'], format='ISO8601')
         midpoint = open_time + (close_time - open_time) / 2
 
         # Calculate days remaining
@@ -222,16 +349,26 @@ def compute_features(client: KalshiClient, markets_df: pd.DataFrame) -> pd.DataF
         result_str = row.get('result', '')
         y_true = 1 if result_str == 'yes' else 0
 
+        if debug:
+            print(f"\n[{idx+1}/{len(markets_df)}] {ticker}")
+            print(f"  series_ticker: {series_ticker}")
+            print(f"  midpoint: {midpoint}")
+            print(f"  open: {open_time}, close: {close_time}")
+
         # Fetch candlesticks
         start_ts = int(open_time.timestamp())
         end_ts = int(close_time.timestamp())
 
-        candles = fetch_candlesticks(client, ticker, series_ticker, start_ts, end_ts)
+        candles = fetch_candlesticks(client, ticker, series_ticker, start_ts, end_ts, debug=debug)
 
         # Extract features
         midpoint_ts = midpoint.timestamp()
         feature_price = extract_price_at_midpoint(candles, midpoint_ts)
         feature_volatility = calculate_volatility(candles, midpoint_ts)
+
+        if debug:
+            print(f"  feature_price: {feature_price}")
+            print(f"  feature_volatility: {feature_volatility}")
 
         results.append({
             'ticker': ticker,
@@ -244,9 +381,6 @@ def compute_features(client: KalshiClient, markets_df: pd.DataFrame) -> pd.DataF
             'feature_days_remaining': days_remaining,
             'y_true': y_true,
         })
-
-        if (idx + 1) % 100 == 0:
-            print(f"  Processed {idx + 1}/{len(markets_df)} markets...")
 
         # Rate limiting
         time.sleep(0.1)
@@ -274,22 +408,33 @@ def temporal_split(df: pd.DataFrame, train_frac: float = 0.8) -> pd.DataFrame:
 
 
 def main():
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description='Collect market data for Universal Calibration')
+    parser.add_argument('--n-markets', type=int, default=3000,
+                        help='Number of markets to sample (default: 3000, use 5 for quick testing)')
+    args = parser.parse_args()
+
+    n_markets = args.n_markets
+
     os.makedirs(RAW_DIR, exist_ok=True)
     os.makedirs(PROCESSED_DIR, exist_ok=True)
 
     client = KalshiClient()
 
+    # Determine if quick test mode (< 100 markets)
+    quick_test = n_markets < 100
+
     # Step 1: Fetch all settled markets
     print("=" * 60)
-    print("STEP 1: Fetch All Settled Markets")
+    print("STEP 1: Fetch Settled Markets")
     print("=" * 60)
-    all_markets_df = fetch_all_settled_markets(client)
+    all_markets_df = fetch_all_settled_markets(client, quick_test=quick_test, n_needed=n_markets)
 
     # Step 2: Sample N markets
     print("\n" + "=" * 60)
-    print(f"STEP 2: Sample {N_MARKETS} Markets")
+    print(f"STEP 2: Sample {n_markets} Markets")
     print("=" * 60)
-    sampled_df = sample_markets(all_markets_df, N_MARKETS)
+    sampled_df = sample_markets(all_markets_df, n_markets)
 
     # Step 3: Compute features
     print("\n" + "=" * 60)

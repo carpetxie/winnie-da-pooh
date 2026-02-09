@@ -14,6 +14,7 @@ from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
 from dotenv import load_dotenv
+from tqdm import tqdm
 
 load_dotenv()
 
@@ -99,6 +100,7 @@ class KalshiClient:
         result_key: str = "markets",
         page_limit: int = 1000,
         delay: float = 0.7,
+        show_progress: bool = False,
     ) -> list:
         """
         Fetch all pages of a paginated endpoint and return the concatenated list.
@@ -116,6 +118,7 @@ class KalshiClient:
             page_limit:  Max items per page (sent as `limit` param). Kalshi max is 1000.
             delay:       Seconds to sleep between pages to stay under rate limit.
                          0.7s ≈ 85 requests/min, safely under the 100/min cap.
+            show_progress: Show progress bar during pagination.
 
         Returns:
             A flat list of all result items across all pages.
@@ -124,16 +127,28 @@ class KalshiClient:
         params["limit"] = page_limit
         all_results = []
 
+        # Progress bar (unknown total, so counts items fetched)
+        pbar = tqdm(desc=f"Fetching {result_key}", unit=" items", disable=not show_progress)
+
+        page_num = 0
         while True:
             resp = self.get(path, params)
             items = resp.get(result_key, [])
             all_results.extend(items)
+
+            if show_progress:
+                pbar.update(len(items))
+                pbar.set_postfix({"pages": page_num + 1})
 
             cursor = resp.get("cursor", "")
             if not cursor or len(items) < page_limit:
                 break
 
             params["cursor"] = cursor
+            page_num += 1
             time.sleep(delay)
+
+        if show_progress:
+            pbar.close()
 
         return all_results
