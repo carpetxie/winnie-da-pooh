@@ -126,7 +126,7 @@ def fetch_all_settled_markets(client: KalshiClient, quick_test: bool = False, n_
 
 
 MIN_VOLUME = 5       # Minimum trades for meaningful price data
-MIN_LIFESPAN_DAYS = 1  # Minimum days market was open
+CANDLE_INTERVAL = 60  # 60 = hourly candles (1 = 1min, 60 = 1hr, 1440 = 1day)
 
 
 def sample_markets(df: pd.DataFrame, n: int) -> pd.DataFrame:
@@ -139,28 +139,18 @@ def sample_markets(df: pd.DataFrame, n: int) -> pd.DataFrame:
     """
     before = len(df)
 
-    # Parse timestamps
-    df['open_time'] = pd.to_datetime(df['open_time'], format='ISO8601')
-    df['close_time'] = pd.to_datetime(df['close_time'], format='ISO8601')
-    df['lifespan_days'] = (df['close_time'] - df['open_time']).dt.total_seconds() / 86400
-
     # Ensure volume is numeric
     df['volume'] = pd.to_numeric(df['volume'], errors='coerce').fillna(0)
 
     # Diagnostics before filtering
-    pass_lifespan = (df['lifespan_days'] >= MIN_LIFESPAN_DAYS).sum()
     pass_volume = (df['volume'] >= MIN_VOLUME).sum()
-    print(f"    Pass lifespan ≥ {MIN_LIFESPAN_DAYS} days: {pass_lifespan}/{before}")
     print(f"    Pass volume ≥ {MIN_VOLUME}: {pass_volume}/{before}")
     print(f"    Volume stats: min={df['volume'].min()}, median={df['volume'].median()}, max={df['volume'].max()}")
 
-    # Apply filters
-    df_filtered = df[
-        (df['lifespan_days'] >= MIN_LIFESPAN_DAYS) &
-        (df['volume'] >= MIN_VOLUME)
-    ].copy()
+    # Apply volume filter only (using hourly candles handles short-lived markets)
+    df_filtered = df[df['volume'] >= MIN_VOLUME].copy()
 
-    print(f"✓ Quality filter: {before} → {len(df_filtered)} markets pass both filters")
+    print(f"✓ Quality filter: {before} → {len(df_filtered)} markets with volume ≥ {MIN_VOLUME}")
 
     if len(df_filtered) == 0:
         raise RuntimeError("No markets passed quality filter. Try lowering MIN_VOLUME or MIN_LIFESPAN_DAYS.")
@@ -208,7 +198,7 @@ def fetch_candlesticks(client: KalshiClient, ticker: str, series_ticker: str,
             params={
                 "start_ts": start_ts,
                 "end_ts": end_ts,
-                "period_interval": 1440,  # Daily
+                "period_interval": CANDLE_INTERVAL,  # Hourly (60) for short-lived markets
             },
             result_key="candlesticks",
         )
@@ -285,14 +275,14 @@ def extract_price_at_midpoint(candles: list, midpoint_ts: float) -> float:
     return np.nan
 
 
-def calculate_volatility(candles: list, midpoint_ts: float, lookback_days: int = 7) -> float:
+def calculate_volatility(candles: list, midpoint_ts: float, lookback_hours: int = 24) -> float:
     """
-    Calculate standard deviation of prices in the lookback_days before midpoint.
+    Calculate standard deviation of prices in the lookback_hours before midpoint.
 
     Args:
         candles: List of candlestick dicts
         midpoint_ts: Midpoint timestamp
-        lookback_days: Days to look back
+        lookback_hours: Hours to look back (default 24)
 
     Returns:
         Volatility (std dev of prices), or 0.0 if insufficient data
@@ -300,7 +290,7 @@ def calculate_volatility(candles: list, midpoint_ts: float, lookback_days: int =
     if not candles:
         return 0.0
 
-    lookback_start = midpoint_ts - (lookback_days * 86400)
+    lookback_start = midpoint_ts - (lookback_hours * 3600)
 
     # Filter candles in lookback window
     prices = []
