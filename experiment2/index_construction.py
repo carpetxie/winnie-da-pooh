@@ -64,24 +64,37 @@ def build_daily_price_matrix(
     return prices_df, domain_map
 
 
-def compute_daily_returns(prices_df: pd.DataFrame) -> pd.DataFrame:
+def compute_daily_returns(prices_df: pd.DataFrame, pct: bool = True) -> pd.DataFrame:
     """Compute daily absolute price changes for each market.
 
-    Returns DataFrame of same shape with |Δp| = |p(t) - p(t-1)|.
+    Args:
+        prices_df: Daily price matrix
+        pct: If True, use percentage returns (|Δp/p|) instead of absolute (|Δp|).
+             Clips prices to [0.02, 0.98] before dividing to avoid division-by-zero
+             near prediction market boundaries.
+
+    Returns DataFrame of same shape with |Δp| or |Δp/p|.
     """
+    if pct:
+        clipped = prices_df.clip(lower=0.02, upper=0.98)
+        return (prices_df.diff() / clipped.shift(1)).abs()
     return prices_df.diff().abs()
 
 
 def compute_belief_volatility(
-    returns_df: pd.DataFrame, domain_map: pd.Series
+    returns_df: pd.DataFrame,
+    domain_map: pd.Series,
+    volume_map: pd.Series = None,
 ) -> pd.DataFrame:
     """Compute daily belief volatility (BV) per domain.
 
-    BV_domain(t) = (1/N) * Σ |Δp_i(t)| for all active markets i in domain
+    BV_domain(t) = weighted mean of |Δp_i(t)| for active markets i in domain.
+    If volume_map is provided, weights by log(1 + volume); otherwise equal weight.
 
     Args:
         returns_df: Daily absolute price changes (from compute_daily_returns)
         domain_map: Series mapping ticker -> domain
+        volume_map: Optional Series mapping ticker -> total volume (for weighting)
 
     Returns:
         DataFrame with dates as index, domains as columns, BV as values
@@ -98,13 +111,22 @@ def compute_belief_volatility(
         if not domain_tickers:
             continue
 
-        # Mean absolute return across active markets in domain for each day
         domain_returns = returns_df[domain_tickers]
-        # Count non-NaN markets per day (active markets)
         n_active = domain_returns.notna().sum(axis=1)
-        # Mean absolute return (ignoring NaN)
-        bv = domain_returns.mean(axis=1)
-        # Set days with fewer than 2 active markets to NaN
+
+        if volume_map is not None:
+            # Volume-weighted mean: use log(1+volume) as weight
+            weights = np.array([
+                np.log1p(volume_map.get(t, 0)) for t in domain_tickers
+            ])
+            if weights.sum() > 0:
+                weights = weights / weights.sum()
+                bv = (domain_returns * weights).sum(axis=1) / domain_returns.notna().dot(weights).clip(lower=1e-10)
+            else:
+                bv = domain_returns.mean(axis=1)
+        else:
+            bv = domain_returns.mean(axis=1)
+
         bv[n_active < 2] = np.nan
         bv_data[domain] = bv
 
@@ -171,7 +193,11 @@ def construct_kui(
     Args:
         bv_df: Belief volatility per domain (from compute_belief_volatility)
         n_active_df: Optional number of active markets per domain (for weighting)
-        weighting: 'equal' or 'market_count'
+        weighting: 'equal', 'market_count', or 'domain_equal'
+            - 'equal': simple mean across all domain columns
+            - 'market_count': weight domains by active market count
+            - 'domain_equal': equal weight per domain (same as 'equal' but
+              explicitly handles missing domains by only averaging non-NaN)
 
     Returns:
         Series with KUI values indexed by date
@@ -180,13 +206,12 @@ def construct_kui(
         return pd.Series(dtype=float, name="KUI")
 
     if weighting == "market_count" and n_active_df is not None:
-        # Weight each domain by number of active markets
         weights = n_active_df.reindex(columns=bv_df.columns, fill_value=0)
         total_weight = weights.sum(axis=1)
         total_weight = total_weight.replace(0, np.nan)
         kui = (bv_df * weights).sum(axis=1) / total_weight
     else:
-        # Equal weighting across domains
+        # Equal weighting across domains (handles NaN gracefully)
         kui = bv_df.mean(axis=1)
 
     kui.name = "KUI"
@@ -244,14 +269,21 @@ def build_kui_dataset(
             "domain_indices": {},
         }
 
-    # Compute metrics
-    returns_df = compute_daily_returns(prices_df)
-    bv_df = compute_belief_volatility(returns_df, domain_map)
+    # Compute metrics (percentage returns to handle scale differences)
+    returns_df = compute_daily_returns(prices_df, pct=True)
+
+    # Build volume map from market metadata if available
+    volume_map = None
+    if "volume" in df_markets.columns:
+        volume_map = df_markets.set_index("ticker")["volume"].dropna()
+
+    bv_df = compute_belief_volatility(returns_df, domain_map, volume_map=volume_map)
     dispersion_df = compute_cross_market_dispersion(returns_df, domain_map)
     n_active_df = compute_n_active_markets(prices_df, domain_map)
 
-    # Construct aggregate KUI
-    kui_raw = construct_kui(bv_df, n_active_df, weighting="market_count")
+    # Construct aggregate KUI with equal domain weighting
+    # (prevents high-count domains like crypto from dominating)
+    kui_raw = construct_kui(bv_df, n_active_df, weighting="domain_equal")
 
     # Normalize
     kui_normalized = normalize_index(kui_raw)
