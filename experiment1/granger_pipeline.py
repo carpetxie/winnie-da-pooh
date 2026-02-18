@@ -3,16 +3,40 @@ experiment1/granger_pipeline.py
 
 Run pairwise Granger causality tests on all concurrent market pairs
 and apply Bonferroni correction for multiple comparisons.
+
+Methodology notes:
+- Series are differenced (returns) before Granger testing to ensure stationarity.
+  Raw price levels are non-stationary and produce spurious Granger results.
+- ADF test is used as a sanity check; if differenced series is still non-stationary,
+  the pair is skipped.
+- F-stat overflow guards are in experiment2/validation.py.
 """
 
 import os
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+from statsmodels.tsa.stattools import adfuller
 
 from experiment2.validation import granger_causality_test
 
 DATA_DIR = "data/exp1"
+
+
+def _ensure_stationary(series: pd.Series, max_diffs: int = 2) -> pd.Series | None:
+    """Difference series until stationary (ADF p < 0.05). Returns None if can't achieve it."""
+    s = series.dropna()
+    for _ in range(max_diffs + 1):
+        if len(s) < 30:
+            return None
+        try:
+            adf_p = adfuller(s, maxlag=min(12, len(s) // 3), autolag="AIC")[1]
+        except Exception:
+            return None
+        if adf_p < 0.05:
+            return s
+        s = s.diff().dropna()
+    return None
 
 
 def run_pairwise_granger(
@@ -59,8 +83,21 @@ def run_pairwise_granger(
             skipped += 1
             continue
 
+        # Difference to ensure stationarity (critical for valid Granger causality)
+        a_stat = _ensure_stationary(combined["a"])
+        b_stat = _ensure_stationary(combined["b"])
+        if a_stat is None or b_stat is None:
+            skipped += 1
+            continue
+
+        # Re-align after differencing (may have lost first row)
+        stat_combined = pd.concat([a_stat.rename("a"), b_stat.rename("b")], axis=1).dropna()
+        if len(stat_combined) < min_overlap:
+            skipped += 1
+            continue
+
         # Test A -> B
-        result_ab = granger_causality_test(combined["a"], combined["b"], max_lag=max_lag)
+        result_ab = granger_causality_test(stat_combined["a"], stat_combined["b"], max_lag=max_lag)
         if result_ab["best_lag"] is not None:
             results.append({
                 "leader_ticker": ticker_a,
@@ -76,7 +113,7 @@ def run_pairwise_granger(
             })
 
         # Test B -> A
-        result_ba = granger_causality_test(combined["b"], combined["a"], max_lag=max_lag)
+        result_ba = granger_causality_test(stat_combined["b"], stat_combined["a"], max_lag=max_lag)
         if result_ba["best_lag"] is not None:
             results.append({
                 "leader_ticker": ticker_b,

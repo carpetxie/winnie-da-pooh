@@ -172,7 +172,20 @@ def granger_causality_test(
             if df2 <= 0 or rss_u <= 0:
                 continue
 
+            # Guard against F-stat overflow from near-zero residuals
+            # (overfitting when lags ≈ n_obs)
+            if rss_u < 1e-12 or rss_r < 1e-12:
+                continue
+            if rss_r < rss_u:
+                # Unrestricted model is worse — no Granger causality
+                continue
+
             f_stat = ((rss_r - rss_u) / df1) / (rss_u / df2)
+
+            # Reject absurd F-stats (numerical artifact)
+            if not np.isfinite(f_stat) or f_stat > 1e6:
+                continue
+
             p_value = 1 - scipy_stats.f.cdf(f_stat, df1, df2)
 
             if p_value < best_result["p_value"]:
