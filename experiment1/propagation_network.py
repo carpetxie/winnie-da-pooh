@@ -14,6 +14,43 @@ from scipy import stats as scipy_stats
 
 DATA_DIR = "data/exp1"
 
+# Indicator-level classification: more granular than domain
+INDICATOR_MAP = {
+    "KXCPI": "CPI", "CPI": "CPI",
+    "KXPCE": "PCE",
+    "KXPPI": "PPI",
+    "KXFED": "Fed Funds", "FED": "Fed Funds",
+    "KXFFR": "Fed Funds Rate",
+    "KXNFP": "Nonfarm Payrolls",
+    "KXJOBLESSCLAIMS": "Jobless Claims",
+    "KXUNEMPLOYMENT": "Unemployment",
+    "KXGDP": "GDP", "GDP": "GDP",
+    "KXRETAILSALES": "Retail Sales",
+    "KXISM": "ISM",
+    "KXRECESSION": "Recession",
+    "KXDEBTCEILING": "Debt Ceiling",
+    "KXSHUTDOWN": "Shutdown",
+}
+
+INDICATOR_DOMAIN = {
+    "CPI": "inflation", "PCE": "inflation", "PPI": "inflation",
+    "Fed Funds": "monetary_policy", "Fed Funds Rate": "monetary_policy",
+    "Nonfarm Payrolls": "labor", "Jobless Claims": "labor", "Unemployment": "labor",
+    "GDP": "macro", "Retail Sales": "macro", "ISM": "macro", "Recession": "macro",
+    "Debt Ceiling": "fiscal", "Shutdown": "fiscal",
+}
+
+
+def _extract_indicator(ticker: str) -> str:
+    """Map ticker to specific economic indicator."""
+    prefix = ticker.split("-")[0] if "-" in ticker else ticker
+    if prefix in INDICATOR_MAP:
+        return INDICATOR_MAP[prefix]
+    for key, ind in INDICATOR_MAP.items():
+        if prefix.startswith(key):
+            return ind
+    return "other"
+
 
 def build_domain_graph(sig_df: pd.DataFrame) -> dict:
     """Aggregate Granger pairs into domain-level directed graph.
@@ -78,6 +115,87 @@ def build_domain_graph(sig_df: pd.DataFrame) -> dict:
             "domain": domain,
             "n_outgoing": n_as_leader,
             "n_incoming": n_as_follower,
+            "n_markets": n_markets,
+            "influence_score": round(influence, 2),
+            "receptivity_score": round(receptivity, 2),
+            "net_influence": round(influence - receptivity, 2),
+        })
+
+    return {"nodes": nodes, "edges": graph_edges}
+
+
+def build_indicator_graph(sig_df: pd.DataFrame, min_pairs: int = 5) -> dict:
+    """Build indicator-level directed graph (more granular than domain-level).
+
+    Each node is a specific economic indicator (CPI, Fed Funds, Jobless Claims, GDP, etc.)
+    instead of a broad domain (inflation, monetary_policy, labor, macro).
+
+    Args:
+        sig_df: Significant Granger pairs with leader_ticker, follower_ticker columns.
+        min_pairs: Minimum number of significant pairs for an edge to appear.
+    """
+    # Classify each ticker to indicator
+    df = sig_df.copy()
+    df["leader_indicator"] = df["leader_ticker"].apply(_extract_indicator)
+    df["follower_indicator"] = df["follower_ticker"].apply(_extract_indicator)
+
+    # Drop "other" indicators
+    df = df[(df["leader_indicator"] != "other") & (df["follower_indicator"] != "other")]
+    # Drop self-indicator edges
+    df = df[df["leader_indicator"] != df["follower_indicator"]]
+
+    # Aggregate by (leader_indicator, follower_indicator)
+    edges = {}
+    for _, row in df.iterrows():
+        key = (row["leader_indicator"], row["follower_indicator"])
+        if key not in edges:
+            edges[key] = {"lags": [], "f_stats": [], "p_values": []}
+        edges[key]["lags"].append(row["best_lag"])
+        edges[key]["f_stats"].append(row["f_stat"])
+        edges[key]["p_values"].append(row["p_value"])
+
+    graph_edges = []
+    for (src, dst), data in edges.items():
+        if len(data["lags"]) < min_pairs:
+            continue
+        lags = np.array(data["lags"])
+        graph_edges.append({
+            "source": src,
+            "target": dst,
+            "n_pairs": len(data["lags"]),
+            "median_lag_hours": float(np.median(lags)),
+            "mean_lag_hours": float(np.mean(lags)),
+            "lag_std": float(np.std(lags)),
+            "mean_f_stat": float(np.mean(data["f_stats"])),
+            "min_p_value": float(np.min(data["p_values"])),
+        })
+
+    # Nodes
+    all_indicators = set()
+    for e in graph_edges:
+        all_indicators.add(e["source"])
+        all_indicators.add(e["target"])
+
+    nodes = []
+    for ind in sorted(all_indicators):
+        n_markets = len(df[
+            (df["leader_indicator"] == ind) | (df["follower_indicator"] == ind)
+        ]["leader_ticker"].unique())
+
+        influence = sum(
+            e["n_pairs"] / max(e["median_lag_hours"], 1)
+            for e in graph_edges if e["source"] == ind
+        )
+        receptivity = sum(
+            e["n_pairs"] / max(e["median_lag_hours"], 1)
+            for e in graph_edges if e["target"] == ind
+        )
+
+        nodes.append({
+            "domain": ind,
+            "parent_domain": INDICATOR_DOMAIN.get(ind, "other"),
+            "n_outgoing": sum(1 for e in graph_edges if e["source"] == ind),
+            "n_incoming": sum(1 for e in graph_edges if e["target"] == ind),
             "n_markets": n_markets,
             "influence_score": round(influence, 2),
             "receptivity_score": round(receptivity, 2),
@@ -195,47 +313,71 @@ def merge_event_propagation(
     return graph
 
 
-def visualize_network(graph: dict, output_dir: str = "data/exp1/plots"):
+def visualize_network(graph: dict, output_dir: str = "data/exp1/plots",
+                      indicator_graph: dict = None):
     """Visualize the propagation network as polished static PNG + interactive HTML."""
     os.makedirs(output_dir, exist_ok=True)
 
     edges = graph["edges"]
     nodes = graph["nodes"]
 
-    _plot_static_network(nodes, edges, output_dir)
+    _plot_static_network(nodes, edges, output_dir, suffix="", title_extra="Domain-Level")
     _plot_lag_distributions(edges, output_dir)
-    _build_interactive_html(nodes, edges, graph, output_dir)
+    _build_interactive_html(nodes, edges, graph, output_dir, suffix="")
+
+    # Indicator-level graph (more nodes)
+    if indicator_graph and indicator_graph["nodes"]:
+        _plot_static_network(
+            indicator_graph["nodes"], indicator_graph["edges"], output_dir,
+            suffix="_indicators", title_extra="Indicator-Level",
+        )
+        _build_interactive_html(
+            indicator_graph["nodes"], indicator_graph["edges"], graph, output_dir,
+            suffix="_indicators",
+        )
 
 
-def _plot_static_network(nodes: list, edges: list, output_dir: str):
+def _plot_static_network(nodes: list, edges: list, output_dir: str,
+                         suffix: str = "", title_extra: str = ""):
     """Polished static matplotlib network plot."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    from matplotlib.patches import FancyArrowPatch
     from matplotlib.lines import Line2D
     import matplotlib.patheffects as pe
 
-    # Diamond layout — more space between nodes
-    domain_positions = {
-        "inflation": (0.5, 1.0),
-        "monetary_policy": (1.0, 0.5),
-        "labor": (0.0, 0.5),
-        "macro": (0.5, 0.0),
+    # Color by parent domain (or domain name for domain-level graph)
+    DOMAIN_COLORS = {
+        "inflation": "#E74C3C", "CPI": "#E74C3C", "PCE": "#C0392B", "PPI": "#E67E22",
+        "monetary_policy": "#3498DB", "Fed Funds": "#3498DB", "Fed Funds Rate": "#2980B9",
+        "labor": "#2ECC71", "Jobless Claims": "#2ECC71", "Nonfarm Payrolls": "#27AE60", "Unemployment": "#1ABC9C",
+        "macro": "#F39C12", "GDP": "#F39C12", "Retail Sales": "#D4AC0D", "ISM": "#E67E22", "Recession": "#D35400",
+        "fiscal": "#9B59B6", "Debt Ceiling": "#9B59B6", "Shutdown": "#8E44AD",
     }
+
+    # Dynamic layout based on node count
+    n_nodes = len(nodes)
+    domain_names = [n["domain"] for n in nodes]
+
+    # Diamond layout for the 4 standard domains; circular for everything else
+    standard_positions = {
+        "inflation": (0.5, 1.0), "monetary_policy": (1.0, 0.5),
+        "labor": (0.0, 0.5), "macro": (0.5, 0.0),
+    }
+    if n_nodes <= 4 and all(d in standard_positions for d in domain_names):
+        domain_positions = {d: standard_positions[d] for d in domain_names}
+    else:
+        import math
+        domain_positions = {}
+        for i, name in enumerate(sorted(domain_names)):
+            angle = 2 * math.pi * i / n_nodes - math.pi / 2
+            domain_positions[name] = (0.5 + 0.42 * math.cos(angle), 0.5 + 0.42 * math.sin(angle))
 
     DOMAIN_LABELS = {
         "inflation": "Inflation\n(CPI, PCE, PPI)",
         "monetary_policy": "Monetary Policy\n(Fed Funds, FOMC)",
         "labor": "Labor\n(NFP, Jobless Claims)",
         "macro": "Macro\n(GDP, Retail Sales, ISM)",
-    }
-
-    DOMAIN_COLORS = {
-        "inflation": "#E74C3C",
-        "monetary_policy": "#3498DB",
-        "labor": "#2ECC71",
-        "macro": "#F39C12",
     }
 
     fig, ax = plt.subplots(figsize=(14, 11))
@@ -255,23 +397,26 @@ def _plot_static_network(nodes: list, edges: list, output_dir: str):
         # Offset for bidirectional edges
         dx, dy = x1 - x0, y1 - y0
         length = (dx**2 + dy**2) ** 0.5
+        if length < 0.001:
+            continue
         offset = 0.025
         perp_x, perp_y = -dy / length * offset, dx / length * offset
 
         # Arrow width proportional to n_pairs
-        width = 1.0 + edge["n_pairs"] / 40
+        max_pairs = max(e["n_pairs"] for e in edges)
+        width = 1.0 + edge["n_pairs"] / max(max_pairs / 5, 1)
         lag = edge["median_lag_hours"]
 
         # Color by speed
         if lag <= 4:
-            color = "#2980B9"  # fast blue
+            color = "#2980B9"
         elif lag <= 7:
-            color = "#E67E22"  # medium orange
+            color = "#E67E22"
         else:
-            color = "#C0392B"  # slow red
+            color = "#C0392B"
 
-        # Shorten arrows so they don't overlap nodes
-        shrink = 0.08
+        # Shorten arrows proportional to layout
+        shrink = 0.06 if n_nodes <= 4 else 0.08
         ax0 = x0 + perp_x + dx * shrink
         ay0 = y0 + perp_y + dy * shrink
         ax1 = x1 + perp_x - dx * shrink
@@ -285,18 +430,19 @@ def _plot_static_network(nodes: list, edges: list, output_dir: str):
                 arrowstyle="->,head_length=0.4,head_width=0.25",
                 color=color,
                 lw=width,
-                connectionstyle="arc3,rad=0.12",
+                connectionstyle="arc3,rad=0.15",
                 alpha=0.85,
             ),
         )
 
-        # Edge label — positioned along the curve
+        # Edge label
         mx = (x0 + x1) / 2 + perp_x * 4.5
         my = (y0 + y1) / 2 + perp_y * 4.5
         label = f"{lag:.0f}h  (n={edge['n_pairs']})"
+        fontsize = 9 if n_nodes <= 5 else 7
         ax.text(
             mx, my, label,
-            fontsize=9, ha="center", va="center", fontweight="bold",
+            fontsize=fontsize, ha="center", va="center", fontweight="bold",
             color=color,
             bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor=color, alpha=0.9, linewidth=0.8),
         )
@@ -307,26 +453,28 @@ def _plot_static_network(nodes: list, edges: list, output_dir: str):
         if domain not in domain_positions:
             continue
         x, y = domain_positions[domain]
-        color = DOMAIN_COLORS.get(domain, "#95A5A6")
-        size = 1800 + node["n_markets"] * 8
+        color = DOMAIN_COLORS.get(domain, DOMAIN_COLORS.get(node.get("parent_domain", ""), "#95A5A6"))
+        size = 1200 + node["n_markets"] * 8 if n_nodes <= 5 else 800 + node["n_markets"] * 5
 
         ax.scatter(x, y, s=size, c=color, edgecolors="white", zorder=5, linewidths=3, alpha=0.9)
 
-        # Domain name
+        # Node label
         label = DOMAIN_LABELS.get(domain, domain)
+        node_fontsize = 11 if n_nodes <= 5 else 9
         txt = ax.text(
             x, y + 0.002, label,
-            ha="center", va="center", fontsize=11, fontweight="bold", color="white", zorder=6,
+            ha="center", va="center", fontsize=node_fontsize, fontweight="bold", color="white", zorder=6,
         )
         txt.set_path_effects([pe.withStroke(linewidth=2, foreground="black")])
 
-        # Market count below
+        # Sub-label
         net = node.get("net_influence", 0)
         arrow = "+" if net > 0 else ""
-        sub = f"{node['n_markets']} mkts | net influence: {arrow}{net:.1f}"
-        sub_txt = ax.text(
-            x, y - 0.085, sub,
-            ha="center", va="center", fontsize=8, color="#555",
+        sub = f"{node['n_markets']} mkts | net: {arrow}{net:.1f}"
+        sub_fontsize = 8 if n_nodes <= 5 else 7
+        ax.text(
+            x, y - 0.07, sub,
+            ha="center", va="center", fontsize=sub_fontsize, color="#555",
             bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.8, edgecolor="#CCC"),
             zorder=6,
         )
@@ -337,22 +485,24 @@ def _plot_static_network(nodes: list, edges: list, output_dir: str):
         Line2D([0], [0], color="#E67E22", lw=3, label="Medium (5-7h)"),
         Line2D([0], [0], color="#C0392B", lw=3, label="Slow (> 7h)"),
     ]
-    leg = ax.legend(
+    ax.legend(
         handles=legend_elements, loc="lower right", title="Propagation Speed",
         fontsize=10, title_fontsize=11, framealpha=0.95, edgecolor="#CCC",
     )
 
-    ax.set_xlim(-0.2, 1.2)
-    ax.set_ylim(-0.2, 1.2)
+    ax.set_xlim(-0.15, 1.15)
+    ax.set_ylim(-0.15, 1.15)
+    title_label = title_extra + " " if title_extra else ""
     ax.set_title(
-        "Information Propagation Network\nKalshi Economics Sub-Domains  |  Hourly Granger Causality (ADF-stationary, Bonferroni p<0.01)",
+        f"Information Propagation Network ({title_label}View)\n"
+        "Kalshi Economics  |  Hourly Granger Causality (ADF-stationary, Bonferroni p<0.01)",
         fontsize=14, fontweight="bold", pad=20,
     )
     ax.set_aspect("equal")
     ax.axis("off")
 
     plt.tight_layout()
-    path = os.path.join(output_dir, "propagation_network.png")
+    path = os.path.join(output_dir, f"propagation_network{suffix}.png")
     plt.savefig(path, dpi=200, bbox_inches="tight", facecolor=fig.get_facecolor())
     plt.close()
     print(f"  Saved {path}")
@@ -395,28 +545,32 @@ def _plot_lag_distributions(edges: list, output_dir: str):
     print(f"  Saved {path}")
 
 
-def _build_interactive_html(nodes: list, edges: list, graph: dict, output_dir: str):
+def _build_interactive_html(nodes: list, edges: list, graph: dict, output_dir: str,
+                            suffix: str = ""):
     """Build a self-contained interactive HTML network visualization using D3.js."""
 
     # Prepare data for the template
     node_data = []
     DOMAIN_COLORS = {
-        "inflation": "#E74C3C",
-        "monetary_policy": "#3498DB",
-        "labor": "#2ECC71",
-        "macro": "#F39C12",
+        "inflation": "#E74C3C", "CPI": "#E74C3C", "PCE": "#C0392B", "PPI": "#E67E22",
+        "monetary_policy": "#3498DB", "Fed Funds": "#3498DB", "Fed Funds Rate": "#2980B9",
+        "labor": "#2ECC71", "Jobless Claims": "#2ECC71", "Nonfarm Payrolls": "#27AE60", "Unemployment": "#1ABC9C",
+        "macro": "#F39C12", "GDP": "#F39C12", "Retail Sales": "#D4AC0D", "ISM": "#E67E22", "Recession": "#D35400",
+        "fiscal": "#9B59B6", "Debt Ceiling": "#9B59B6", "Shutdown": "#8E44AD",
     }
 
     for node in nodes:
         d = node["domain"]
+        parent = node.get("parent_domain", d)
         node_data.append({
             "id": d,
             "label": d.replace("_", " ").title(),
+            "parent": parent,
             "markets": node["n_markets"],
             "influence": node.get("influence_score", 0),
             "receptivity": node.get("receptivity_score", 0),
             "net": node.get("net_influence", 0),
-            "color": DOMAIN_COLORS.get(d, "#95A5A6"),
+            "color": DOMAIN_COLORS.get(d, DOMAIN_COLORS.get(parent, "#95A5A6")),
         })
 
     edge_data = []
@@ -538,15 +692,25 @@ edges.sort((a,b) => b.n_pairs - a.n_pairs).forEach(e => {{
   cardsEl.appendChild(card);
 }});
 
-// Position nodes in diamond layout
+// Position nodes: diamond for 4, circular for more
 const cx = width / 2, cy = height / 2, spread = Math.min(width, height) * 0.32;
-const positions = {{
+const fixedPositions = {{
   'inflation':       {{ x: cx,          y: cy - spread }},
   'monetary_policy': {{ x: cx + spread, y: cy }},
   'labor':           {{ x: cx - spread, y: cy }},
   'macro':           {{ x: cx,          y: cy + spread }},
 }};
-nodes.forEach(n => {{ n.x = positions[n.id]?.x || cx; n.y = positions[n.id]?.y || cy; }});
+if (nodes.length <= 4) {{
+  nodes.forEach(n => {{ n.x = fixedPositions[n.id]?.x || cx; n.y = fixedPositions[n.id]?.y || cy; }});
+}} else {{
+  // Circular layout
+  const sorted = [...nodes].sort((a,b) => a.id.localeCompare(b.id));
+  sorted.forEach((n, i) => {{
+    const angle = (2 * Math.PI * i / nodes.length) - Math.PI / 2;
+    n.x = cx + spread * 1.1 * Math.cos(angle);
+    n.y = cy + spread * 1.1 * Math.sin(angle);
+  }});
+}}
 
 // Arrowhead markers
 const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
@@ -731,7 +895,7 @@ updatePositions();
 </body>
 </html>"""
 
-    path = os.path.join(output_dir, "propagation_network.html")
+    path = os.path.join(output_dir, f"propagation_network{suffix}.html")
     with open(path, "w") as f:
         f.write(html)
     print(f"  Saved {path}")
@@ -772,6 +936,14 @@ def run_propagation_analysis():
               f"{a['reverse']}: {a['reverse_median_lag']:.0f}h (n={a['reverse_n']}) → "
               f"faster: {a['faster_direction']} ({sig_str}){star}")
 
+    # Indicator-level graph (more nodes)
+    ind_graph = build_indicator_graph(sig_df, min_pairs=3)
+    print(f"\n  Indicator-level network: {len(ind_graph['nodes'])} nodes, {len(ind_graph['edges'])} directed edges")
+    for edge in sorted(ind_graph["edges"], key=lambda e: -e["n_pairs"]):
+        print(f"    {edge['source']} -> {edge['target']}: "
+              f"median={edge['median_lag_hours']:.0f}h, n={edge['n_pairs']}, "
+              f"F={edge['mean_f_stat']:.1f}")
+
     # Merge event study data
     graph = merge_event_propagation(graph)
 
@@ -783,12 +955,12 @@ def run_propagation_analysis():
             print(f"    {etype}: mean lead-lag = {info['mean_leadlag_days']:.1f} days (n={info['n_events']})")
 
     # Save
-    output = {**graph, "lag_distributions": lag_info}
+    output = {**graph, "lag_distributions": lag_info, "indicator_graph": ind_graph}
     with open(os.path.join(DATA_DIR, "propagation_network.json"), "w") as f:
         json.dump(output, f, indent=2, default=str)
     print(f"\n  Saved propagation_network.json")
 
     # Visualize
-    visualize_network(graph)
+    visualize_network(graph, indicator_graph=ind_graph)
 
     return output
