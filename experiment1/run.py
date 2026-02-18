@@ -332,11 +332,9 @@ def main():
         print("\nNo significant pairs to filter.")
         llm_filtered = significant.copy()
     else:
-        # Cap LLM filtering to top 50 pairs by p-value to avoid long API waits
-        # (781 pairs × 0.5s rate limit = ~7 min; 50 pairs ≈ 25s)
-        top_significant = significant.nsmallest(50, "p_value") if len(significant) > 50 else significant
-        print(f"\n  LLM filtering top {len(top_significant)} of {len(significant)} significant pairs")
-        llm_filtered = phase3_llm_filtering(top_significant, market_df)
+        # Assess all significant pairs (caching means only uncached pairs hit the API)
+        print(f"\n  LLM filtering all {len(significant)} significant pairs")
+        llm_filtered = phase3_llm_filtering(significant, market_df)
 
     # Phase 4: Trading Simulation
     if args.skip_trading:
