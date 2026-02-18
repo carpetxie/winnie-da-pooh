@@ -2,7 +2,7 @@
 experiment5/embeddings.py
 
 Generate sentence embeddings for market descriptions.
-Uses sentence-transformers with all-MiniLM-L6-v2 (384-dim, CPU-friendly).
+Uses sentence-transformers with BAAI/bge-base-en-v1.5 (768-dim, strong on financial text).
 """
 
 import os
@@ -12,7 +12,7 @@ import pandas as pd
 from tqdm import tqdm
 
 DATA_DIR = "data/exp5"
-DEFAULT_MODEL = "all-MiniLM-L6-v2"
+DEFAULT_MODEL = "BAAI/bge-base-en-v1.5"
 
 
 def load_or_generate_embeddings(

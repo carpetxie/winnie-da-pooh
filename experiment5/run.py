@@ -44,7 +44,7 @@ def phase1_data_collection(quick_test: bool = False, max_markets: int = None):
     return df
 
 
-def phase2_embeddings(df: pd.DataFrame):
+def phase2_embeddings(df: pd.DataFrame, model_name: str = None):
     """Phase 2: Generate sentence embeddings."""
     print("\n" + "=" * 70)
     print("PHASE 2: EMBEDDING GENERATION")
@@ -53,7 +53,10 @@ def phase2_embeddings(df: pd.DataFrame):
     from experiment5.embeddings import load_or_generate_embeddings
 
     texts = df["text_for_embedding"].tolist()
-    embeddings = load_or_generate_embeddings(texts)
+    kwargs = {}
+    if model_name:
+        kwargs["model_name"] = model_name
+    embeddings = load_or_generate_embeddings(texts, **kwargs)
     print(f"Embeddings shape: {embeddings.shape}")
     return embeddings
 
@@ -283,6 +286,7 @@ def main():
     parser.add_argument("--skip-fetch", action="store_true", help="Use cached market data")
     parser.add_argument("--skip-embed", action="store_true", help="Use cached embeddings")
     parser.add_argument("--skip-cross-domain", action="store_true", help="Skip LLM explanations")
+    parser.add_argument("--embedding-model", type=str, default=None, help="Override embedding model name")
     args = parser.parse_args()
 
     os.makedirs(DATA_DIR, exist_ok=True)
@@ -311,7 +315,7 @@ def main():
         print(f"\nLoading cached embeddings from {embeddings_path}")
         embeddings = np.load(embeddings_path)
     else:
-        embeddings = phase2_embeddings(df)
+        embeddings = phase2_embeddings(df, model_name=args.embedding_model)
 
     # Phase 3: Clustering
     coords, labels, cluster_stats = phase3_clustering(df, embeddings)
