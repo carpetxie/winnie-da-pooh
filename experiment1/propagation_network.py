@@ -10,6 +10,7 @@ import os
 import json
 import numpy as np
 import pandas as pd
+from scipy import stats as scipy_stats
 
 DATA_DIR = "data/exp1"
 
@@ -60,11 +61,27 @@ def build_domain_graph(sig_df: pd.DataFrame) -> dict:
         n_markets = len(sig_df[
             (sig_df["leader_domain"] == domain) | (sig_df["follower_domain"] == domain)
         ]["leader_ticker"].unique())
+
+        # Influence score: sum of (n_pairs / median_lag) for outgoing edges
+        # Higher = more pairs that propagate faster
+        influence = sum(
+            e["n_pairs"] / max(e["median_lag_hours"], 1)
+            for e in graph_edges if e["source"] == domain
+        )
+        # Receptivity score: same for incoming
+        receptivity = sum(
+            e["n_pairs"] / max(e["median_lag_hours"], 1)
+            for e in graph_edges if e["target"] == domain
+        )
+
         nodes.append({
             "domain": domain,
             "n_outgoing": n_as_leader,
             "n_incoming": n_as_follower,
             "n_markets": n_markets,
+            "influence_score": round(influence, 2),
+            "receptivity_score": round(receptivity, 2),
+            "net_influence": round(influence - receptivity, 2),
         })
 
     return {"nodes": nodes, "edges": graph_edges}
@@ -102,6 +119,20 @@ def compute_lag_distributions(sig_df: pd.DataFrame) -> dict:
         if reverse in results:
             fwd = results[key]
             rev = results[reverse]
+
+            # Mann-Whitney U test: is the lag distribution significantly different?
+            fwd_lags = sig_df[
+                (sig_df["leader_domain"] == src) & (sig_df["follower_domain"] == dst)
+            ]["best_lag"].values
+            rev_lags = sig_df[
+                (sig_df["leader_domain"] == dst) & (sig_df["follower_domain"] == src)
+            ]["best_lag"].values
+
+            if len(fwd_lags) >= 5 and len(rev_lags) >= 5:
+                u_stat, u_p = scipy_stats.mannwhitneyu(fwd_lags, rev_lags, alternative="two-sided")
+            else:
+                u_stat, u_p = np.nan, np.nan
+
             asymmetry.append({
                 "forward": key,
                 "reverse": reverse,
@@ -111,6 +142,9 @@ def compute_lag_distributions(sig_df: pd.DataFrame) -> dict:
                 "reverse_n": rev["n_pairs"],
                 "faster_direction": key if fwd["median"] < rev["median"] else reverse,
                 "lag_ratio": fwd["median"] / max(rev["median"], 0.1),
+                "mann_whitney_U": float(u_stat) if np.isfinite(u_stat) else None,
+                "mann_whitney_p": float(u_p) if np.isfinite(u_p) else None,
+                "asymmetry_significant": bool(u_p < 0.05) if np.isfinite(u_p) else False,
             })
 
     return {"distributions": results, "asymmetry": asymmetry}
@@ -295,13 +329,22 @@ def run_propagation_analysis():
               f"median={edge['median_lag_hours']:.0f}h, n={edge['n_pairs']}, "
               f"F={edge['mean_f_stat']:.1f}")
 
+    # Node centrality
+    print(f"\n  Domain influence scores (higher = faster propagation to more markets):")
+    for node in sorted(graph["nodes"], key=lambda n: -n["influence_score"]):
+        print(f"    {node['domain']}: influence={node['influence_score']:.1f}, "
+              f"receptivity={node['receptivity_score']:.1f}, "
+              f"net={node['net_influence']:+.1f}")
+
     # Lag distributions + asymmetry
     lag_info = compute_lag_distributions(sig_df)
-    print(f"\n  Asymmetry analysis:")
+    print(f"\n  Asymmetry analysis (Mann-Whitney U test for directional difference):")
     for a in lag_info["asymmetry"]:
+        sig_str = f"p={a['mann_whitney_p']:.4f}" if a["mann_whitney_p"] is not None else "N/A"
+        star = " *" if a.get("asymmetry_significant") else ""
         print(f"    {a['forward']}: {a['forward_median_lag']:.0f}h (n={a['forward_n']}) vs "
               f"{a['reverse']}: {a['reverse_median_lag']:.0f}h (n={a['reverse_n']}) → "
-              f"faster: {a['faster_direction']}")
+              f"faster: {a['faster_direction']} ({sig_str}){star}")
 
     # Merge event study data
     graph = merge_event_propagation(graph)
