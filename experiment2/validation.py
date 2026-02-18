@@ -331,6 +331,144 @@ def incremental_r2_test(
     }
 
 
+def detect_shock_regime(
+    kui: pd.Series,
+    window: int = 20,
+    threshold_std: float = 2.0,
+) -> pd.Series:
+    """Detect shock regimes based on KUI z-score exceeding threshold.
+
+    Computes rolling z-score of KUI over `window` days.
+    Returns boolean Series: True = shock regime day.
+
+    Args:
+        kui: KUI daily time series
+        window: Rolling window in days for baseline stats
+        threshold_std: Z-score threshold for shock classification
+    """
+    rolling_mean = kui.rolling(window, min_periods=max(window // 2, 5)).mean()
+    rolling_std = kui.rolling(window, min_periods=max(window // 2, 5)).std()
+
+    # Avoid division by zero
+    rolling_std = rolling_std.replace(0, np.nan)
+
+    z_score = (kui - rolling_mean) / rolling_std
+    shock = z_score.abs() > threshold_std
+
+    return shock.fillna(False).astype(bool)
+
+
+def regime_conditional_granger(
+    x: pd.Series,
+    y: pd.Series,
+    regime: pd.Series,
+    max_lag: int = 5,
+) -> dict:
+    """Run Granger causality separately in shock and normal regimes.
+
+    Splits x and y into contiguous blocks where regime is True/False.
+    Runs granger_causality_test() on each regime separately.
+
+    Returns dict with shock and normal Granger test results.
+    """
+    # Align all three series
+    try:
+        aligned = align_series(
+            x.rename("x"), y.rename("y"), regime.rename("regime").astype(float),
+            min_overlap=max_lag + 10,
+        )
+    except ValueError as e:
+        return {
+            "shock_result": {"error": str(e)},
+            "normal_result": {"error": str(e)},
+            "n_shock_days": 0,
+            "n_normal_days": 0,
+        }
+
+    shock_mask = aligned["regime"] > 0.5
+
+    # Shock regime
+    shock_x = aligned.loc[shock_mask, "x"]
+    shock_y = aligned.loc[shock_mask, "y"]
+    n_shock = len(shock_x)
+
+    if n_shock >= max_lag + 10:
+        shock_result = granger_causality_test(shock_x, shock_y, max_lag=max_lag)
+    else:
+        shock_result = {"error": f"Insufficient shock observations ({n_shock})", "n_obs": n_shock}
+
+    # Normal regime
+    normal_x = aligned.loc[~shock_mask, "x"]
+    normal_y = aligned.loc[~shock_mask, "y"]
+    n_normal = len(normal_x)
+
+    if n_normal >= max_lag + 10:
+        normal_result = granger_causality_test(normal_x, normal_y, max_lag=max_lag)
+    else:
+        normal_result = {"error": f"Insufficient normal observations ({n_normal})", "n_obs": n_normal}
+
+    return {
+        "shock_result": shock_result,
+        "normal_result": normal_result,
+        "n_shock_days": n_shock,
+        "n_normal_days": n_normal,
+    }
+
+
+def regime_conditional_incremental_r2(
+    realized_vol: pd.Series,
+    vix: pd.Series,
+    epu: pd.Series,
+    kui: pd.Series,
+    regime: pd.Series,
+    forward_days: int = 5,
+) -> dict:
+    """Run incremental R² test separately for shock and normal regimes.
+
+    Returns dict with separate R² values for each regime.
+    """
+    # Align all series
+    try:
+        aligned = align_series(
+            realized_vol.rename("realized_vol"),
+            vix.rename("VIX"),
+            epu.rename("EPU"),
+            kui.rename("KUI"),
+            regime.rename("regime").astype(float),
+            min_overlap=forward_days + 10,
+        )
+    except ValueError as e:
+        return {"error": str(e)}
+
+    shock_mask = aligned["regime"] > 0.5
+
+    results = {}
+    for label, mask in [("shock", shock_mask), ("normal", ~shock_mask)]:
+        subset = aligned[mask]
+        if len(subset) < forward_days + 10:
+            results[f"{label}_r2_base"] = np.nan
+            results[f"{label}_r2_full"] = np.nan
+            results[f"{label}_delta_r2"] = np.nan
+            results[f"{label}_p_value"] = np.nan
+            results[f"{label}_n_obs"] = len(subset)
+            continue
+
+        r2 = incremental_r2_test(
+            subset["realized_vol"],
+            subset["VIX"],
+            subset["EPU"],
+            subset["KUI"],
+            forward_days=forward_days,
+        )
+        results[f"{label}_r2_base"] = r2.get("r2_base")
+        results[f"{label}_r2_full"] = r2.get("r2_full")
+        results[f"{label}_delta_r2"] = r2.get("delta_r2")
+        results[f"{label}_p_value"] = r2.get("p_value")
+        results[f"{label}_n_obs"] = r2.get("n_obs", len(subset))
+
+    return results
+
+
 def compute_realized_volatility(
     sp500_prices: pd.Series, window: int = 5
 ) -> pd.Series:

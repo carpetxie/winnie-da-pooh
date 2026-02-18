@@ -116,6 +116,41 @@ def phase3_validation(
     with open(os.path.join(DATA_DIR, "incremental_r2.json"), "w") as f:
         json.dump(r2_result, f, indent=2, default=str)
 
+    # Regime-conditional analysis
+    print("\n--- Regime-Conditional Analysis ---")
+    from experiment2.validation import (
+        detect_shock_regime,
+        regime_conditional_granger,
+        regime_conditional_incremental_r2,
+    )
+
+    regime = detect_shock_regime(kui)
+    n_shock = int(regime.sum())
+    n_normal = int((~regime).sum())
+    print(f"  Shock days: {n_shock}, Normal days: {n_normal}")
+
+    regime_granger = regime_conditional_granger(kui, epu, regime, max_lag=5)
+    print(f"\n  Granger (shock regime): {regime_granger['shock_result']}")
+    print(f"  Granger (normal regime): {regime_granger['normal_result']}")
+
+    regime_r2 = {}
+    if not sp500.empty:
+        from experiment2.validation import compute_realized_volatility as crv
+        realized_vol_r = crv(sp500)
+        regime_r2 = regime_conditional_incremental_r2(
+            realized_vol_r, vix, epu, kui, regime
+        )
+        print(f"\n  Regime-conditional R²: {regime_r2}")
+
+    regime_results = {
+        "n_shock_days": n_shock,
+        "n_normal_days": n_normal,
+        "granger": regime_granger,
+        "incremental_r2": regime_r2,
+    }
+    with open(os.path.join(DATA_DIR, "regime_conditional_results.json"), "w") as f:
+        json.dump(regime_results, f, indent=2, default=str)
+
     return corr_results, granger_results, r2_result
 
 
@@ -133,6 +168,7 @@ def phase4_event_study(
         get_economic_events,
         run_event_study,
         summarize_event_study,
+        compute_shock_propagation,
     )
 
     events = get_economic_events()
@@ -156,6 +192,22 @@ def phase4_event_study(
     else:
         print("  No event study results (insufficient data overlap)")
         summary = {}
+
+    # Shock propagation analysis
+    print("\n--- Shock Propagation Analysis ---")
+    propagation = compute_shock_propagation(kui_data["domain_indices"], events)
+    if not propagation.empty:
+        propagation.to_csv(os.path.join(DATA_DIR, "shock_propagation.csv"), index=False)
+        print(f"  {len(propagation)} cross-domain propagation observations")
+
+        # Summary by domain pair
+        if len(propagation) > 0:
+            avg_delay = propagation.groupby(["primary_domain", "secondary_domain"])["propagation_delay_days"].mean()
+            print("\n  Average propagation delay (days):")
+            for (primary, secondary), delay in avg_delay.items():
+                print(f"    {primary} -> {secondary}: {delay:.1f} days")
+    else:
+        print("  No shock propagation data (insufficient surprise events or domains)")
 
     return event_results, summary
 

@@ -258,6 +258,71 @@ def run_event_study(
     return pd.DataFrame(results)
 
 
+def compute_shock_propagation(
+    kui_domain_indices: dict,
+    events: pd.DataFrame,
+    window_days: int = 7,
+) -> pd.DataFrame:
+    """Measure how uncertainty propagates across domains after shock events.
+
+    For each surprise event:
+    1. Identify the primary domain
+    2. Measure when OTHER domains' KUI sub-indices spike
+    3. Compute propagation delay (days from primary to secondary)
+
+    Returns DataFrame with propagation delay per event per secondary domain.
+    """
+    surprise_events = events[events["surprise"] == True]
+    results = []
+
+    for _, event in surprise_events.iterrows():
+        event_date = event["date"]
+        primary_domain = event["relevant_domain"]
+
+        primary_series = kui_domain_indices.get(primary_domain)
+        if primary_series is None or primary_series.dropna().empty:
+            continue
+
+        primary_window = extract_event_window(primary_series, event_date, window_days)
+        primary_move = detect_first_significant_move(primary_window, threshold_std=1.5)
+
+        for domain, series in kui_domain_indices.items():
+            if domain == primary_domain:
+                continue
+            if series is None or series.dropna().empty:
+                continue
+
+            secondary_window = extract_event_window(series, event_date, window_days)
+            if secondary_window.empty:
+                continue
+
+            secondary_move = detect_first_significant_move(secondary_window, threshold_std=1.5)
+
+            if primary_move is not None and secondary_move is not None:
+                propagation_delay = secondary_move - primary_move
+
+                # Magnitude of secondary spike (max abs deviation from pre-event mean)
+                pre_event = secondary_window[secondary_window.index <= -1]
+                if len(pre_event) >= 2:
+                    baseline = pre_event.mean()
+                    spike_magnitude = (secondary_window.max() - baseline) / max(pre_event.std(), 0.01)
+                else:
+                    spike_magnitude = np.nan
+
+                results.append({
+                    "event_date": event_date.strftime("%Y-%m-%d"),
+                    "event_type": event["type"],
+                    "primary_domain": primary_domain,
+                    "secondary_domain": domain,
+                    "primary_first_move_day": primary_move,
+                    "secondary_first_move_day": secondary_move,
+                    "propagation_delay_days": propagation_delay,
+                    "secondary_spike_magnitude": round(spike_magnitude, 2) if not np.isnan(spike_magnitude) else np.nan,
+                })
+
+    return pd.DataFrame(results)
+
+
 def summarize_event_study(results: pd.DataFrame) -> dict:
     """Summarize event study results.
 
