@@ -317,3 +317,102 @@ def plot_calibration_curves(df: pd.DataFrame, output_dir: str = "data/exp3/plots
         plt.savefig(os.path.join(output_dir, "calibration_by_domain.png"), dpi=150)
         plt.close()
         print(f"  Saved {output_dir}/calibration_by_domain.png")
+
+
+def investigate_fiscal_anomaly(df: pd.DataFrame) -> dict:
+    """Deep-dive into the fiscal policy calibration anomaly.
+
+    Fiscal policy shows Brier 0.767 (low uncertainty) vs 0.210 (high uncertainty).
+    This function investigates whether the effect is real or a small-n artifact.
+
+    Returns dict with sample sizes, per-market breakdown, sub-type analysis,
+    and bootstrap CI.
+    """
+    fiscal = df[df["domain"] == "fiscal_policy"].copy()
+    result = {
+        "n_fiscal_total": len(fiscal),
+        "domains_in_data": sorted(df["domain"].unique().tolist()),
+    }
+
+    if len(fiscal) < 5:
+        result["conclusion"] = "insufficient_data"
+        return result
+
+    # Split by regime
+    low = fiscal[fiscal["regime_binary"] == "low"]
+    high = fiscal[fiscal["regime_binary"] == "high"]
+    result["n_low"] = len(low)
+    result["n_high"] = len(high)
+
+    if len(low) >= 2:
+        result["brier_low"] = compute_brier(low["market_prob"].values, low["result_binary"].values)
+    if len(high) >= 2:
+        result["brier_high"] = compute_brier(high["market_prob"].values, high["result_binary"].values)
+
+    # Per-market Brier scores to detect outliers
+    fiscal["per_market_brier"] = (fiscal["market_prob"] - fiscal["result_binary"]) ** 2
+    result["per_market_brier_stats"] = {
+        "mean": float(fiscal["per_market_brier"].mean()),
+        "median": float(fiscal["per_market_brier"].median()),
+        "std": float(fiscal["per_market_brier"].std()),
+        "max": float(fiscal["per_market_brier"].max()),
+        "min": float(fiscal["per_market_brier"].min()),
+    }
+
+    # Check which series_tickers/sub-types drive the effect
+    if "series_ticker" in fiscal.columns:
+        sub_types = fiscal.groupby("series_ticker").agg(
+            n=("result_binary", "count"),
+            mean_brier=("per_market_brier", "mean"),
+            pct_yes=("result_binary", "mean"),
+            mean_prob=("market_prob", "mean"),
+        ).sort_values("n", ascending=False)
+        result["sub_types"] = sub_types.to_dict(orient="index")
+    elif "ticker" in fiscal.columns:
+        # Extract series prefix from ticker
+        fiscal["series_prefix"] = fiscal["ticker"].str.extract(r"^([A-Z]+)")
+        sub_types = fiscal.groupby("series_prefix").agg(
+            n=("result_binary", "count"),
+            mean_brier=("per_market_brier", "mean"),
+            pct_yes=("result_binary", "mean"),
+            mean_prob=("market_prob", "mean"),
+        ).sort_values("n", ascending=False)
+        result["sub_types"] = sub_types.to_dict(orient="index")
+
+    # Bootstrap CI for fiscal-specific Brier difference
+    if len(low) >= 5 and len(high) >= 5:
+        n_boot = 1000
+        diffs = []
+        rng = np.random.default_rng(42)
+        for _ in range(n_boot):
+            h_idx = rng.choice(len(high), len(high), replace=True)
+            l_idx = rng.choice(len(low), len(low), replace=True)
+            h_brier = compute_brier(
+                high["market_prob"].values[h_idx], high["result_binary"].values[h_idx]
+            )
+            l_brier = compute_brier(
+                low["market_prob"].values[l_idx], low["result_binary"].values[l_idx]
+            )
+            diffs.append(h_brier - l_brier)
+
+        diffs = np.array(diffs)
+        result["bootstrap"] = {
+            "mean_diff": float(diffs.mean()),
+            "ci_lower": float(np.percentile(diffs, 2.5)),
+            "ci_upper": float(np.percentile(diffs, 97.5)),
+            "significant": bool(np.percentile(diffs, 2.5) > 0 or np.percentile(diffs, 97.5) < 0),
+        }
+    else:
+        result["bootstrap"] = {"note": "insufficient_samples_for_bootstrap"}
+
+    # Assess power
+    underpowered = result["n_low"] < 15 or result["n_high"] < 15
+    result["underpowered"] = underpowered
+    if underpowered:
+        result["conclusion"] = "underpowered"
+    elif result.get("bootstrap", {}).get("significant"):
+        result["conclusion"] = "significant_difference"
+    else:
+        result["conclusion"] = "not_significant"
+
+    return result

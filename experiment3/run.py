@@ -29,6 +29,7 @@ def main():
         assign_uncertainty_regime,
         compute_regime_calibration,
         plot_calibration_curves,
+        investigate_fiscal_anomaly,
     )
 
     # Load data
@@ -77,9 +78,27 @@ def main():
         print(f"    Significant: {t['significant']}")
         print(f"    Direction: {t['direction']}")
 
+    # Fiscal anomaly investigation
+    print("\n  --- Fiscal Policy Anomaly Investigation ---")
+    fiscal_results = investigate_fiscal_anomaly(markets)
+    results["fiscal_anomaly"] = fiscal_results
+    print(f"  Fiscal markets total: {fiscal_results.get('n_fiscal_total', 0)}")
+    print(f"  Low uncertainty: n={fiscal_results.get('n_low', 0)}, Brier={fiscal_results.get('brier_low', 'N/A')}")
+    print(f"  High uncertainty: n={fiscal_results.get('n_high', 0)}, Brier={fiscal_results.get('brier_high', 'N/A')}")
+    print(f"  Underpowered: {fiscal_results.get('underpowered', 'N/A')}")
+    print(f"  Conclusion: {fiscal_results.get('conclusion', 'N/A')}")
+    if "sub_types" in fiscal_results:
+        print(f"  Sub-types: {list(fiscal_results['sub_types'].keys())}")
+    if "bootstrap" in fiscal_results and "mean_diff" in fiscal_results["bootstrap"]:
+        b = fiscal_results["bootstrap"]
+        print(f"  Bootstrap diff: {b['mean_diff']:.4f} [{b['ci_lower']:.4f}, {b['ci_upper']:.4f}]")
+
     # Save results
     with open(os.path.join(DATA_DIR, "calibration_results.json"), "w") as f:
         json.dump(results, f, indent=2, default=str)
+
+    with open(os.path.join(DATA_DIR, "fiscal_anomaly_analysis.json"), "w") as f:
+        json.dump(fiscal_results, f, indent=2, default=str)
 
     # Plots
     print("\n" + "=" * 70)
