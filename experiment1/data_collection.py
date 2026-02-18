@@ -14,62 +14,123 @@ from datetime import datetime, timedelta, timezone
 from tqdm import tqdm
 
 from kalshi.client import KalshiClient
-from experiment5.data_collection import extract_domain, CACHE_PATH as EXP5_CACHE
+from experiment5.data_collection import CACHE_PATH as EXP5_CACHE
+
+# Fine-grained domain map for lead-lag analysis.
+# Splits "economics" into sub-domains so we can find cross-sub-domain causal links.
+FINE_DOMAIN_MAP = {
+    # Inflation
+    "KXCPI": "inflation", "KXPCE": "inflation", "KXPPI": "inflation",
+    "CPI": "inflation",
+    # Monetary policy
+    "KXFED": "monetary_policy", "KXFFR": "monetary_policy",
+    "FED": "monetary_policy",
+    # Labor
+    "KXNFP": "labor", "KXJOBLESSCLAIMS": "labor",
+    "KXUNEMPLOYMENT": "labor", "KXBRAZILJOBS": "labor",
+    # Macro
+    "KXGDP": "macro", "KXRETAILSALES": "macro", "KXISM": "macro",
+    "KXRECESSION": "macro", "GDP": "macro",
+    # Fiscal
+    "KXDEBTCEILING": "fiscal", "KXSHUTDOWN": "fiscal",
+    # Finance
+    "KXUSDBRL": "finance", "KXEARNINGS": "finance", "KXEARNINGSMENTIO": "finance",
+    "KXSPY": "finance", "KXSP500": "finance", "KXNASDAQ": "finance", "KXDOW": "finance",
+    # Crypto
+    "KXBTC": "crypto", "KXBTCD": "crypto", "KXBTCW": "crypto",
+    "KXETH": "crypto", "KXETHD": "crypto", "KXETHW": "crypto",
+    "KXSOL": "crypto", "KXSOLD": "crypto", "KXSOLW": "crypto",
+    # Sports
+    "KXNBA": "basketball", "KXNCAAMBGAME": "basketball",
+    "KXNCAAMBSPREAD": "basketball", "KXNCAAMBTOTAL": "basketball",
+    "KXNBASPREAD": "basketball", "KXNBATOTAL": "basketball", "KXNBAPTS": "basketball",
+    "KXNBAGAME": "basketball",
+    # Politics
+    "KXELECTION": "politics", "KXTARIFF": "politics",
+    "KXTRUMP": "politics", "KXPOTUS": "politics",
+}
+
+
+def extract_fine_domain(ticker: str) -> str:
+    """Classify market into fine-grained domain from ticker prefix."""
+    prefix = ticker.split("-")[0] if "-" in ticker else ticker
+    if prefix in FINE_DOMAIN_MAP:
+        return FINE_DOMAIN_MAP[prefix]
+    for key, domain in FINE_DOMAIN_MAP.items():
+        if prefix.startswith(key):
+            return domain
+    return "other"
 
 DATA_DIR = "data/exp1"
 RAW_DIR = os.path.join(DATA_DIR, "raw")
 
+EXP2_TARGETED_CACHE = "data/exp2/raw/targeted_markets.json"
+
 
 def load_all_markets(max_markets: int = None) -> list:
-    """Load settled markets from experiment5 cache or fetch fresh.
+    """Load settled markets from experiment caches.
 
-    Reuses the 61MB cache from experiment5 if available.
+    Merges exp5 generic cache with exp2 targeted economics/finance cache
+    to ensure cross-domain coverage for lead-lag analysis.
     """
-    # Try exp5 cache first
+    seen_tickers = set()
+    markets = []
+
+    # Load exp2 targeted markets first (economics, finance, politics)
+    if os.path.exists(EXP2_TARGETED_CACHE):
+        print(f"Loading targeted markets from exp2 cache ({EXP2_TARGETED_CACHE})...")
+        with open(EXP2_TARGETED_CACHE) as f:
+            targeted = json.load(f)
+        for m in targeted:
+            ticker = m.get("ticker", "")
+            if ticker and ticker not in seen_tickers:
+                seen_tickers.add(ticker)
+                markets.append(m)
+        print(f"  Loaded {len(markets)} targeted markets")
+
+    # Add exp5 generic markets (sports, weather, esports, etc.)
     if os.path.exists(EXP5_CACHE):
         print(f"Loading markets from exp5 cache ({EXP5_CACHE})...")
         with open(EXP5_CACHE) as f:
-            markets = json.load(f)
-        print(f"  Loaded {len(markets)} markets")
-        if max_markets:
-            markets = markets[:max_markets]
-        return markets
+            generic = json.load(f)
+        added = 0
+        for m in generic:
+            ticker = m.get("ticker", "")
+            if ticker and ticker not in seen_tickers:
+                seen_tickers.add(ticker)
+                markets.append(m)
+                added += 1
+        print(f"  Added {added} generic markets (total: {len(markets)})")
 
-    # Fallback: fetch fresh
-    print("No exp5 cache found, fetching from API...")
-    client = KalshiClient()
-    twelve_months_ago = int((datetime.now(timezone.utc) - timedelta(days=365)).timestamp())
-    two_days_ago = int((datetime.now(timezone.utc) - timedelta(days=2)).timestamp())
-
-    markets = client.get_all_pages(
-        "/markets",
-        params={
-            "status": "settled",
-            "min_settled_ts": twelve_months_ago,
-            "max_settled_ts": two_days_ago,
-            "limit": 1000,
-        },
-        result_key="markets",
-        page_limit=max_markets // 1000 + 1 if max_markets else 100,
-        show_progress=True,
-    )
-
-    # Cache for future use
-    os.makedirs(DATA_DIR, exist_ok=True)
-    cache_path = os.path.join(DATA_DIR, "all_settled_markets.json")
-    with open(cache_path, "w") as f:
-        json.dump(markets, f, default=str)
-    print(f"  Cached {len(markets)} markets to {cache_path}")
+    if not markets:
+        # Fallback: fetch fresh from API
+        print("No caches found, fetching from API...")
+        client = KalshiClient()
+        twelve_months_ago = int((datetime.now(timezone.utc) - timedelta(days=365)).timestamp())
+        two_days_ago = int((datetime.now(timezone.utc) - timedelta(days=2)).timestamp())
+        markets = client.get_all_pages(
+            "/markets",
+            params={
+                "status": "settled",
+                "min_settled_ts": twelve_months_ago,
+                "max_settled_ts": two_days_ago,
+                "limit": 1000,
+            },
+            result_key="markets",
+            page_limit=max_markets // 1000 + 1 if max_markets else 100,
+            show_progress=True,
+        )
 
     if max_markets:
         markets = markets[:max_markets]
     return markets
 
 
-def prepare_market_metadata(markets: list) -> pd.DataFrame:
+def prepare_market_metadata(markets: list, min_lifespan_hours: int = 24) -> pd.DataFrame:
     """Extract metadata for concurrent pair analysis.
 
-    Filters to binary-outcome markets with volume >= 10 and valid time windows.
+    Filters to binary-outcome markets with volume >= 10, valid time windows,
+    and minimum lifespan to exclude ultra-short-lived markets (e.g. 15-min crypto).
     """
     rows = []
     for m in markets:
@@ -78,9 +139,10 @@ def prepare_market_metadata(markets: list) -> pd.DataFrame:
             continue
 
         ticker = m.get("ticker", "")
-        series_ticker = m.get("series_ticker", "")
-        if not ticker or not series_ticker:
+        if not ticker:
             continue
+        # Derive series_ticker from ticker prefix (e.g., KXBTC15M-26FEB092315-15 -> KXBTC15M)
+        series_ticker = m.get("series_ticker") or (ticker.split("-")[0] if "-" in ticker else ticker)
 
         volume = int(m.get("volume", 0))
         if volume < 10:
@@ -91,7 +153,7 @@ def prepare_market_metadata(markets: list) -> pd.DataFrame:
         if not open_time or not close_time:
             continue
 
-        domain = extract_domain(ticker)
+        domain = extract_fine_domain(ticker)
 
         rows.append({
             "ticker": ticker,
@@ -116,6 +178,13 @@ def prepare_market_metadata(markets: list) -> pd.DataFrame:
 
     # Drop rows with invalid timestamps
     df = df.dropna(subset=["open_time", "close_time"]).reset_index(drop=True)
+
+    # Filter by minimum lifespan
+    if min_lifespan_hours > 0:
+        lifespan = (df["close_time"] - df["open_time"]).dt.total_seconds() / 3600
+        before = len(df)
+        df = df[lifespan >= min_lifespan_hours].reset_index(drop=True)
+        print(f"  Filtered by lifespan >= {min_lifespan_hours}h: {before} -> {len(df)}")
 
     print(f"  Prepared {len(df)} markets across {df['domain'].nunique()} domains")
     print(f"  Domain distribution: {df['domain'].value_counts().head(10).to_dict()}")

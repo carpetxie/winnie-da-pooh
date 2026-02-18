@@ -38,8 +38,8 @@ def phase1_data_collection(quick_test: bool = False, max_markets: int = None):
     )
     from kalshi.client import KalshiClient
 
-    # Load markets
-    markets = load_all_markets(max_markets=max_markets)
+    # Load all markets (fast - just reads JSON), then filter metadata
+    markets = load_all_markets()
     df = prepare_market_metadata(markets)
 
     # Save metadata
@@ -332,7 +332,11 @@ def main():
         print("\nNo significant pairs to filter.")
         llm_filtered = significant.copy()
     else:
-        llm_filtered = phase3_llm_filtering(significant, market_df)
+        # Cap LLM filtering to top 50 pairs by p-value to avoid long API waits
+        # (781 pairs × 0.5s rate limit = ~7 min; 50 pairs ≈ 25s)
+        top_significant = significant.nsmallest(50, "p_value") if len(significant) > 50 else significant
+        print(f"\n  LLM filtering top {len(top_significant)} of {len(significant)} significant pairs")
+        llm_filtered = phase3_llm_filtering(top_significant, market_df)
 
     # Phase 4: Trading Simulation
     if args.skip_trading:

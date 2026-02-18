@@ -26,6 +26,9 @@ DOMAIN_MAP = {
     "KXUNEMPLOYMENT": "economics", "KXDEBTCEILING": "economics",
     "KXSHUTDOWN": "economics", "KXRECESSION": "economics",
     "KXISM": "economics", "KXPPI": "economics",
+    "CPI": "economics", "FED": "economics", "GDP": "economics",
+    "KXBRAZILJOBS": "economics", "KXUSDBRL": "finance",
+    "KXEARNINGS": "finance", "KXEARNINGSMENTIO": "finance",
     # Crypto
     "KXBTC": "crypto", "KXBTC15M": "crypto", "KXBTCW": "crypto",
     "KXETH": "crypto", "KXETH15M": "crypto", "KXETHW": "crypto",
