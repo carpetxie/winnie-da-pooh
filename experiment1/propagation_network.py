@@ -196,28 +196,54 @@ def merge_event_propagation(
 
 
 def visualize_network(graph: dict, output_dir: str = "data/exp1/plots"):
-    """Visualize the propagation network."""
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
+    """Visualize the propagation network as polished static PNG + interactive HTML."""
     os.makedirs(output_dir, exist_ok=True)
 
     edges = graph["edges"]
     nodes = graph["nodes"]
 
-    # Layout: manual positioning for 4 economics domains
+    _plot_static_network(nodes, edges, output_dir)
+    _plot_lag_distributions(edges, output_dir)
+    _build_interactive_html(nodes, edges, graph, output_dir)
+
+
+def _plot_static_network(nodes: list, edges: list, output_dir: str):
+    """Polished static matplotlib network plot."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import FancyArrowPatch
+    from matplotlib.lines import Line2D
+    import matplotlib.patheffects as pe
+
+    # Diamond layout — more space between nodes
     domain_positions = {
-        "inflation": (0, 1),
-        "monetary_policy": (1, 1),
-        "labor": (0, 0),
-        "macro": (1, 0),
+        "inflation": (0.5, 1.0),
+        "monetary_policy": (1.0, 0.5),
+        "labor": (0.0, 0.5),
+        "macro": (0.5, 0.0),
     }
 
-    fig, ax = plt.subplots(figsize=(12, 10))
+    DOMAIN_LABELS = {
+        "inflation": "Inflation\n(CPI, PCE, PPI)",
+        "monetary_policy": "Monetary Policy\n(Fed Funds, FOMC)",
+        "labor": "Labor\n(NFP, Jobless Claims)",
+        "macro": "Macro\n(GDP, Retail Sales, ISM)",
+    }
 
-    # Draw edges
-    for edge in edges:
+    DOMAIN_COLORS = {
+        "inflation": "#E74C3C",
+        "monetary_policy": "#3498DB",
+        "labor": "#2ECC71",
+        "macro": "#F39C12",
+    }
+
+    fig, ax = plt.subplots(figsize=(14, 11))
+    fig.patch.set_facecolor("#FAFAFA")
+    ax.set_facecolor("#FAFAFA")
+
+    # Draw edges first (behind nodes)
+    for edge in sorted(edges, key=lambda e: e["n_pairs"]):
         src = edge["source"]
         dst = edge["target"]
         if src not in domain_positions or dst not in domain_positions:
@@ -228,86 +254,486 @@ def visualize_network(graph: dict, output_dir: str = "data/exp1/plots"):
 
         # Offset for bidirectional edges
         dx, dy = x1 - x0, y1 - y0
-        offset = 0.03
-        perp_x, perp_y = -dy * offset, dx * offset
+        length = (dx**2 + dy**2) ** 0.5
+        offset = 0.025
+        perp_x, perp_y = -dy / length * offset, dx / length * offset
 
-        width = max(1, edge["n_pairs"] / 30)
-        color = "blue" if edge["median_lag_hours"] <= 6 else ("orange" if edge["median_lag_hours"] <= 12 else "red")
+        # Arrow width proportional to n_pairs
+        width = 1.0 + edge["n_pairs"] / 40
+        lag = edge["median_lag_hours"]
+
+        # Color by speed
+        if lag <= 4:
+            color = "#2980B9"  # fast blue
+        elif lag <= 7:
+            color = "#E67E22"  # medium orange
+        else:
+            color = "#C0392B"  # slow red
+
+        # Shorten arrows so they don't overlap nodes
+        shrink = 0.08
+        ax0 = x0 + perp_x + dx * shrink
+        ay0 = y0 + perp_y + dy * shrink
+        ax1 = x1 + perp_x - dx * shrink
+        ay1 = y1 + perp_y - dy * shrink
 
         ax.annotate(
             "",
-            xy=(x1 + perp_x, y1 + perp_y),
-            xytext=(x0 + perp_x, y0 + perp_y),
+            xy=(ax1, ay1),
+            xytext=(ax0, ay0),
             arrowprops=dict(
-                arrowstyle="->",
+                arrowstyle="->,head_length=0.4,head_width=0.25",
                 color=color,
                 lw=width,
-                connectionstyle="arc3,rad=0.1",
+                connectionstyle="arc3,rad=0.12",
+                alpha=0.85,
             ),
         )
 
-        # Label: median lag + count
-        mx = (x0 + x1) / 2 + perp_x * 3
-        my = (y0 + y1) / 2 + perp_y * 3
-        ax.text(mx, my, f"{edge['median_lag_hours']:.0f}h\n(n={edge['n_pairs']})",
-                fontsize=8, ha="center", va="center",
-                bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.8))
+        # Edge label — positioned along the curve
+        mx = (x0 + x1) / 2 + perp_x * 4.5
+        my = (y0 + y1) / 2 + perp_y * 4.5
+        label = f"{lag:.0f}h  (n={edge['n_pairs']})"
+        ax.text(
+            mx, my, label,
+            fontsize=9, ha="center", va="center", fontweight="bold",
+            color=color,
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor=color, alpha=0.9, linewidth=0.8),
+        )
 
     # Draw nodes
     for node in nodes:
-        if node["domain"] not in domain_positions:
+        domain = node["domain"]
+        if domain not in domain_positions:
             continue
-        x, y = domain_positions[node["domain"]]
-        size = max(800, node["n_markets"] * 5)
-        ax.scatter(x, y, s=size, c="lightblue", edgecolors="black", zorder=5, linewidths=2)
-        ax.text(x, y, f"{node['domain']}\n({node['n_markets']} mkts)",
-                ha="center", va="center", fontsize=10, fontweight="bold", zorder=6)
+        x, y = domain_positions[domain]
+        color = DOMAIN_COLORS.get(domain, "#95A5A6")
+        size = 1800 + node["n_markets"] * 8
+
+        ax.scatter(x, y, s=size, c=color, edgecolors="white", zorder=5, linewidths=3, alpha=0.9)
+
+        # Domain name
+        label = DOMAIN_LABELS.get(domain, domain)
+        txt = ax.text(
+            x, y + 0.002, label,
+            ha="center", va="center", fontsize=11, fontweight="bold", color="white", zorder=6,
+        )
+        txt.set_path_effects([pe.withStroke(linewidth=2, foreground="black")])
+
+        # Market count below
+        net = node.get("net_influence", 0)
+        arrow = "+" if net > 0 else ""
+        sub = f"{node['n_markets']} mkts | net influence: {arrow}{net:.1f}"
+        sub_txt = ax.text(
+            x, y - 0.085, sub,
+            ha="center", va="center", fontsize=8, color="#555",
+            bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.8, edgecolor="#CCC"),
+            zorder=6,
+        )
 
     # Legend
-    from matplotlib.lines import Line2D
     legend_elements = [
-        Line2D([0], [0], color="blue", lw=2, label="Fast (<6h)"),
-        Line2D([0], [0], color="orange", lw=2, label="Medium (6-12h)"),
-        Line2D([0], [0], color="red", lw=2, label="Slow (>12h)"),
+        Line2D([0], [0], color="#2980B9", lw=3, label="Fast (< 5h)"),
+        Line2D([0], [0], color="#E67E22", lw=3, label="Medium (5-7h)"),
+        Line2D([0], [0], color="#C0392B", lw=3, label="Slow (> 7h)"),
     ]
-    ax.legend(handles=legend_elements, loc="upper right", title="Propagation Speed")
+    leg = ax.legend(
+        handles=legend_elements, loc="lower right", title="Propagation Speed",
+        fontsize=10, title_fontsize=11, framealpha=0.95, edgecolor="#CCC",
+    )
 
-    ax.set_xlim(-0.3, 1.3)
-    ax.set_ylim(-0.3, 1.3)
-    ax.set_title("Information Propagation Network\nKalshi Economics Sub-Domains (Hourly Granger Causality)", fontsize=14)
+    ax.set_xlim(-0.2, 1.2)
+    ax.set_ylim(-0.2, 1.2)
+    ax.set_title(
+        "Information Propagation Network\nKalshi Economics Sub-Domains  |  Hourly Granger Causality (ADF-stationary, Bonferroni p<0.01)",
+        fontsize=14, fontweight="bold", pad=20,
+    )
     ax.set_aspect("equal")
     ax.axis("off")
 
     plt.tight_layout()
     path = os.path.join(output_dir, "propagation_network.png")
+    plt.savefig(path, dpi=200, bbox_inches="tight", facecolor=fig.get_facecolor())
+    plt.close()
+    print(f"  Saved {path}")
+
+
+def _plot_lag_distributions(edges: list, output_dir: str):
+    """Lag distribution histograms per domain pair."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    sig_df = pd.read_csv(os.path.join(DATA_DIR, "granger_significant.csv"))
+
+    sorted_edges = sorted(edges, key=lambda e: -e["n_pairs"])[:6]
+    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+    axes = axes.flatten()
+
+    for i, edge in enumerate(sorted_edges):
+        ax = axes[i]
+        mask = (sig_df["leader_domain"] == edge["source"]) & (sig_df["follower_domain"] == edge["target"])
+        lags = sig_df[mask]["best_lag"].values
+        ax.hist(lags, bins=range(0, 26), color="steelblue", edgecolor="white", alpha=0.8)
+        ax.axvline(edge["median_lag_hours"], color="red", linestyle="--", lw=2,
+                    label=f"median = {edge['median_lag_hours']:.0f}h")
+        ax.set_title(f"{edge['source']}  ->  {edge['target']}  (n={edge['n_pairs']})", fontsize=11, fontweight="bold")
+        ax.set_xlabel("Lag (hours)")
+        ax.set_ylabel("Count")
+        ax.legend(fontsize=9)
+        ax.grid(True, alpha=0.2)
+
+    # Hide unused subplots
+    for j in range(len(sorted_edges), 6):
+        axes[j].set_visible(False)
+
+    plt.suptitle("Lag Distributions by Domain Pair", fontsize=14, fontweight="bold")
+    plt.tight_layout()
+    path = os.path.join(output_dir, "lag_distributions.png")
     plt.savefig(path, dpi=150, bbox_inches="tight")
     plt.close()
     print(f"  Saved {path}")
 
-    # Also plot lag distributions
-    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
-    axes = axes.flatten()
 
-    for i, edge in enumerate(sorted(edges, key=lambda e: -e["n_pairs"])):
-        if i >= 6:
-            break
-        ax = axes[i]
-        # Reconstruct lag distribution from the significant pairs
-        sig_df = pd.read_csv(os.path.join(DATA_DIR, "granger_significant.csv"))
-        mask = (sig_df["leader_domain"] == edge["source"]) & (sig_df["follower_domain"] == edge["target"])
-        lags = sig_df[mask]["best_lag"].values
-        ax.hist(lags, bins=range(0, 26), color="steelblue", edgecolor="black", alpha=0.7)
-        ax.axvline(edge["median_lag_hours"], color="red", linestyle="--", label=f"median={edge['median_lag_hours']:.0f}h")
-        ax.set_title(f"{edge['source']} → {edge['target']}\n(n={edge['n_pairs']})", fontsize=10)
-        ax.set_xlabel("Lag (hours)")
-        ax.set_ylabel("Count")
-        ax.legend(fontsize=8)
+def _build_interactive_html(nodes: list, edges: list, graph: dict, output_dir: str):
+    """Build a self-contained interactive HTML network visualization using D3.js."""
 
-    plt.suptitle("Lag Distributions by Domain Pair", fontsize=14)
-    plt.tight_layout()
-    path = os.path.join(output_dir, "lag_distributions.png")
-    plt.savefig(path, dpi=150)
-    plt.close()
+    # Prepare data for the template
+    node_data = []
+    DOMAIN_COLORS = {
+        "inflation": "#E74C3C",
+        "monetary_policy": "#3498DB",
+        "labor": "#2ECC71",
+        "macro": "#F39C12",
+    }
+
+    for node in nodes:
+        d = node["domain"]
+        node_data.append({
+            "id": d,
+            "label": d.replace("_", " ").title(),
+            "markets": node["n_markets"],
+            "influence": node.get("influence_score", 0),
+            "receptivity": node.get("receptivity_score", 0),
+            "net": node.get("net_influence", 0),
+            "color": DOMAIN_COLORS.get(d, "#95A5A6"),
+        })
+
+    edge_data = []
+    for edge in edges:
+        lag = edge["median_lag_hours"]
+        if lag <= 4:
+            color = "#2980B9"
+        elif lag <= 7:
+            color = "#E67E22"
+        else:
+            color = "#C0392B"
+        edge_data.append({
+            "source": edge["source"],
+            "target": edge["target"],
+            "lag": lag,
+            "n_pairs": edge["n_pairs"],
+            "f_stat": round(edge["mean_f_stat"], 1),
+            "color": color,
+        })
+
+    # Event study overlay
+    event_info = ""
+    if "event_study" in graph:
+        es = graph["event_study"]
+        event_items = []
+        for etype, info in es.get("by_event_type", {}).items():
+            sign = "+" if info["mean_leadlag_days"] > 0 else ""
+            event_items.append(f'<li><b>{etype}</b>: {sign}{info["mean_leadlag_days"]:.1f} days vs EPU (n={info["n_events"]})</li>')
+        if event_items:
+            event_info = "<ul>" + "".join(event_items) + "</ul>"
+
+    nodes_json = json.dumps(node_data)
+    edges_json = json.dumps(edge_data)
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kalshi Information Propagation Network</title>
+<style>
+  * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+  body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #eee; }}
+  #header {{ padding: 20px 30px 10px; text-align: center; }}
+  #header h1 {{ font-size: 22px; color: #fff; margin-bottom: 4px; }}
+  #header p {{ font-size: 13px; color: #888; }}
+  #container {{ display: flex; height: calc(100vh - 80px); }}
+  #graph {{ flex: 1; position: relative; }}
+  svg {{ width: 100%; height: 100%; }}
+  #sidebar {{ width: 320px; background: #16213e; padding: 20px; overflow-y: auto; border-left: 1px solid #333; }}
+  #sidebar h2 {{ font-size: 16px; margin-bottom: 12px; color: #fff; border-bottom: 1px solid #444; padding-bottom: 8px; }}
+  #sidebar h3 {{ font-size: 13px; margin: 14px 0 6px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }}
+  .stat {{ display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }}
+  .stat-label {{ color: #888; }}
+  .stat-value {{ color: #fff; font-weight: 600; }}
+  .edge-card {{ background: #1a1a2e; border-radius: 6px; padding: 10px; margin-bottom: 8px; border-left: 3px solid; }}
+  .edge-card .title {{ font-weight: 600; font-size: 13px; margin-bottom: 4px; }}
+  .edge-card .detail {{ font-size: 11px; color: #999; }}
+  .legend {{ margin-top: 16px; }}
+  .legend-item {{ display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; }}
+  .legend-dot {{ width: 12px; height: 12px; border-radius: 50%; }}
+  .legend-line {{ width: 24px; height: 3px; border-radius: 2px; }}
+  #tooltip {{ position: absolute; background: rgba(22,33,62,0.95); border: 1px solid #444; border-radius: 6px; padding: 10px 14px; font-size: 12px; pointer-events: none; opacity: 0; transition: opacity 0.15s; max-width: 250px; }}
+  #tooltip .tt-title {{ font-weight: 700; font-size: 14px; margin-bottom: 4px; }}
+  #tooltip .tt-row {{ display: flex; justify-content: space-between; gap: 16px; padding: 1px 0; }}
+  #event-info {{ font-size: 12px; color: #aaa; margin-top: 8px; }}
+  #event-info ul {{ padding-left: 16px; }}
+  #event-info li {{ margin-bottom: 3px; }}
+  marker {{ overflow: visible; }}
+</style>
+</head>
+<body>
+<div id="header">
+  <h1>Information Propagation Network</h1>
+  <p>Kalshi Economics Sub-Domains &middot; Hourly Granger Causality (ADF-stationary, Bonferroni p&lt;0.01) &middot; Drag nodes to rearrange</p>
+</div>
+<div id="container">
+  <div id="graph">
+    <svg></svg>
+    <div id="tooltip"></div>
+  </div>
+  <div id="sidebar">
+    <h2>Network Summary</h2>
+    <div class="stat"><span class="stat-label">Significant pairs</span><span class="stat-value">446</span></div>
+    <div class="stat"><span class="stat-label">Domains</span><span class="stat-value">4</span></div>
+    <div class="stat"><span class="stat-label">Directed edges</span><span class="stat-value">6</span></div>
+
+    <h3>Edges (by pair count)</h3>
+    <div id="edge-cards"></div>
+
+    <h3>Speed Legend</h3>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-line" style="background:#2980B9"></div> Fast (&lt; 5h)</div>
+      <div class="legend-item"><div class="legend-line" style="background:#E67E22"></div> Medium (5-7h)</div>
+      <div class="legend-item"><div class="legend-line" style="background:#C0392B"></div> Slow (&gt; 7h)</div>
+    </div>
+
+    <h3>Event Study Overlay</h3>
+    <div id="event-info">Kalshi lead-lag vs EPU (daily):{event_info if event_info else '<p style="color:#666">No event data</p>'}</div>
+  </div>
+</div>
+
+<script>
+const nodes = {nodes_json};
+const edges = {edges_json};
+
+const svg = document.querySelector('svg');
+const width = svg.parentElement.clientWidth;
+const height = svg.parentElement.clientHeight;
+svg.setAttribute('viewBox', `0 0 ${{width}} ${{height}}`);
+
+// Build edge cards
+const cardsEl = document.getElementById('edge-cards');
+edges.sort((a,b) => b.n_pairs - a.n_pairs).forEach(e => {{
+  const card = document.createElement('div');
+  card.className = 'edge-card';
+  card.style.borderColor = e.color;
+  card.innerHTML = `<div class="title" style="color:${{e.color}}">${{e.source.replace('_',' ')}} &rarr; ${{e.target.replace('_',' ')}}</div>
+    <div class="detail">${{e.lag}}h median lag &middot; ${{e.n_pairs}} pairs &middot; F=${{e.f_stat}}</div>`;
+  cardsEl.appendChild(card);
+}});
+
+// Position nodes in diamond layout
+const cx = width / 2, cy = height / 2, spread = Math.min(width, height) * 0.32;
+const positions = {{
+  'inflation':       {{ x: cx,          y: cy - spread }},
+  'monetary_policy': {{ x: cx + spread, y: cy }},
+  'labor':           {{ x: cx - spread, y: cy }},
+  'macro':           {{ x: cx,          y: cy + spread }},
+}};
+nodes.forEach(n => {{ n.x = positions[n.id]?.x || cx; n.y = positions[n.id]?.y || cy; }});
+
+// Arrowhead markers
+const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+edges.forEach((e, i) => {{
+  const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+  marker.setAttribute('id', `arrow-${{i}}`);
+  marker.setAttribute('viewBox', '0 0 10 10');
+  marker.setAttribute('refX', '10'); marker.setAttribute('refY', '5');
+  marker.setAttribute('markerWidth', '8'); marker.setAttribute('markerHeight', '8');
+  marker.setAttribute('orient', 'auto-start-reverse');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z');
+  path.setAttribute('fill', e.color);
+  marker.appendChild(path);
+  defs.appendChild(marker);
+}});
+svg.appendChild(defs);
+
+// Draw edges as curved paths
+const edgeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+svg.appendChild(edgeGroup);
+
+const edgeEls = edges.map((e, i) => {{
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('stroke', e.color);
+  path.setAttribute('stroke-width', Math.max(2, e.n_pairs / 20));
+  path.setAttribute('fill', 'none');
+  path.setAttribute('opacity', '0.7');
+  path.setAttribute('marker-end', `url(#arrow-${{i}})`);
+  edgeGroup.appendChild(path);
+  return path;
+}});
+
+// Edge labels
+const labelGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+svg.appendChild(labelGroup);
+
+const edgeLabelEls = edges.map(e => {{
+  const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  text.setAttribute('font-size', '12');
+  text.setAttribute('font-weight', 'bold');
+  text.setAttribute('fill', e.color);
+  text.setAttribute('text-anchor', 'middle');
+  text.setAttribute('dy', '-6');
+  text.textContent = `${{e.lag}}h (n=${{e.n_pairs}})`;
+  labelGroup.appendChild(text);
+  return text;
+}});
+
+// Draw nodes
+const nodeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+svg.appendChild(nodeGroup);
+
+const nodeRadius = n => 30 + n.markets * 0.3;
+
+const nodeEls = nodes.map(n => {{
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.style.cursor = 'grab';
+
+  // Glow
+  const glow = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  glow.setAttribute('r', nodeRadius(n) + 8);
+  glow.setAttribute('fill', n.color);
+  glow.setAttribute('opacity', '0.15');
+  g.appendChild(glow);
+
+  // Main circle
+  const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  circle.setAttribute('r', nodeRadius(n));
+  circle.setAttribute('fill', n.color);
+  circle.setAttribute('stroke', '#fff');
+  circle.setAttribute('stroke-width', '3');
+  g.appendChild(circle);
+
+  // Label
+  const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  text.setAttribute('text-anchor', 'middle');
+  text.setAttribute('fill', '#fff');
+  text.setAttribute('font-weight', 'bold');
+  text.setAttribute('font-size', '13');
+  text.setAttribute('dy', '-4');
+  text.textContent = n.label;
+  text.style.pointerEvents = 'none';
+  g.appendChild(text);
+
+  // Sub-label
+  const sub = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  sub.setAttribute('text-anchor', 'middle');
+  sub.setAttribute('fill', 'rgba(255,255,255,0.7)');
+  sub.setAttribute('font-size', '10');
+  sub.setAttribute('dy', '12');
+  sub.textContent = `${{n.markets}} mkts`;
+  sub.style.pointerEvents = 'none';
+  g.appendChild(sub);
+
+  nodeGroup.appendChild(g);
+  return {{ g, circle, glow, node: n }};
+}});
+
+// Tooltip
+const tooltip = document.getElementById('tooltip');
+
+nodeEls.forEach(el => {{
+  el.g.addEventListener('mouseenter', ev => {{
+    const n = el.node;
+    const sign = n.net > 0 ? '+' : '';
+    tooltip.innerHTML = `<div class="tt-title" style="color:${{n.color}}">${{n.label}}</div>
+      <div class="tt-row"><span>Markets</span><span>${{n.markets}}</span></div>
+      <div class="tt-row"><span>Influence</span><span>${{n.influence.toFixed(1)}}</span></div>
+      <div class="tt-row"><span>Receptivity</span><span>${{n.receptivity.toFixed(1)}}</span></div>
+      <div class="tt-row"><span>Net influence</span><span>${{sign}}${{n.net.toFixed(1)}}</span></div>`;
+    tooltip.style.opacity = 1;
+  }});
+  el.g.addEventListener('mousemove', ev => {{
+    tooltip.style.left = (ev.clientX - svg.parentElement.getBoundingClientRect().left + 15) + 'px';
+    tooltip.style.top = (ev.clientY - svg.parentElement.getBoundingClientRect().top - 10) + 'px';
+  }});
+  el.g.addEventListener('mouseleave', () => {{ tooltip.style.opacity = 0; }});
+}});
+
+// Drag behavior
+let dragNode = null, dragOffset = {{x:0, y:0}};
+nodeEls.forEach(el => {{
+  el.g.addEventListener('mousedown', ev => {{
+    dragNode = el.node;
+    dragOffset.x = ev.clientX - el.node.x;
+    dragOffset.y = ev.clientY - el.node.y;
+    el.g.style.cursor = 'grabbing';
+    ev.preventDefault();
+  }});
+}});
+document.addEventListener('mousemove', ev => {{
+  if (!dragNode) return;
+  dragNode.x = ev.clientX - dragOffset.x;
+  dragNode.y = ev.clientY - dragOffset.y;
+  updatePositions();
+}});
+document.addEventListener('mouseup', () => {{
+  if (dragNode) {{
+    nodeEls.find(el => el.node === dragNode).g.style.cursor = 'grab';
+    dragNode = null;
+  }}
+}});
+
+function updatePositions() {{
+  const nodeMap = {{}};
+  nodes.forEach(n => nodeMap[n.id] = n);
+
+  // Update node positions
+  nodeEls.forEach(el => {{
+    el.g.setAttribute('transform', `translate(${{el.node.x}}, ${{el.node.y}})`);
+  }});
+
+  // Update edge curves
+  edges.forEach((e, i) => {{
+    const s = nodeMap[e.source], t = nodeMap[e.target];
+    const dx = t.x - s.x, dy = t.y - s.y;
+    const len = Math.sqrt(dx*dx + dy*dy);
+    const nx = -dy/len, ny = dx/len;
+    const off = 25;  // curve offset for bidirectional
+    const r = 40;    // shorten to not overlap node circles
+
+    const sx = s.x + dx/len * r + nx * off;
+    const sy = s.y + dy/len * r + ny * off;
+    const tx = t.x - dx/len * r + nx * off;
+    const ty = t.y - dy/len * r + ny * off;
+    const mx = (s.x + t.x) / 2 + nx * off * 2.5;
+    const my = (s.y + t.y) / 2 + ny * off * 2.5;
+
+    edgeEls[i].setAttribute('d', `M ${{sx}} ${{sy}} Q ${{mx}} ${{my}} ${{tx}} ${{ty}}`);
+
+    // Label at midpoint of curve
+    const lx = (sx + 2*mx + tx) / 4;
+    const ly = (sy + 2*my + ty) / 4;
+    edgeLabelEls[i].setAttribute('x', lx);
+    edgeLabelEls[i].setAttribute('y', ly);
+  }});
+}}
+
+updatePositions();
+</script>
+</body>
+</html>"""
+
+    path = os.path.join(output_dir, "propagation_network.html")
+    with open(path, "w") as f:
+        f.write(html)
     print(f"  Saved {path}")
 
 
