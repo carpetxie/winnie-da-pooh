@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Winnie** is a research platform exploring novel signals in Kalshi prediction market data, aimed at producing publishable work for Kalshi's research arm (`research@kalshi.com`). The goal is to demonstrate non-trivial, economically-valuable insights from Kalshi data.
 
-Five experiments are implemented (1, 2, 3, 4, 5). See `docs/findings.md` for the two surviving findings after PhD-level methodology review.
+Nine experiments are implemented (1-9). See `docs/findings.md` for the five strong findings plus supporting results after PhD-level methodology review.
 
 ## Commands
 
@@ -37,6 +37,19 @@ uv run python -m experiment4.run
 uv run python -m experiment5.run                    # Full run (~20K markets)
 uv run python -m experiment5.run --skip-fetch       # Use cached markets.csv
 uv run python -m experiment5.run --skip-embed       # Use cached embeddings.npy
+
+# Run Experiment 6 (Market Microstructure — no API calls)
+uv run python -m experiment6.run
+
+# Run Experiment 7 (Implied Distributions & No-Arbitrage — no API calls)
+uv run python -m experiment7.run
+
+# Run Experiment 8 (TIPS Breakeven Comparison)
+uv run python -m experiment8.run                    # Full run (fetches FRED data)
+uv run python -m experiment8.run --skip-fetch       # Use cached TIPS data
+
+# Run Experiment 9 (Indicator-Level Network — no API calls)
+uv run python -m experiment9.run
 
 # Tests
 uv run python -m pytest experiment1/tests/test_unit.py -v
@@ -78,6 +91,30 @@ Pipeline: data collection → embeddings (BAAI/bge-large-en-v1.5) → clustering
 
 Key finding: k-NN(k=20) beats random by 15.7% on Brier. Cross-domain clusters are superficial (linguistic, not economic).
 
+### Experiment 6 — Market Microstructure (`experiment6/`)
+Pipeline: load all 725 cached candle files → extract bid-ask spread, open interest, OHLC range, volume → analyze spread as uncertainty → OI as conviction → event microstructure → spread vs KUI correlation.
+No API calls required. Uses cached hourly candle data from exp2.
+
+Key findings: Spread narrows after events (Wilcoxon p=0.013), range widens (p=0.017). Spread-KUI correlation r=0.25 (p<0.001). Higher-OI markets better calibrated (Brier 0.147 vs 0.246).
+
+### Experiment 7 — Implied Distributions & No-Arbitrage (`experiment7/`)
+Pipeline: load targeted markets with floor_strike → group by event_ticker → build implied CDFs at each hour → test monotonicity → reconstruct PDFs → compare to realized outcomes.
+No API calls required. Uses cached data from exp2.
+
+Key findings: CPI median forecast error 0.05pp. No-arbitrage violations in 2.8% of snapshots, 71% revert within 1h. 336 multi-strike markets across 41 events.
+
+### Experiment 8 — TIPS Breakeven Comparison (`experiment8/`)
+Pipeline: build daily Kalshi CPI index from candles → fetch TIPS breakeven from FRED → correlation → cross-correlation at lags → Granger causality both directions.
+Requires FRED API fetch for T10YIE and T5YIE.
+
+Key finding: TIPS Granger-causes Kalshi CPI (F=12.2, p=0.005). Kalshi does NOT Granger-cause TIPS. Bond market leads prediction market by 1 day.
+
+### Experiment 9 — Indicator-Level Network (`experiment9/`)
+Pipeline: load exp1 Granger results → classify by indicator (CPI/PCE/PPI/Fed Funds/etc.) → build indicator-level directed graph → centrality analysis → lag asymmetry tests.
+No API calls required. Uses cached Granger results from exp1.
+
+Key finding: CPI → Fed Funds at 3h median (57 pairs, Mann-Whitney p=0.009). CPI dominates over PCE/PPI as market-implied inflation signal.
+
 ### Common Patterns
 - **Phase-based pipelines**: Each module is independent; expensive steps cached and skippable via `--skip-*` flags.
 - **Stationarity**: Granger tests use ADF-tested, differenced series (not raw price levels).
@@ -92,7 +129,11 @@ data/
 ├── exp2/         # KUI outputs (kui_daily.csv, correlations, event_study, plots, raw/candles/)
 ├── exp3/         # Calibration outputs (calibration_results.json, fiscal_anomaly, plots)
 ├── exp4/         # Hourly event study (hourly_event_results.csv, statistical_tests, plots)
-└── exp5/         # Embedding outputs (markets.csv, embeddings.npy, clusters)
+├── exp5/         # Embedding outputs (markets.csv, embeddings.npy, clusters)
+├── exp6/         # Microstructure (microstructure_summary.csv, microstructure_results.json, plots)
+├── exp7/         # Implied distributions (strike_markets.csv, implied_distribution_results.json, plots)
+├── exp8/         # TIPS comparison (kalshi_cpi_daily.csv, T10YIE.csv, tips_comparison_results.json, plots)
+└── exp9/         # Indicator network (granger_with_indicators.csv, indicator_network_results.json, plots)
 ```
 
 ## Docs
