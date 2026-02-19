@@ -954,8 +954,21 @@ def run_propagation_analysis():
         for etype, info in es.get("by_event_type", {}).items():
             print(f"    {etype}: mean lead-lag = {info['mean_leadlag_days']:.1f} days (n={info['n_events']})")
 
+    # Shock-regime propagation analysis
+    print("\n  --- Shock-Regime Propagation Analysis ---")
+    shock_analysis = analyze_shock_regime_propagation(sig_df)
+    if shock_analysis:
+        for key, val in shock_analysis.items():
+            if isinstance(val, dict) and "median_lag" in val:
+                print(f"    {key}: median_lag={val['median_lag']}h, n={val['n_pairs']}")
+
     # Save
-    output = {**graph, "lag_distributions": lag_info, "indicator_graph": ind_graph}
+    output = {
+        **graph,
+        "lag_distributions": lag_info,
+        "indicator_graph": ind_graph,
+        "shock_regime_analysis": shock_analysis,
+    }
     with open(os.path.join(DATA_DIR, "propagation_network.json"), "w") as f:
         json.dump(output, f, indent=2, default=str)
     print(f"\n  Saved propagation_network.json")
@@ -964,3 +977,150 @@ def run_propagation_analysis():
     visualize_network(graph, indicator_graph=ind_graph)
 
     return output
+
+
+def analyze_shock_regime_propagation(sig_df: pd.DataFrame) -> dict:
+    """Analyze whether information propagation speeds change during shock periods.
+
+    Splits Granger pairs by whether they overlap with known economic shock events
+    (surprise CPI, surprise FOMC, tariff shocks) and compares median lags.
+
+    Returns dict with shock vs calm comparison per domain pair.
+    """
+    from experiment2.event_study import get_economic_events
+
+    events = get_economic_events()
+    surprise_events = events[events["surprise"] == True]
+
+    if surprise_events.empty or sig_df.empty:
+        return {"note": "insufficient_data"}
+
+    # Define shock windows: +/- 3 days around each surprise event
+    shock_windows = []
+    for _, event in surprise_events.iterrows():
+        event_date = pd.Timestamp(event["date"])
+        shock_windows.append((event_date - pd.Timedelta(days=3), event_date + pd.Timedelta(days=3)))
+
+    # For each Granger pair, determine if the pair's markets overlapped with any shock window
+    # We use the leader/follower tickers' open/close times from the markets CSV
+    markets_path = os.path.join(DATA_DIR, "markets.csv")
+    if not os.path.exists(markets_path):
+        # Fall back: split by lag magnitude (proxy for volatility regime)
+        return _analyze_by_lag_percentile(sig_df)
+
+    markets_df = pd.read_csv(markets_path)
+    markets_df["open_time"] = pd.to_datetime(markets_df["open_time"], format="ISO8601", errors="coerce")
+    markets_df["close_time"] = pd.to_datetime(markets_df["close_time"], format="ISO8601", errors="coerce")
+
+    ticker_times = {}
+    for _, row in markets_df.iterrows():
+        if pd.notna(row["open_time"]) and pd.notna(row["close_time"]):
+            ticker_times[row["ticker"]] = (
+                row["open_time"].tz_localize(None) if row["open_time"].tzinfo else row["open_time"],
+                row["close_time"].tz_localize(None) if row["close_time"].tzinfo else row["close_time"],
+            )
+
+    # Classify each pair as shock-period or calm-period
+    shock_pairs = []
+    calm_pairs = []
+
+    for _, row in sig_df.iterrows():
+        leader_times = ticker_times.get(row["leader_ticker"])
+        follower_times = ticker_times.get(row["follower_ticker"])
+
+        if leader_times is None or follower_times is None:
+            calm_pairs.append(row)
+            continue
+
+        # Overlap period of the two markets
+        overlap_start = max(leader_times[0], follower_times[0])
+        overlap_end = min(leader_times[1], follower_times[1])
+
+        # Check if overlap intersects any shock window
+        is_shock = False
+        for shock_start, shock_end in shock_windows:
+            shock_start = shock_start.tz_localize(None) if shock_start.tzinfo else shock_start
+            shock_end = shock_end.tz_localize(None) if shock_end.tzinfo else shock_end
+            if overlap_start <= shock_end and overlap_end >= shock_start:
+                is_shock = True
+                break
+
+        if is_shock:
+            shock_pairs.append(row)
+        else:
+            calm_pairs.append(row)
+
+    shock_df = pd.DataFrame(shock_pairs) if shock_pairs else pd.DataFrame()
+    calm_df = pd.DataFrame(calm_pairs) if calm_pairs else pd.DataFrame()
+
+    result = {
+        "n_shock_pairs": len(shock_df),
+        "n_calm_pairs": len(calm_df),
+        "n_surprise_events": len(surprise_events),
+    }
+
+    # Compare lags for key domain pairs
+    for src, dst in [("inflation", "monetary_policy"), ("monetary_policy", "inflation"),
+                     ("macro", "inflation"), ("inflation", "macro"),
+                     ("labor", "inflation"), ("inflation", "labor")]:
+        key = f"{src}_to_{dst}"
+
+        shock_lags = shock_df[
+            (shock_df["leader_domain"] == src) & (shock_df["follower_domain"] == dst)
+        ]["best_lag"] if not shock_df.empty else pd.Series(dtype=float)
+
+        calm_lags = calm_df[
+            (calm_df["leader_domain"] == src) & (calm_df["follower_domain"] == dst)
+        ]["best_lag"] if not calm_df.empty else pd.Series(dtype=float)
+
+        entry = {
+            "n_shock": len(shock_lags),
+            "n_calm": len(calm_lags),
+        }
+
+        if len(shock_lags) >= 3:
+            entry["shock_median_lag"] = float(shock_lags.median())
+            entry["shock_mean_lag"] = float(shock_lags.mean())
+        if len(calm_lags) >= 3:
+            entry["calm_median_lag"] = float(calm_lags.median())
+            entry["calm_mean_lag"] = float(calm_lags.mean())
+
+        # Mann-Whitney U test if enough samples
+        if len(shock_lags) >= 5 and len(calm_lags) >= 5:
+            u_stat, u_p = scipy_stats.mannwhitneyu(shock_lags, calm_lags, alternative="two-sided")
+            entry["mann_whitney_U"] = float(u_stat)
+            entry["mann_whitney_p"] = float(u_p)
+            entry["significant"] = u_p < 0.05
+
+        result[key] = entry
+
+    # Overall comparison
+    if len(shock_df) >= 10 and len(calm_df) >= 10:
+        result["overall"] = {
+            "shock_median_lag": float(shock_df["best_lag"].median()),
+            "calm_median_lag": float(calm_df["best_lag"].median()),
+            "shock_mean_lag": float(shock_df["best_lag"].mean()),
+            "calm_mean_lag": float(calm_df["best_lag"].mean()),
+        }
+        u_stat, u_p = scipy_stats.mannwhitneyu(
+            shock_df["best_lag"], calm_df["best_lag"], alternative="two-sided"
+        )
+        result["overall"]["mann_whitney_U"] = float(u_stat)
+        result["overall"]["mann_whitney_p"] = float(u_p)
+        result["overall"]["significant"] = u_p < 0.05
+
+    return result
+
+
+def _analyze_by_lag_percentile(sig_df: pd.DataFrame) -> dict:
+    """Fallback: split pairs by F-stat magnitude (proxy for signal strength)."""
+    median_f = sig_df["f_stat"].median()
+    strong = sig_df[sig_df["f_stat"] >= median_f]
+    weak = sig_df[sig_df["f_stat"] < median_f]
+    return {
+        "note": "fallback_f_stat_split",
+        "strong_signal_median_lag": float(strong["best_lag"].median()),
+        "weak_signal_median_lag": float(weak["best_lag"].median()),
+        "n_strong": len(strong),
+        "n_weak": len(weak),
+    }
