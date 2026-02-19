@@ -1020,43 +1020,77 @@ def analyze_shock_regime_propagation(sig_df: pd.DataFrame) -> dict:
                 row["close_time"].tz_localize(None) if row["close_time"].tzinfo else row["close_time"],
             )
 
-    # Classify each pair as shock-period or calm-period
-    shock_pairs = []
-    calm_pairs = []
+    # Normalize shock windows timezone
+    shock_windows_naive = []
+    for shock_start, shock_end in shock_windows:
+        s = shock_start.tz_localize(None) if shock_start.tzinfo else shock_start
+        e = shock_end.tz_localize(None) if shock_end.tzinfo else shock_end
+        shock_windows_naive.append((s, e))
+
+    # Classify each pair using shock_fraction: what % of overlap days fall in shock windows
+    # This fixes the prior approach where ANY overlap with a shock window → "shock",
+    # which caused 67% of pairs to be classified as shock from only 20% of calendar days.
+    pair_records = []
 
     for _, row in sig_df.iterrows():
         leader_times = ticker_times.get(row["leader_ticker"])
         follower_times = ticker_times.get(row["follower_ticker"])
 
         if leader_times is None or follower_times is None:
-            calm_pairs.append(row)
             continue
 
-        # Overlap period of the two markets
         overlap_start = max(leader_times[0], follower_times[0])
         overlap_end = min(leader_times[1], follower_times[1])
+        total_days = (overlap_end - overlap_start).total_seconds() / 86400
+        if total_days <= 0:
+            continue
 
-        # Check if overlap intersects any shock window
-        is_shock = False
-        for shock_start, shock_end in shock_windows:
-            shock_start = shock_start.tz_localize(None) if shock_start.tzinfo else shock_start
-            shock_end = shock_end.tz_localize(None) if shock_end.tzinfo else shock_end
-            if overlap_start <= shock_end and overlap_end >= shock_start:
-                is_shock = True
-                break
+        # Count days within shock windows
+        shock_days = 0.0
+        for s_start, s_end in shock_windows_naive:
+            intersect_start = max(overlap_start, s_start)
+            intersect_end = min(overlap_end, s_end)
+            if intersect_end > intersect_start:
+                shock_days += (intersect_end - intersect_start).total_seconds() / 86400
 
-        if is_shock:
-            shock_pairs.append(row)
-        else:
-            calm_pairs.append(row)
+        shock_fraction = min(shock_days / total_days, 1.0)
+        rec = row.to_dict()
+        rec["shock_fraction"] = shock_fraction
+        rec["overlap_days"] = total_days
+        pair_records.append(rec)
 
-    shock_df = pd.DataFrame(shock_pairs) if shock_pairs else pd.DataFrame()
-    calm_df = pd.DataFrame(calm_pairs) if calm_pairs else pd.DataFrame()
+    pairs_df = pd.DataFrame(pair_records)
+    if pairs_df.empty:
+        return {"note": "no_valid_pairs"}
+
+    # Primary classification: shock_fraction > 0.5 (majority of data during shocks)
+    shock_df = pairs_df[pairs_df["shock_fraction"] > 0.5]
+    calm_df = pairs_df[pairs_df["shock_fraction"] < 0.2]
+    # Pairs with 0.2-0.5 shock fraction are excluded (ambiguous)
+    ambiguous_df = pairs_df[(pairs_df["shock_fraction"] >= 0.2) & (pairs_df["shock_fraction"] <= 0.5)]
+
+    # Robustness: also analyze short-lived pairs (≤ 30 days) which are more cleanly classified
+    short_lived = pairs_df[pairs_df["overlap_days"] <= 30]
+    short_shock = short_lived[short_lived["shock_fraction"] > 0.5]
+    short_calm = short_lived[short_lived["shock_fraction"] < 0.2]
 
     result = {
         "n_shock_pairs": len(shock_df),
         "n_calm_pairs": len(calm_df),
+        "n_ambiguous_pairs": len(ambiguous_df),
+        "n_total_valid": len(pairs_df),
         "n_surprise_events": len(surprise_events),
+        "classification": "shock_fraction>0.5 vs <0.2 (ambiguous excluded)",
+        "shock_fraction_stats": {
+            "mean": float(pairs_df["shock_fraction"].mean()),
+            "median": float(pairs_df["shock_fraction"].median()),
+            "std": float(pairs_df["shock_fraction"].std()),
+            "pct_above_50": float((pairs_df["shock_fraction"] > 0.5).mean()),
+        },
+        "short_lived_robustness": {
+            "n_short_shock": len(short_shock),
+            "n_short_calm": len(short_calm),
+        },
     }
 
     # Compare lags for key domain pairs
@@ -1109,6 +1143,18 @@ def analyze_shock_regime_propagation(sig_df: pd.DataFrame) -> dict:
         result["overall"]["mann_whitney_p"] = float(u_p)
         result["overall"]["significant"] = u_p < 0.05
 
+    # Short-lived robustness check (cleaner classification)
+    if len(short_shock) >= 5 and len(short_calm) >= 5:
+        u_stat, u_p = scipy_stats.mannwhitneyu(
+            short_shock["best_lag"], short_calm["best_lag"], alternative="two-sided"
+        )
+        result["short_lived_robustness"].update({
+            "shock_median_lag": float(short_shock["best_lag"].median()),
+            "calm_median_lag": float(short_calm["best_lag"].median()),
+            "mann_whitney_p": float(u_p),
+            "significant": u_p < 0.05,
+        })
+
     return result
 
 
@@ -1123,4 +1169,127 @@ def _analyze_by_lag_percentile(sig_df: pd.DataFrame) -> dict:
         "weak_signal_median_lag": float(weak["best_lag"].median()),
         "n_strong": len(strong),
         "n_weak": len(weak),
+    }
+
+
+def run_permutation_test(sig_df: pd.DataFrame, n_perms: int = 1000) -> dict:
+    """Permutation test: shuffle domain labels to establish null distribution.
+
+    Tests whether the observed cross-domain pair count and asymmetry
+    could arise by chance if domain labels were randomly assigned.
+
+    Also identifies and flags bidirectional Granger pairs (A→B AND B→A),
+    which indicate co-movement rather than directional information flow.
+    """
+    rng = np.random.default_rng(42)
+
+    # Observed cross-domain pair counts
+    cross_domain = sig_df[sig_df["leader_domain"] != sig_df["follower_domain"]]
+    n_cross_observed = len(cross_domain)
+
+    # Observed asymmetry: inflation→monetary_policy vs reverse
+    inf_mp = len(sig_df[(sig_df["leader_domain"] == "inflation") &
+                        (sig_df["follower_domain"] == "monetary_policy")])
+    mp_inf = len(sig_df[(sig_df["leader_domain"] == "monetary_policy") &
+                        (sig_df["follower_domain"] == "inflation")])
+    observed_asymmetry = inf_mp - mp_inf
+
+    # Permutation: shuffle domain labels across tickers
+    all_tickers = list(set(sig_df["leader_ticker"].tolist() + sig_df["follower_ticker"].tolist()))
+    ticker_domains = {}
+    for _, row in sig_df.iterrows():
+        ticker_domains[row["leader_ticker"]] = row["leader_domain"]
+        ticker_domains[row["follower_ticker"]] = row["follower_domain"]
+
+    domain_labels = [ticker_domains[t] for t in all_tickers]
+
+    null_cross_counts = []
+    null_asymmetries = []
+
+    for _ in range(n_perms):
+        shuffled = rng.permutation(domain_labels)
+        shuffled_map = dict(zip(all_tickers, shuffled))
+
+        perm_df = sig_df.copy()
+        perm_df["leader_domain"] = perm_df["leader_ticker"].map(shuffled_map)
+        perm_df["follower_domain"] = perm_df["follower_ticker"].map(shuffled_map)
+
+        n_cross = len(perm_df[perm_df["leader_domain"] != perm_df["follower_domain"]])
+        null_cross_counts.append(n_cross)
+
+        perm_inf_mp = len(perm_df[(perm_df["leader_domain"] == "inflation") &
+                                   (perm_df["follower_domain"] == "monetary_policy")])
+        perm_mp_inf = len(perm_df[(perm_df["leader_domain"] == "monetary_policy") &
+                                   (perm_df["follower_domain"] == "inflation")])
+        null_asymmetries.append(perm_inf_mp - perm_mp_inf)
+
+    null_cross_counts = np.array(null_cross_counts)
+    null_asymmetries = np.array(null_asymmetries)
+
+    # p-values
+    cross_p = float((null_cross_counts >= n_cross_observed).mean())
+    asym_p = float((np.abs(null_asymmetries) >= abs(observed_asymmetry)).mean())
+
+    # Bidirectional pair analysis
+    pair_set = set()
+    bidirectional = []
+    for _, row in sig_df.iterrows():
+        pair_key = tuple(sorted([row["leader_ticker"], row["follower_ticker"]]))
+        if pair_key in pair_set:
+            bidirectional.append(pair_key)
+        pair_set.add(pair_key)
+
+    # For bidirectional pairs, check if lags are similar (co-movement indicator)
+    bidir_details = []
+    for t1, t2 in bidirectional:
+        ab = sig_df[(sig_df["leader_ticker"] == t1) & (sig_df["follower_ticker"] == t2)]
+        ba = sig_df[(sig_df["leader_ticker"] == t2) & (sig_df["follower_ticker"] == t1)]
+        if ab.empty:
+            ab = sig_df[(sig_df["leader_ticker"] == t2) & (sig_df["follower_ticker"] == t1)]
+            ba = sig_df[(sig_df["leader_ticker"] == t1) & (sig_df["follower_ticker"] == t2)]
+        if not ab.empty and not ba.empty:
+            lag_ab = ab.iloc[0]["best_lag"]
+            lag_ba = ba.iloc[0]["best_lag"]
+            bidir_details.append({
+                "ticker_1": t1, "ticker_2": t2,
+                "lag_1to2": int(lag_ab), "lag_2to1": int(lag_ba),
+                "lag_ratio": float(max(lag_ab, lag_ba) / max(min(lag_ab, lag_ba), 1)),
+            })
+
+    # Unidirectional-only subset
+    bidir_tickers = set()
+    for t1, t2 in bidirectional:
+        bidir_tickers.add((t1, t2))
+        bidir_tickers.add((t2, t1))
+    unidirectional = sig_df[~sig_df.apply(
+        lambda r: (r["leader_ticker"], r["follower_ticker"]) in bidir_tickers, axis=1
+    )]
+
+    return {
+        "permutation_test": {
+            "n_permutations": n_perms,
+            "observed_cross_domain_pairs": n_cross_observed,
+            "null_cross_domain_mean": float(null_cross_counts.mean()),
+            "null_cross_domain_std": float(null_cross_counts.std()),
+            "cross_domain_p_value": cross_p,
+            "cross_domain_significant": cross_p < 0.05,
+            "observed_inf_mp_asymmetry": observed_asymmetry,
+            "null_asymmetry_mean": float(null_asymmetries.mean()),
+            "null_asymmetry_std": float(null_asymmetries.std()),
+            "asymmetry_p_value": asym_p,
+            "asymmetry_significant": asym_p < 0.05,
+        },
+        "bidirectional_analysis": {
+            "n_bidirectional_pairs": len(bidirectional),
+            "n_unidirectional_pairs": len(unidirectional),
+            "pct_bidirectional": float(len(bidirectional) * 2 / len(sig_df)) if len(sig_df) > 0 else 0,
+            "details": bidir_details[:20],  # Top 20 for brevity
+        },
+        "unidirectional_network": {
+            "n_pairs": len(unidirectional),
+            "domain_pair_counts": {
+                f"{k[0]}_to_{k[1]}": int(v) for k, v in
+                unidirectional.groupby(["leader_domain", "follower_domain"]).size().items()
+            } if not unidirectional.empty else {},
+        },
     }

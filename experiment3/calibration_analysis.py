@@ -144,15 +144,54 @@ def compute_ece(predictions: np.ndarray, actuals: np.ndarray, n_bins: int = 10) 
     return float(ece)
 
 
+def murphy_decomposition(predictions: np.ndarray, actuals: np.ndarray, n_bins: int = 10) -> dict:
+    """Murphy decomposition: Brier = reliability - resolution + uncertainty.
+
+    - Reliability (calibration error): lower is better
+    - Resolution: higher means predictions are more informative (better)
+    - Uncertainty: base rate variance, independent of forecaster skill
+
+    This separates true calibration quality from base rate effects.
+    """
+    base_rate = actuals.mean()
+    uncertainty = base_rate * (1 - base_rate)
+
+    bin_edges = np.linspace(0, 1, n_bins + 1)
+    reliability = 0.0
+    resolution = 0.0
+    total = len(predictions)
+
+    for i in range(n_bins):
+        mask = (predictions >= bin_edges[i]) & (predictions < bin_edges[i + 1])
+        n_k = mask.sum()
+        if n_k == 0:
+            continue
+        bin_acc = actuals[mask].mean()
+        bin_conf = predictions[mask].mean()
+        reliability += n_k / total * (bin_conf - bin_acc) ** 2
+        resolution += n_k / total * (bin_acc - base_rate) ** 2
+
+    brier = reliability - resolution + uncertainty
+    return {
+        "brier": float(brier),
+        "reliability": float(reliability),
+        "resolution": float(resolution),
+        "uncertainty": float(uncertainty),
+        "base_rate": float(base_rate),
+    }
+
+
 def compute_regime_calibration(df: pd.DataFrame) -> dict:
     """Compute calibration metrics split by uncertainty regime."""
     results = {}
 
     # Overall
+    overall_murphy = murphy_decomposition(df["market_prob"].values, df["result_binary"].values)
     results["overall"] = {
         "brier": compute_brier(df["market_prob"].values, df["result_binary"].values),
         "ece": compute_ece(df["market_prob"].values, df["result_binary"].values),
         "n_markets": len(df),
+        **{f"murphy_{k}": v for k, v in overall_murphy.items()},
     }
 
     # By tercile
@@ -160,11 +199,13 @@ def compute_regime_calibration(df: pd.DataFrame) -> dict:
         subset = df[df["regime_tercile"] == regime]
         if len(subset) < 10:
             continue
+        murphy = murphy_decomposition(subset["market_prob"].values, subset["result_binary"].values)
         results[f"tercile_{regime}"] = {
             "brier": compute_brier(subset["market_prob"].values, subset["result_binary"].values),
             "ece": compute_ece(subset["market_prob"].values, subset["result_binary"].values),
             "n_markets": len(subset),
             "mean_kui": float(subset["mean_kui"].mean()),
+            **{f"murphy_{k}": v for k, v in murphy.items()},
         }
 
     # By binary split
@@ -198,6 +239,7 @@ def compute_regime_calibration(df: pd.DataFrame) -> dict:
         # Bootstrap test for Brier score difference
         n_boot = 1000
         diffs = []
+        reliability_diffs = []
         rng = np.random.default_rng(42)
         for _ in range(n_boot):
             h_idx = rng.choice(len(high_df), len(high_df), replace=True)
@@ -209,8 +251,17 @@ def compute_regime_calibration(df: pd.DataFrame) -> dict:
                 low_df["market_prob"].values[l_idx], low_df["result_binary"].values[l_idx]
             )
             diffs.append(h_brier - l_brier)
+            # Also bootstrap reliability (pure calibration) difference
+            h_murphy = murphy_decomposition(
+                high_df["market_prob"].values[h_idx], high_df["result_binary"].values[h_idx]
+            )
+            l_murphy = murphy_decomposition(
+                low_df["market_prob"].values[l_idx], low_df["result_binary"].values[l_idx]
+            )
+            reliability_diffs.append(h_murphy["reliability"] - l_murphy["reliability"])
 
         diffs = np.array(diffs)
+        reliability_diffs = np.array(reliability_diffs)
         results["statistical_test"] = {
             "test": "bootstrap_brier_difference",
             "mean_diff": float(diffs.mean()),
@@ -218,6 +269,25 @@ def compute_regime_calibration(df: pd.DataFrame) -> dict:
             "ci_upper": float(np.percentile(diffs, 97.5)),
             "significant": bool(np.percentile(diffs, 2.5) > 0 or np.percentile(diffs, 97.5) < 0),
             "direction": "high_worse" if diffs.mean() > 0 else "low_worse",
+        }
+
+        # Base rate control: test if RELIABILITY (not Brier) differs
+        # This isolates true calibration from base rate effects
+        results["base_rate_control"] = {
+            "test": "bootstrap_reliability_difference",
+            "high_base_rate": float(high_df["result_binary"].mean()),
+            "low_base_rate": float(low_df["result_binary"].mean()),
+            "base_rate_difference": float(high_df["result_binary"].mean() - low_df["result_binary"].mean()),
+            "reliability_diff_mean": float(reliability_diffs.mean()),
+            "reliability_diff_ci_lower": float(np.percentile(reliability_diffs, 2.5)),
+            "reliability_diff_ci_upper": float(np.percentile(reliability_diffs, 97.5)),
+            "reliability_significant": bool(
+                np.percentile(reliability_diffs, 2.5) > 0 or np.percentile(reliability_diffs, 97.5) < 0
+            ),
+            "interpretation": (
+                "If base rates differ but reliability does not, the Brier difference "
+                "is driven by base rate composition, not calibration quality."
+            ),
         }
 
     # By domain × regime
