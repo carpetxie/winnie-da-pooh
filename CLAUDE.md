@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Winnie** is a research platform exploring novel signals in Kalshi prediction market data, aimed at producing publishable work for Kalshi's research arm (`research@kalshi.com`). The goal is to demonstrate non-trivial, economically-valuable insights from Kalshi data.
 
-Five experiments are implemented (1, 2, 3, 4, 5). See `docs/experiment-designs.md` for original methodology, `docs/results.md` for consolidated findings, and `docs/paper-outline.md` for publication structure. Reference publications for quality bar: `docs/reference-crisis-alpha.md`, `docs/reference-mamdani.md`.
+Five experiments are implemented (1, 2, 3, 4, 5). See `docs/findings.md` for the two surviving findings after PhD-level methodology review.
 
 ## Commands
 
@@ -53,7 +53,7 @@ uv run python -m pytest experiment5/tests/test_unit.py -v
 ### Experiment 1 — Causal Lead-Lag Discovery (`experiment1/`)
 Pipeline: data collection → ADF stationarity + differencing → pairwise Granger causality (hourly, max_lag=24) → Bonferroni correction → LLM semantic filtering (Grok API) → signal-triggered trading simulation → propagation network analysis.
 
-Key finding: inflation → monetary_policy at 3h median (Mann-Whitney p=0.0008). Information flows 2x faster during shocks (4h vs 8h, p<0.001). LLM filtering identifies economic mechanisms but doesn't generate trading alpha (Sharpe -2.26 with 23 trades).
+Key finding: inflation → monetary_policy at 3h median (Mann-Whitney p=0.0008), validated by permutation test (p<0.001). 231 unidirectional pairs after removing 74 bidirectional co-movement pairs. Shock acceleration finding invalidated by corrected classification. No trading alpha.
 
 ### Experiment 2 — Kalshi Uncertainty Index (`experiment2/`)
 Pipeline: data collection → index construction → validation → event study → visualization.
@@ -65,7 +65,7 @@ Note: Original KUI→EPU Granger finding (p=0.024) invalidated by methodology fi
 Pipeline: load exp2 markets + KUI → assign uncertainty regimes → compute Brier/ECE per regime → bootstrap significance test.
 No API calls required. Uses existing exp2 data.
 
-Key finding: Markets significantly better calibrated during high uncertainty (Brier 0.353 vs 0.512, p<0.05). GDP markets show 4x improvement.
+Key finding: Markets genuinely better calibrated during high uncertainty (Murphy reliability 0.123 vs 0.262, p<0.05). Survives base rate controls via Murphy decomposition. GDP markets show 4x improvement.
 
 ### Experiment 4 — Hourly Information Speed (`experiment4/`)
 Pipeline: load cached hourly candles → compute hourly BV per domain → event windows ±72h → detect first significant move → compare vs EPU/VIX daily.
@@ -99,14 +99,5 @@ data/
 
 ```
 docs/
-├── results.md              # Consolidated experiment results (main output)
-├── paper-outline.md        # Publication structure and section outline
-├── experiment-designs.md   # Original experiment methodology designs
-├── exp5-report.md          # Experiment 5 detailed report
-├── exp5-plan.md            # Experiment 5 planning document
-├── test-plan.md            # Dynamic confidence steering plan
-├── engineer-persona.md     # Senior engineer review persona
-├── kalshi-research-info.md # Kalshi research submission info
-├── reference-crisis-alpha.md   # Reference: crisis alpha publication
-└── reference-mamdani.md        # Reference: Mamdani primary victory publication
+└── findings.md     # Surviving findings after PhD-review methodology corrections
 ```
