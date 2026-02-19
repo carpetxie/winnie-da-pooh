@@ -188,12 +188,17 @@ def granger_causality_test(
 
             p_value = 1 - scipy_stats.f.cdf(f_stat, df1, df2)
 
-            if p_value < best_result["p_value"]:
+            # Correct for testing multiple lags (within-pair Bonferroni)
+            # Without this, selecting the best of 24 lags inflates significance
+            p_corrected = min(p_value * max_lag, 1.0)
+
+            if p_corrected < best_result["p_value"]:
                 best_result = {
                     "best_lag": lag,
                     "f_stat": round(float(f_stat), 4),
-                    "p_value": round(float(p_value), 6),
-                    "significant": p_value < 0.05,
+                    "p_value": round(float(p_corrected), 6),
+                    "p_value_raw": round(float(p_value), 6),
+                    "significant": p_corrected < 0.05,
                     "n_obs": n_obs,
                 }
 
