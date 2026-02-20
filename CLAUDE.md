@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Winnie** is a research platform exploring novel signals in Kalshi prediction market data, aimed at producing publishable work for Kalshi's research arm (`research@kalshi.com`). The goal is to demonstrate non-trivial, economically-valuable insights from Kalshi data.
 
-Twelve experiments are implemented (1-12). See `docs/findings.md` for the eight strong findings plus supporting results after PhD-level methodology review.
+Thirteen experiments are implemented (1-13). See `docs/findings.md` for findings after PhD-level methodology review with independence corrections.
 
 ## Commands
 
@@ -59,6 +59,9 @@ uv run python -m experiment11.run
 
 # Run Experiment 12 (CRPS Distributional Calibration — fetches FRED data)
 uv run python -m experiment12.run
+
+# Run Experiment 13 (Unified Distributional Calibration + CPI Horse Race — fetches FRED data)
+uv run python -m experiment13.run
 
 # Tests
 uv run python -m pytest experiment1/tests/test_unit.py -v
@@ -142,6 +145,12 @@ Fetches FRED data for benchmarks (CPI, Jobless Claims, GDP). Uses cached Kalshi 
 
 Key findings: Kalshi distributions beat historical (CRPS, p=0.0001) and point forecasts (p=0.0031). CPI distributions are overconfident (worse than uniform). Jobless Claims well-calibrated (86% better than historical).
 
+### Experiment 13 — Unified Distributional Calibration + CPI Horse Race (`experiment13/`)
+Pipeline: merge exp7+exp12 → per-series Wilcoxon tests → temporal CRPS evolution → CPI horse race vs SPF + TIPS → visualization.
+Fetches FRED data for TIPS breakevens. Uses cached Kalshi data from exp2/exp7.
+
+Key findings: Per-series tests reveal pooled p=0.0001 is driven by Jobless Claims; CPI vs historical is NOT significant (p=0.709). CPI horse race: Kalshi MAE 0.082 vs SPF 0.111 vs TIPS 0.112 (not significant, n=13, underpowered). Acknowledges CRPS ≤ MAE mathematical identity.
+
 ### Common Patterns
 - **Phase-based pipelines**: Each module is independent; expensive steps cached and skippable via `--skip-*` flags.
 - **Stationarity**: Granger tests use ADF-tested, differenced series (not raw price levels).
@@ -163,7 +172,8 @@ data/
 ├── exp9/         # Indicator network (granger_with_indicators.csv, indicator_network_results.json, plots)
 ├── exp10/        # Shock propagation (shock_propagation_results.json, event_responses.csv, plots)
 ├── exp11/        # Favorite-longshot bias (favorite_longshot_results.json, plots)
-└── exp12/        # CRPS distributional calibration (crps_results.json, crps_per_event.csv, plots)
+├── exp12/        # CRPS distributional calibration (crps_results.json, crps_per_event.csv, plots)
+└── exp13/        # Unified calibration + horse race (unified_results.json, crps_per_event.csv, plots)
 ```
 
 ## Docs

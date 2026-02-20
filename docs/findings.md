@@ -1,13 +1,13 @@
 # Surviving Findings: Kalshi Prediction Market Research
 
-**Date:** 2026-02-19
-**Status:** PhD-review corrected. Twelve experiments completed (1-12). All findings below survive rigorous methodology checks.
+**Date:** 2026-02-20
+**Status:** PhD-review corrected with independence corrections. Thirteen experiments completed (1-13). All findings below report both naive and event-level clustered statistics where applicable.
 
 ---
 
 ## Finding 1: Directional Information Asymmetry in Prediction Markets
 
-**Strength: Strong**
+**Strength: Moderate-Strong**
 
 Inflation markets Granger-cause monetary policy markets with a 3-hour median lag, significantly faster than the 5-hour reverse direction (Mann-Whitney p=0.0008).
 
@@ -22,9 +22,11 @@ Inflation markets Granger-cause monetary policy markets with a 3-hour median lag
   - Inflation-to-monetary-policy asymmetry: 21 excess pairs vs null mean 0 +/- 4.8. p < 0.001.
 - **Bidirectional filtering**: 74 pairs (39%) are bidirectional (co-movement, not directional flow). The 231 remaining unidirectional pairs preserve the asymmetry: inflation-to-MP (50) vs MP-to-inflation (29).
 
-### Indicator-Level Refinement (Experiment 9)
+### Independence Caveat
 
-The domain-level finding resolves to specific economic indicators:
+The Bonferroni correction treats A→B and B→A as independent tests. In practice, they share the same aligned price data. The effective number of independent pairs is approximately half the reported N directional tests. The Mann-Whitney lag asymmetry test (p=0.0008) treats each pair as independent, but pairs sharing the same leader or follower ticker have correlated lag estimates. The effective N is lower than reported, though the permutation test (which shuffles domain labels) provides a complementary validation that is less sensitive to this concern.
+
+### Indicator-Level Refinement (Experiment 9)
 
 | Leader | Follower | Pairs | Median Lag |
 |--------|----------|-------|------------|
@@ -35,40 +37,19 @@ The domain-level finding resolves to specific economic indicators:
 | GDP | CPI | 100 | 7h |
 | CPI | GDP | 80 | 6.5h |
 
-**CPI → Fed Funds asymmetry**: Mann-Whitney p=0.009. CPI (not PCE or PPI) is the dominant market-implied inflation signal for monetary policy. This is notable because the Fed's stated preferred measure is PCE, yet market participants price CPI as the leading indicator.
-
-**Indicator centrality** (influence/receptivity analysis):
-- CPI: highest influence ratio (0.56) — dominant information source
-- Fed Funds: lowest influence ratio (0.39) — primarily a receiver
-- Jobless Claims: balanced (0.50) — both transmits and receives
-
-### Unidirectional Domain Pair Counts
-
-| Leader | Follower | Pairs |
-|--------|----------|-------|
-| inflation | monetary_policy | 50 |
-| labor | inflation | 50 |
-| macro | inflation | 47 |
-| monetary_policy | inflation | 29 |
-| inflation | labor | 28 |
-| inflation | macro | 27 |
+**CPI → Fed Funds asymmetry**: Mann-Whitney p=0.009. CPI (not PCE or PPI) is the dominant market-implied inflation signal for monetary policy.
 
 ### Interpretation
 
-Consistent with the Taylor Rule: CPI expectations propagate to Fed rate expectations faster than the reverse. CPI dominates over PCE despite the Fed's stated preference, suggesting retail prediction market participants weight headline CPI more heavily in their monetary policy expectations.
-
-### What Was Tested and Failed
-
-- **Shock-regime acceleration** (originally p<0.001, "2x faster during crises"): Invalidated. The classification was circular -- any market whose multi-month lifetime overlapped a shock window was labeled "shock", creating 67% shock pairs from 20% of calendar days. With proper shock-fraction classification (>50% threshold), only 10 pairs qualify. p=0.48.
-- **Trading alpha**: Sharpe ratio is negative across all strategies. The lead-lag relationships are too noisy at the individual market level for profitable exploitation.
+Consistent with the Taylor Rule: CPI expectations propagate to Fed rate expectations faster than the reverse. CPI dominates over PCE despite the Fed's stated preference. No trading alpha — Sharpe ratio is negative across all strategies.
 
 ---
 
 ## Finding 2: Prediction Markets Calibrate Better Under Uncertainty
 
-**Strength: Strong**
+**Strength: Suggestive** *(downgraded from Strong after cluster-robust bootstrap)*
 
-Markets are genuinely better calibrated during high-uncertainty periods, and this survives base rate controls via Murphy Brier decomposition.
+Markets appear better calibrated during high-uncertainty periods, but the effect does not survive cluster-robust resampling.
 
 ### Evidence
 
@@ -78,115 +59,70 @@ Markets are genuinely better calibrated during high-uncertainty periods, and thi
 | Medium | 0.392 | 0.152 | 0.000 | 0.240 | 0.400 | 85 |
 | High | 0.353 | 0.123 | 0.000 | 0.231 | 0.360 | 86 |
 
-- **Reliability** (pure calibration error, independent of base rates): 0.123 (high uncertainty) vs 0.262 (low uncertainty)
-- **Bootstrap CI** on reliability difference: [-0.209, -0.013]. Significant.
-- **Base rates differ** (0.362 high vs 0.522 low), which alone would affect raw Brier scores. Murphy decomposition isolates the calibration component, confirming the effect is real.
+### Statistical Tests
 
-### Microstructure Corroboration (Experiment 6)
+| Test | CI Lower | CI Upper | Significant |
+|------|----------|----------|-------------|
+| Naive bootstrap (Brier diff) | -0.242 | -0.016 | Yes |
+| **Cluster-robust bootstrap (Brier diff)** | **-0.251** | **0.017** | **No** |
+| Naive bootstrap (reliability diff) | -0.209 | -0.013 | Yes |
+| **Cluster-robust bootstrap (reliability diff)** | **-0.226** | **0.013** | **No** |
 
-Open interest provides an independent confirmation mechanism:
-
-| OI Tercile | Mean Brier | Mean Peak OI | n |
-|------------|------------|--------------|---|
-| Low | 0.246 | 7,210 | 15 |
-| Medium | 0.147 | 67,755 | 15 |
-| High | 0.157 | 164,431 | 15 |
-
-Higher-OI markets are better calibrated (Brier 0.147–0.157 vs 0.246 for low OI). This supports the "participation drives accuracy" mechanism: more open interest → more trader engagement → better price discovery → better calibration.
-
-### GDP Markets Deep-Dive
-
-The effect is most dramatic in GDP prediction markets (all KXGDP):
-- Low uncertainty: Brier = 0.802 (n=22) -- nearly random
-- High uncertainty: Brier = 0.196 (n=15) -- well-calibrated
-- Bootstrap CI: [-0.846, -0.321]. Significant.
+The cluster-robust bootstrap resamples 80 high-uncertainty and 72 low-uncertainty event clusters (not individual markets), accounting for within-event correlation of market outcomes. Both the Brier and reliability differences become non-significant.
 
 ### Interpretation
 
-Economic stress likely attracts more sophisticated participants to GDP markets, transforming them from thinly-traded noise into well-calibrated forecasts. The OI evidence corroborates this: markets with more participation (higher OI) calibrate better regardless of uncertainty regime.
+The direction of the effect is consistent (high-uncertainty periods → better calibration), but with only ~80 independent event clusters per regime, the evidence is suggestive rather than conclusive. The KUI circularity concern (KUI constructed from the same prices used for calibration) remains.
 
 ---
 
 ## Finding 3: Market Microstructure Responds to Economic Events
 
-**Strength: Strong (new)**
+**Strength: Suggestive** *(downgraded from Strong after event-level clustering)*
 
-Prediction market bid-ask spreads narrow significantly after economic announcements while intraday price ranges widen — a signature of information incorporation.
+Prediction market bid-ask spreads narrow and price ranges widen after economic announcements at the pair level, but these effects are not significant when properly accounting for within-event correlation.
 
 ### Evidence
 
-767 event-market pairs analyzed across 33 economic events:
+767 event-market pairs across 31 economic events:
 
-| Metric | Pre-Event (48h) | Post-Event (48h) | Change | Wilcoxon p |
-|--------|-----------------|-------------------|--------|------------|
-| Bid-ask spread | $0.0610 | $0.0605 | -0.8% | 0.013 |
-| Intraday range | $0.0099 | $0.0114 | +14.7% | 0.017 |
+| Test | Spread Change | Spread p | Range Change | Range p |
+|------|--------------|----------|--------------|---------|
+| Naive (pair-level, n=767) | -0.8% | 0.013* | +14.7% | 0.017* |
+| **Event-level (n=31)** | **-2.7%** | **0.542** | **+35.8%** | **0.232** |
 
-Both effects are statistically significant. The pattern is consistent with market microstructure theory: information arrival causes prices to move (wider range) while reducing uncertainty about fair value (narrower spread).
+When collapsed to event-level means (one observation per event date), neither the spread narrowing nor the range widening is statistically significant. The naive significance was driven by treating correlated within-event observations as independent.
 
-### Spread as Uncertainty Measure
+### What Survives
 
-Daily aggregate bid-ask spread correlates with the Kalshi Uncertainty Index:
-- Pearson r = 0.241 (p < 0.001), Spearman r = 0.252 (p < 0.001)
-- 462 overlapping days, mean 349 active markets per day
-
-This validates spread as an independent, market-endogenous uncertainty measure that avoids the circularity concern of KUI (which is constructed from the same price data used in calibration analysis).
-
-### Interpretation
-
-Prediction markets exhibit classical microstructure dynamics around information events. The simultaneous spread narrowing and range widening is the canonical signature of informed trading models (Glosten-Milgrom, Kyle): informed traders enter after announcements, causing prices to adjust (range) while market makers gain confidence in fair value (spread).
+- Spread-KUI correlation: r=0.241 (p<0.001), 462 days — this is at the daily aggregate level and does not suffer from the within-event clustering problem.
+- OI-calibration pattern: Higher-OI markets are better calibrated (Brier 0.147-0.157 vs 0.246 for low OI).
 
 ---
 
 ## Finding 4: Implied Probability Distributions from Multi-Strike Markets
 
-**Strength: Strong (new)**
+**Strength: Moderate** *(merged with Finding 8 in Experiment 13)*
 
-Kalshi's multi-strike market structure enables Breeden-Litzenberger-style reconstruction of implied probability distributions for economic indicators, with demonstrated forecasting accuracy.
-
-### Evidence
-
-336 multi-strike markets across 41 events (CPI, GDP, Jobless Claims):
-
-**CPI Forecasting Accuracy** (14 CPI release events):
-- Median absolute error: 0.05 percentage points
-- Mean absolute error: 0.08 percentage points
-- The implied CPI distribution correctly captures the realized value within its probability mass in most events
-
-**GDP Forecasting** (3 GDP release events):
-- GDP-25APR30: implied mean 0.32%, realized -0.30% (0.62pp error — Q1 2025 contraction surprise)
-- GDP-25JUL30: implied mean 2.0%, realized 3.0% (underestimated rebound)
-- GDP-25OCT30: implied mean 2.1%, realized 3.8% (1.68pp error)
-
-**Jobless Claims Forecasting** (24 events with realized values):
-- Median absolute error: 501 claims (on ~225K scale = 0.2%)
-- Mean absolute error: 6,378 claims
-- RMSE: 11,196 claims
+Kalshi's multi-strike market structure enables Breeden-Litzenberger-style reconstruction of implied probability distributions. See Finding 8 for full distributional evaluation.
 
 ### No-Arbitrage Efficiency
 
 | Metric | Value |
 |--------|-------|
-| Events tested | 40 |
+| Events tested | 41 |
 | Total hourly snapshots | 7,166 |
 | Violating snapshots | 202 (2.8%) |
-| Mean violation size | $0.04 |
-| Max violation size | $0.38 |
-| Reversion rate | 71% within 1 hour |
-
-The 2.8% violation rate is low, confirming markets generally maintain no-arbitrage constraints. When violations occur, 71% revert within the next hour (187 checked, 132 reverted), suggesting rapid arbitrageur correction rather than persistent inefficiency.
-
-### Interpretation
-
-This is the prediction market analogue of options-implied density estimation (Breeden-Litzenberger, 1978). The multi-strike structure encodes a full probability distribution over economic outcomes, not just a point forecast. The CPI distributions are remarkably accurate (median 0.05pp error), while GDP distributions capture the correct direction but underestimate tail events.
+| Events with violations | 25/41 |
+| Reversion rate | 168/195 = 86% within 1 hour |
 
 ---
 
 ## Finding 5: TIPS Breakeven Rates Granger-Cause Kalshi CPI Markets
 
-**Strength: Strong (new)**
+**Strength: Strong**
 
-The bond market's inflation expectations (TIPS breakeven rates) lead Kalshi CPI prediction market prices, not the reverse. This establishes the information hierarchy between institutional fixed-income markets and retail prediction markets.
+The bond market's inflation expectations lead Kalshi CPI prediction market prices, not the reverse.
 
 ### Evidence
 
@@ -196,65 +132,55 @@ The bond market's inflation expectations (TIPS breakeven rates) lead Kalshi CPI 
 |------|-----------|----------|--------|---------|-------------|
 | Granger | TIPS → Kalshi | 1 day | 12.24 | 0.005 | Yes |
 | Granger | Kalshi → TIPS | — | 0.0 | 1.0 | No |
-| Cross-corr | TIPS leads | -1 day | r=0.281 | <0.001 | Yes |
 
-**Level correlations:**
-- T10YIE ↔ Kalshi CPI: Pearson r=0.247 (p<0.001), Spearman r=0.208 (p<0.001)
-- T5YIE ↔ Kalshi CPI: Pearson r=0.182 (p=0.002)
+### CPI Horse Race (Experiment 13)
 
-**Change correlations** (daily returns):
-- T10YIE ↔ Kalshi CPI: r=-0.127 (p=0.031) — negative, suggesting contrarian dynamics
+Point forecast comparison (apples-to-apples MAE vs MAE):
+
+| Forecaster | Mean MAE | Median MAE | n |
+|-----------|----------|------------|---|
+| **Kalshi implied mean** | **0.082** | **0.056** | **14** |
+| SPF (annual/12 proxy) | 0.111 | 0.083 | 13 |
+| TIPS breakeven (monthly) | 0.112 | 0.107 | 13 |
+
+Kalshi's implied mean outperforms SPF and TIPS-implied forecasts on average, but the difference is not statistically significant (Kalshi vs SPF: p=0.227, Kalshi vs TIPS: p=0.170, n=13). With only 14 CPI events, the comparison is underpowered. Effect sizes favor Kalshi.
+
+**Note on SPF comparison**: SPF forecasts annual CPI (Q4/Q4 %), converted to monthly via annual_rate/12. This is an approximation — SPF does not directly forecast MoM CPI.
 
 ### Interpretation
 
-TIPS breakeven rates set by institutional bond traders provide the informational anchor for Kalshi CPI markets. The 1-day Granger lag is consistent with retail prediction market participants observing and reacting to bond market movements. The negative change correlation suggests that when TIPS breakevens rise (bond market expects more inflation), Kalshi CPI prices may initially move the opposite direction before correcting — a "contrarian retail" pattern.
-
-This is a clean negative result for "prediction markets as price discovery leaders" but a positive result for understanding information cascades: institutional markets → retail prediction markets.
+TIPS breakeven rates Granger-cause Kalshi (institutional bonds lead retail prediction markets), but Kalshi's point forecast accuracy is directionally superior to both SPF and TIPS for monthly CPI. The information hierarchy is: bonds set the level, prediction markets refine the monthly estimate.
 
 ---
 
 ## Finding 6: Cross-Event Shock Propagation
 
-**Strength: Moderate-Strong**
+**Strength: Suggestive** *(downgraded from Moderate-Strong after event-level clustering)*
 
-Economic events trigger measurable cross-domain shock waves in prediction markets, with origin domains showing significantly stronger responses than cross-domains. Surprise events produce significantly larger responses in inflation (+46%, p=0.0002) and monetary policy (+159%, p=0.007).
+Economic events trigger cross-domain responses in prediction markets, but the surprise sensitivity finding does not survive event-level clustering.
 
 ### Evidence
 
-205 economic markets across 4 domains, 31 events, 9,108 event-hour observations. Methodology uses global Cumulative Abnormal Return (CAR) thresholds calibrated at the 95th percentile of pre-event activity across ALL domains, avoiding the per-domain bias of the original 2σ approach.
+205 markets, 31 events, 9,108 event-hour observations.
 
-**First significant response times (hours after event, CAR methodology):**
+**Surprise vs non-surprise (event-level clustered):**
 
-| Event Type | Origin Domain | Origin Response | 1st Cross-Domain | 2nd Cross-Domain |
-|-----------|---------------|-----------------|-------------------|-------------------|
-| CPI | inflation | 10h | labor (8h) | macro (10h) |
-| FOMC | monetary_policy | 45h | inflation (6h) | macro (10h) |
-| NFP | labor | 8h | inflation (8h) | macro (8h) |
-| GDP | macro | 6h | monetary_policy (32h) | — |
+| Domain | Surprise Mean | Non-Surprise Mean | Ratio | Naive p | Clustered p | n_surprise | n_nonsurprise |
+|--------|-------------|-------------------|-------|---------|-------------|-----------|--------------|
+| inflation | 0.028 | 0.024 | 1.18x | 0.0002* | **0.436** | 12 | 16 |
+| monetary_policy | — | — | — | 0.007* | insufficient | 2 | 2 |
+| labor | — | — | — | 0.84 | insufficient | 2 | 8 |
+| macro | 0.021 | 0.023 | 0.92x | 0.99 | **0.396** | 10 | 14 |
 
-**Response ordering test** (Mann-Whitney, origin vs cross-domain response magnitude at h=0-6):
+The inflation surprise effect (naive p=0.0002) collapses to p=0.436 when using one observation per (event_date, domain) instead of treating each hourly observation as independent.
 
-| Event | Origin Mean | Cross-Domain Mean | p-value | Origin Strongest? |
-|-------|-----------|-------------------|---------|-------------------|
-| CPI | 0.0335 | 0.0080-0.0249 | <0.05 all | Yes |
-| NFP | 0.0647 | 0.0086-0.0249 | <0.05 all | Yes |
-| GDP | 0.0249 | 0.0080-0.0168 | <0.05 all | Yes |
-| FOMC | 0.0080 | 0.0168-0.0647 | >0.05 | No (only 11 markets) |
+**Response ordering (event-level clustered):**
 
-CPI, NFP, and GDP origin domains respond significantly more strongly than all cross-domains (p<0.05). FOMC is underpowered (only 11 monetary_policy markets).
+Only CPI origin vs macro cross-domain survives clustering: p=0.006 (n=8 events). Most other comparisons become underpowered.
 
-**Surprise vs non-surprise response magnitude:**
+### What Survives
 
-| Domain | Surprise | Non-Surprise | Ratio | p-value |
-|--------|----------|--------------|-------|---------|
-| inflation | 0.037 | 0.026 | 1.46x | 0.0002 |
-| monetary_policy | 0.012 | 0.005 | 2.59x | 0.007 |
-| labor | 0.040 | 0.069 | 0.57x | 0.84 |
-| macro | 0.022 | 0.027 | 0.79x | 0.99 |
-
-### Interpretation
-
-This provides hourly-resolution evidence of cross-event shock propagation in prediction markets. For 3 of 4 event types, origin domains respond with statistically significantly greater magnitude than cross-domains, confirming directional information flow. The surprise sensitivity results validate that prediction markets are informationally efficient: inflation and monetary policy markets price in consensus expectations tightly and move sharply on deviations, while labor and macro markets show more baseline volatility.
+The descriptive finding that origin domains tend to respond more strongly than cross-domains is directionally consistent but mostly underpowered at event-level granularity.
 
 ---
 
@@ -262,26 +188,11 @@ This provides hourly-resolution evidence of cross-event shock propagation in pre
 
 **Strength: Moderate**
 
-Economics-domain prediction markets show a time-to-expiration gradient in calibration quality, with monetary policy markets achieving near-perfect calibration. The classic favorite-longshot bias is small and positive in economics markets. Analysis uses T-24h candle prices (not settlement prices) to avoid the confound that tight-spread markets near settlement are mechanically well-calibrated.
+Economics-domain prediction markets show a time-to-expiration gradient in calibration quality. The FLB itself is small.
 
 ### Evidence
 
-1,141 economics-only settled markets (inflation, monetary_policy, labor, macro, fiscal). Crypto and sports markets excluded to avoid confound from 1-hour contracts. 288 markets have T-24h candle price data for deconfounded analysis.
-
-**Overall calibration (economics-only):**
-- Brier score: 0.0805
-- YES/NO outcome split: 50.0%/50.0% (balanced, vs 31.5/68.5 with crypto)
-- T-24h mean implied probability: 0.497
-
-**Calibration by T-24h spread tercile (n=288 with candle data):**
-
-| Spread Tercile | Brier Score | Longshot Bias | n |
-|---------------|-------------|---------------|---|
-| Low (tight) | 0.076 | +0.015 | 96 |
-| Medium | 0.063 | +0.045 | 96 |
-| High (wide) | 0.126 | +0.020 | 96 |
-
-Spread gradient exists but is moderate (1.7x, not 1300x as in confounded analysis). Longshot overpricing is small and consistent across spread terciles (+0.015 to +0.045).
+1,141 economics-only settled markets. 288 with T-24h candle prices.
 
 **Calibration by time to expiration:**
 
@@ -291,60 +202,47 @@ Spread gradient exists but is moderate (1.7x, not 1300x as in confounded analysi
 | Medium (~304h) | 0.059 | +0.014 | 380 |
 | Long (~1710h) | 0.023 | -0.003 | 380 |
 
-Strong monotonic gradient: longer-lived markets calibrate 7x better than short-lived ones. This is the most robust pattern in the data.
-
-**Domain breakdown:**
-
-| Domain | n | Brier | Longshot Bias | Favorite Bias |
-|--------|---|-------|---------------|---------------|
-| monetary_policy | 358 | 0.007 | +0.008 | -0.016 |
-| macro | 150 | 0.071 | -0.004 | -0.036 |
-| inflation | 421 | 0.090 | -0.025 | +0.004 |
-| labor | 212 | 0.187 | -0.088 | +0.130 |
-
-Monetary policy markets are nearly perfectly calibrated (Brier=0.007). Labor markets show the strongest favorite-longshot asymmetry.
-
-### Interpretation
-
-After removing the crypto/short-contract confound and using T-24h prices, the favorite-longshot bias in economics markets is small but present. The dominant predictor of calibration quality is time-to-expiration, not spread: markets with more time for price discovery converge to well-calibrated forecasts. This extends Whelan (CEPR 2024) by showing the bias varies by domain and market maturity, with monetary policy markets essentially bias-free.
+The 7x calibration gradient (short vs long lifetime) is the most robust pattern. Monetary policy markets achieve Brier=0.007 (near-perfect).
 
 ---
 
 ## Finding 8: Distributional Calibration via CRPS Scoring
 
-**Strength: Strong (new)**
+**Strength: Strong (heterogeneous)** *(updated with per-series tests and horse race from Experiment 13)*
 
-Kalshi's implied probability distributions significantly outperform historical benchmarks (CRPS, Wilcoxon p=0.0001) and point forecasts (p=0.0031), but show heterogeneous calibration across event types. Jobless Claims distributions are well-calibrated; CPI distributions are overconfident.
+Kalshi's implied probability distributions show heterogeneous calibration: Jobless Claims distributions robustly outperform historical benchmarks, while CPI distributions are persistently overconfident.
 
 ### Evidence
 
-33 events with CRPS scores (14 CPI, 3 GDP, 16 Jobless Claims). Benchmarks: uniform distribution over strike range, historical empirical CDF from FRED data (70 CPI, 309 Jobless Claims, 43 GDP observations), and point forecast (implied mean).
+33 events with CRPS scores (14 CPI, 3 GDP, 16 Jobless Claims).
 
 **CRPS by event series:**
 
-| Series | Kalshi CRPS | Uniform CRPS | Historical CRPS | Improvement vs Historical |
-|--------|------------|-------------|----------------|--------------------------|
-| KXCPI (n=14) | 0.108 | 0.042 | 0.091 | -37% (worse) |
-| KXGDP (n=3) | 0.509 | 0.672 | 1.100 | +33% better |
-| KXJOBLESSCLAIMS (n=16) | 4,840 | 6,100 | 35,556 | +86% better |
+| Series | Kalshi CRPS | Uniform CRPS | Historical CRPS |
+|--------|------------|-------------|----------------|
+| KXCPI (n=14) | 0.108 | 0.042 | 0.091 |
+| KXGDP (n=3) | 0.509 | 0.672 | 1.098 |
+| KXJOBLESSCLAIMS (n=16) | 4,840 | 6,100 | 35,556 |
 
-**Statistical tests (paired Wilcoxon signed-rank):**
+### Statistical Tests: Pooled vs Per-Series
 
-| Comparison | Kalshi Mean | Benchmark Mean | p-value | Significant |
-|-----------|-------------|----------------|---------|-------------|
-| Kalshi vs Historical | 2,347 | 17,239 | 0.0001 | Yes |
-| Kalshi CRPS vs Point MAE | 2,347 | 6,283 | 0.0031 | Yes |
-| Kalshi vs Uniform | 2,347 | 2,958 | 0.598 | No |
+| Test | Scope | p-value | Significant |
+|------|-------|---------|-------------|
+| Kalshi vs Historical | Pooled (n=33) | 0.0001 | Yes |
+| Kalshi vs Uniform | Pooled (n=33) | 0.598 | No |
+| KXCPI vs Historical | Per-series (n=14) | **0.709** | **No** |
+| KXCPI vs Uniform | Per-series (n=14) | 0.999 | No (worse) |
+| KXJOBLESSCLAIMS vs Historical | Per-series (n=16) | **0.0000** | **Yes** |
+| KXJOBLESSCLAIMS vs Uniform | Per-series (n=16) | 0.248 | No |
+| KXGDP vs Historical | Per-series (n=3) | — | Insufficient data |
 
-**Key findings:**
-1. Kalshi distributions massively beat historical benchmarks — the market is extracting real-time information far beyond what past data alone provides
-2. Full Kalshi distributions (CRPS) outperform point forecasts (MAE) — distributional information has value beyond the mean
-3. CPI distributions are overconfident: Kalshi CRPS (0.108) is worse than both uniform (0.042) and historical (0.091). The market concentrates probability too narrowly around its point forecast
-4. Jobless Claims distributions are well-calibrated: Kalshi beats uniform by ~20% and historical by 86%
+**Critical insight**: The pooled Wilcoxon (p=0.0001) is dominated by Jobless Claims' massive improvement over historical. Per-series tests reveal that CPI distributions are NOT better than historical (p=0.709) — they are actually overconfident. The "Kalshi beats historical" headline finding is a Jobless Claims story, not a universal prediction market story.
+
+### Mathematical Note on CRPS vs MAE
+
+CRPS ≤ MAE is a mathematical identity for any proper distribution derived from the same information set. Finding that Kalshi distributional CRPS < point MAE (pooled p=0.0031) is expected by construction and does NOT demonstrate superior forecasting accuracy. The honest comparison is point-vs-point (Finding 5 horse race) or distribution-vs-distribution (Kalshi CDF vs historical CDF).
 
 ### Temporal CRPS Evolution
-
-How distributional calibration changes over a market's lifetime (CRPS ratio vs uniform, <1.0 = beats uniform):
 
 | Lifetime % | CPI | GDP | Jobless Claims |
 |-----------|-----|-----|----------------|
@@ -354,17 +252,11 @@ How distributional calibration changes over a market's lifetime (CRPS ratio vs u
 | 75% | 1.64x | 0.72x | 0.80x |
 | 90% (late) | 1.16x | 0.86x | 0.78x |
 
-**CPI**: Starts 2x worse than uniform but converges to 1.16x by 90% of lifetime — markets ARE learning but never fully overcome overconfidence. At 75% of lifetime, CPI is only 64% worse than uniform (vs 196% at early life).
-
-**GDP**: Beats uniform from 25% of lifetime onward. Best performance at 75% (0.72x). Small sample (n=3) limits conclusions.
-
-**Jobless Claims**: Beats uniform from the very start (0.91x). Best performance at 25% of lifetime (0.54x = 46% better than uniform).
+CPI markets learn over time (converging from 1.96x to 1.16x vs uniform) but never overcome overconfidence. Jobless Claims beat uniform from inception.
 
 ### Interpretation
 
-This is the first proper scoring rule evaluation of prediction market implied distributions. The CRPS analysis extends NBER Working Paper 34702 (Diercks, Katz, Wright 2024), which showed Kalshi point forecasts beat Bloomberg for CPI. Our contribution: evaluating the *full distributional* forecast quality, including temporal evolution.
-
-The heterogeneity across event types is economically meaningful. CPI markets suffer from persistent overconfidence — traders concentrate probability too narrowly around consensus, consistent with herding behavior documented in Ehm et al. (2016). Jobless Claims markets maintain appropriate uncertainty from inception, possibly because the weekly release frequency provides more learning opportunities. The temporal convergence pattern suggests distributional calibration is an emergent property of market maturation, not a fixed characteristic.
+This is the first proper scoring rule evaluation of prediction market implied distributions. The heterogeneity is the finding: Jobless Claims (weekly frequency, high liquidity) achieve well-calibrated distributional forecasts that massively beat historical baselines. CPI markets (monthly frequency, herding around consensus) suffer persistent overconfidence. The temporal convergence pattern suggests distributional calibration is an emergent property of trading frequency and market maturation.
 
 ---
 
@@ -372,14 +264,7 @@ The heterogeneity across event types is economically meaningful. CPI markets suf
 
 **Strength: Suggestive (underpowered)**
 
-Kalshi appears to react to surprise economic events faster than traditional uncertainty measures (EPU), but the sample size is too small for statistical significance.
-
-- 20 events with sufficient hourly data, 16 with detectable Kalshi reaction
-- Surprise events: Kalshi leads EPU by ~56 hours (n=5)
-- Non-surprise events: essentially simultaneous (+0.6h, n=7)
-- Wilcoxon signed-rank: p=0.10
-
-Directionally consistent with Finding 1 but requires a larger event sample.
+Kalshi appears to react to surprise events ~56h before EPU, but n=5 is too small. Wilcoxon p=0.10.
 
 ---
 
@@ -392,6 +277,9 @@ These findings were initially reported as significant but were invalidated durin
 | Shock acceleration | 4h vs 8h, p<0.001 | 6h vs 8h, p=0.48 | Circular classification artifact |
 | KUI leads EPU (Granger) | p=0.024 | p=0.658 | Absolute return bias; fixed with percentage returns |
 | Trading Sharpe | +5.23 (4 trades) | -2.26 (23 trades) | Small-sample artifact |
+| **Microstructure event response** | **p=0.013 (spread)** | **p=0.542** | **Within-event correlation; 767 pairs from 31 events** |
+| **Surprise shock sensitivity** | **p=0.0002 (inflation)** | **p=0.436** | **Within-event correlation; hourly obs from 31 events** |
+| **Calibration under uncertainty** | **CI: [-0.242, -0.016]** | **CI: [-0.251, 0.017]** | **Within-event correlation in bootstrap** |
 
 ---
 
@@ -404,16 +292,19 @@ These findings were initially reported as significant but were invalidated durin
 - 725 hourly candle files with full OHLC, bid-ask, open interest, and volume
 - 336 multi-strike markets across 41 events (CPI, GDP, Jobless Claims)
 - 4 domains: inflation (CPI), monetary policy (Fed Funds), labor (Jobless Claims), macro (GDP)
-- External benchmarks: EPU (Baker-Bloom-Davis), VIX, S&P 500, TIPS breakeven (T10YIE, T5YIE)
+- External benchmarks: EPU (Baker-Bloom-Davis), VIX, S&P 500, TIPS breakeven (T10YIE, T5YIE), SPF median CPI
 
 ### Key Corrections Applied
 1. **ADF stationarity**: 43% of raw-level Granger results were spurious without differencing
-2. **Within-pair Bonferroni**: testing 24 lags and selecting best inflates p-values; corrected by p x max_lag. Reduced pairs from 446 to 379.
+2. **Within-pair Bonferroni**: testing 24 lags and selecting best inflates p-values; corrected by p x max_lag
 3. **Shock-fraction classification**: replaced binary market-lifetime overlap with continuous shock-fraction measure
-4. **Murphy decomposition**: Brier = reliability - resolution + uncertainty. Isolates true calibration from base rate effects.
+4. **Murphy decomposition**: Brier = reliability - resolution + uncertainty. Isolates true calibration from base rate effects
 5. **Permutation test**: 1,000 domain-label shuffles establish null distribution for cross-domain structure
 6. **Bidirectional pair flagging**: 39% of pairs show A-to-B and B-to-A, indicating co-movement not causation
 7. **F-stat overflow guards**: reject F > 10^6 and near-zero RSS (numerical artifacts)
+8. **Event-level clustering** (NEW): Experiments 3, 6, 10 now report both naive (pair/market-level) and event-level clustered statistics. Three previously "significant" findings became non-significant after clustering.
+9. **Per-series Wilcoxon** (NEW): Experiment 13 tests each event series separately rather than pooling across scales. The pooled p=0.0001 was driven by Jobless Claims; CPI is not significant per-series.
+10. **CRPS ≤ MAE note** (NEW): The CRPS-vs-point-forecast comparison is acknowledged as partially tautological (mathematical property, not empirical finding).
 
 ### Experiments Summary
 
@@ -421,13 +312,14 @@ These findings were initially reported as significant but were invalidated durin
 |---|------|-------------|-----------|
 | 1 | Causal Lead-Lag | Inflation → monetary policy at 3h | Kalshi, Grok |
 | 2 | KUI Construction | Uncertainty index (474 days) | Kalshi, FRED |
-| 3 | Calibration Under Uncertainty | Better calibration during high KUI | None |
+| 3 | Calibration Under Uncertainty | Suggestive (cluster-robust CI includes zero) | None |
 | 4 | Hourly Information Speed | ~56h lead vs EPU (underpowered) | None |
 | 5 | Embeddings & Clustering | k-NN beats random by 15.7% | Kalshi |
-| 6 | Market Microstructure | Spread narrows after events (p=0.013) | None |
+| 6 | Market Microstructure | Spread narrows after events (naive p=0.013, **clustered p=0.542**) | None |
 | 7 | Implied Distributions | CPI 0.05pp median error, 2.8% arb violations | None |
 | 8 | TIPS Comparison | TIPS leads Kalshi by 1 day (p=0.005) | FRED |
 | 9 | Indicator Network | CPI → Fed at 3h, p=0.009 | None |
-| 10 | Shock Propagation | Origin responds strongest (p<0.05), surprise 1.5-2.6x larger | None |
-| 11 | Favorite-Longshot Bias | Economics-only: time-to-expiration predicts calibration (7x) | None |
-| 12 | CRPS Distributional Scoring | Kalshi beats historical (p=0.0001), CPI overconfident | FRED |
+| 10 | Shock Propagation | Origin responds strongest (naive p<0.05, **clustered mostly underpowered**) | None |
+| 11 | Favorite-Longshot Bias | Time-to-expiration predicts calibration (7x) | None |
+| 12 | CRPS Distributional Scoring | Jobless Claims beats historical (**per-series p=0.0000**), CPI overconfident | FRED |
+| 13 | Unified Calibration + Horse Race | Per-series CRPS, CPI horse race (Kalshi MAE 0.082 vs SPF 0.111) | FRED |
