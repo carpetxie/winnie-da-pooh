@@ -459,6 +459,106 @@ def analyze_surprise_vs_nonsurprise(responses: pd.DataFrame) -> dict:
     return results
 
 
+def analyze_surprise_vs_nonsurprise_clustered(responses: pd.DataFrame) -> dict:
+    """Event-level clustered version of surprise analysis.
+
+    Collapses to one observation per (event_date, domain) before testing,
+    correcting for within-event correlation of hourly observations.
+    """
+    results = {}
+
+    # Post-event hours 0-12
+    post = responses[(responses["hour_offset"] >= 0) & (responses["hour_offset"] <= 12)]
+
+    # Collapse to event-domain level: mean abs_return per (event_date, domain)
+    event_domain = post.groupby(["event_date", "event_surprise", "domain"]).agg(
+        mean_abs_return=("abs_return", "mean"),
+    ).reset_index()
+
+    for domain in ECON_DOMAINS:
+        dom = event_domain[event_domain["domain"] == domain]
+        surprise = dom[dom["event_surprise"] == True]["mean_abs_return"]
+        nonsurprise = dom[dom["event_surprise"] == False]["mean_abs_return"]
+
+        if len(surprise) < 5 or len(nonsurprise) < 5:
+            results[domain] = {
+                "note": f"Insufficient event-level observations (surprise={len(surprise)}, nonsurprise={len(nonsurprise)})",
+                "n_surprise_events": len(surprise),
+                "n_nonsurprise_events": len(nonsurprise),
+            }
+            continue
+
+        stat, p = stats.mannwhitneyu(surprise, nonsurprise, alternative="greater")
+        results[domain] = {
+            "surprise_mean": float(surprise.mean()),
+            "nonsurprise_mean": float(nonsurprise.mean()),
+            "ratio": float(surprise.mean() / nonsurprise.mean()) if nonsurprise.mean() > 0 else None,
+            "mann_whitney_U": float(stat),
+            "p_value": float(p),
+            "significant": p < 0.05,
+            "n_surprise_events": len(surprise),
+            "n_nonsurprise_events": len(nonsurprise),
+            "note": "Event-level clustering: one observation per (event_date, domain)",
+        }
+
+    return results
+
+
+def test_response_ordering_clustered(responses: pd.DataFrame) -> dict:
+    """Event-level clustered version of response ordering test.
+
+    Collapses to one observation per (event_date, domain) before comparing
+    origin vs cross-domain response magnitudes.
+    """
+    result = {}
+
+    for event_type in responses["event_type"].unique():
+        evt_data = responses[responses["event_type"] == event_type]
+        origin_domain = EVENT_DOMAIN_MAP.get(event_type, "other")
+
+        post = evt_data[
+            (evt_data["hour_offset"] >= 0) & (evt_data["hour_offset"] <= 6)
+        ]
+
+        # Collapse to event-domain level
+        event_domain = post.groupby(["event_date", "domain"]).agg(
+            mean_abs_return=("abs_return", "mean"),
+        ).reset_index()
+
+        origin = event_domain[event_domain["domain"] == origin_domain]["mean_abs_return"]
+        if len(origin) < 3:
+            continue
+
+        cross_tests = {}
+        for domain in ECON_DOMAINS:
+            if domain == origin_domain:
+                continue
+
+            cross = event_domain[event_domain["domain"] == domain]["mean_abs_return"]
+            if len(cross) < 3:
+                continue
+
+            stat, p = stats.mannwhitneyu(origin, cross, alternative="greater")
+            cross_tests[domain] = {
+                "U": float(stat),
+                "p_value": float(p),
+                "cross_mean": float(cross.mean()),
+                "significant": p < 0.05,
+                "n_origin_events": len(origin),
+                "n_cross_events": len(cross),
+                "note": "Event-level clustering: one observation per (event_date, domain)",
+            }
+
+        result[event_type] = {
+            "origin_domain": origin_domain,
+            "origin_mean": float(origin.mean()),
+            "n_origin_events": len(origin),
+            "cross_tests": cross_tests,
+        }
+
+    return result
+
+
 def analyze_cross_domain_contagion(responses: pd.DataFrame) -> dict:
     """For each event, measure how much non-origin domains move.
 

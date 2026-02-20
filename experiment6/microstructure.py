@@ -406,6 +406,7 @@ def analyze_event_microstructure(
     for _, event in events.iterrows():
         event_ts = pd.Timestamp(event["date"], tz=timezone.utc)
         event_type = event.get("event_type", "unknown")
+        event_date_str = str(event["date"])[:10]
 
         # Collect microstructure from all active markets around this event
         for ticker, df in ticker_dfs.items():
@@ -436,10 +437,22 @@ def analyze_event_microstructure(
                 pre_ranges.append(pre_r.mean())
                 post_ranges.append(post_r.mean())
 
+            # Record per-pair data for event-level clustering
+            if len(pre_s) > 0 and len(post_s) > 0 and len(pre_r) > 0 and len(post_r) > 0:
+                event_records.append({
+                    "event_date": event_date_str,
+                    "ticker": ticker,
+                    "pre_spread": pre_s.mean(),
+                    "post_spread": post_s.mean(),
+                    "pre_range": pre_r.mean(),
+                    "post_range": post_r.mean(),
+                })
+
     results = {
         "n_event_market_pairs": len(pre_spreads),
     }
 
+    # --- Naive (pair-level) tests ---
     if len(pre_spreads) >= 10:
         spread_stat, spread_p = stats.wilcoxon(
             np.array(pre_spreads) - np.array(post_spreads),
@@ -452,6 +465,7 @@ def analyze_event_microstructure(
             "wilcoxon_p": float(spread_p),
             "significant": spread_p < 0.05,
             "direction": "wider_after" if np.mean(post_spreads) > np.mean(pre_spreads) else "narrower_after",
+            "note": "Naive: treats each event-market pair as independent",
         }
 
     if len(pre_ranges) >= 10:
@@ -466,7 +480,56 @@ def analyze_event_microstructure(
             "wilcoxon_p": float(range_p),
             "significant": range_p < 0.05,
             "direction": "wider_after" if np.mean(post_ranges) > np.mean(pre_ranges) else "narrower_after",
+            "note": "Naive: treats each event-market pair as independent",
         }
+
+    # --- Event-level clustered tests ---
+    # Collapse to event-level means: one observation per event date
+    if len(event_records) >= 10:
+        rec_df = pd.DataFrame(event_records)
+        event_level = rec_df.groupby("event_date").agg(
+            pre_spread_mean=("pre_spread", "mean"),
+            post_spread_mean=("post_spread", "mean"),
+            pre_range_mean=("pre_range", "mean"),
+            post_range_mean=("post_range", "mean"),
+            n_markets=("ticker", "count"),
+        ).reset_index()
+
+        n_events = len(event_level)
+        results["n_independent_events"] = n_events
+
+        if n_events >= 10:
+            spread_diffs = event_level["pre_spread_mean"].values - event_level["post_spread_mean"].values
+            cl_spread_stat, cl_spread_p = stats.wilcoxon(spread_diffs, alternative="two-sided")
+            results["spread_change_clustered"] = {
+                "n_events": n_events,
+                "pre_mean": float(event_level["pre_spread_mean"].mean()),
+                "post_mean": float(event_level["post_spread_mean"].mean()),
+                "change_pct": float(
+                    (event_level["post_spread_mean"].mean() - event_level["pre_spread_mean"].mean())
+                    / event_level["pre_spread_mean"].mean() * 100
+                ),
+                "wilcoxon_p": float(cl_spread_p),
+                "significant": cl_spread_p < 0.05,
+                "direction": "wider_after" if event_level["post_spread_mean"].mean() > event_level["pre_spread_mean"].mean() else "narrower_after",
+                "note": "Event-level clustering: one observation per event date",
+            }
+
+            range_diffs = event_level["pre_range_mean"].values - event_level["post_range_mean"].values
+            cl_range_stat, cl_range_p = stats.wilcoxon(range_diffs, alternative="two-sided")
+            results["range_change_clustered"] = {
+                "n_events": n_events,
+                "pre_mean": float(event_level["pre_range_mean"].mean()),
+                "post_mean": float(event_level["post_range_mean"].mean()),
+                "change_pct": float(
+                    (event_level["post_range_mean"].mean() - event_level["pre_range_mean"].mean())
+                    / event_level["pre_range_mean"].mean() * 100
+                ) if event_level["pre_range_mean"].mean() > 0 else 0,
+                "wilcoxon_p": float(cl_range_p),
+                "significant": cl_range_p < 0.05,
+                "direction": "wider_after" if event_level["post_range_mean"].mean() > event_level["pre_range_mean"].mean() else "narrower_after",
+                "note": "Event-level clustering: one observation per event date",
+            }
 
     return results
 

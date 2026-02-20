@@ -1,0 +1,271 @@
+"""
+experiment13/horse_race.py
+
+CPI Forecasting Horse Race: compare Kalshi implied distributions against
+professional forecasters (SPF) and market-based measures (TIPS breakevens).
+
+Benchmarks:
+1. SPF (Survey of Professional Forecasters) - quarterly from Philadelphia Fed
+2. TIPS breakeven rates - daily from FRED (T10YIE)
+3. Historical FRED CPI distribution - already in exp12
+"""
+
+import os
+import numpy as np
+import pandas as pd
+from typing import Optional
+from scipy import stats
+
+from experiment12.distributional_calibration import (
+    compute_point_crps,
+    _fetch_fred_csv,
+)
+
+
+# CPI release dates and realized MoM % changes for our event window.
+# These are matched from Kalshi event settlements (expiration_value field).
+# Release dates from BLS calendar.
+CPI_RELEASE_CALENDAR = {
+    # event_ticker: (release_date, target_month_label)
+    "KXCPI-24DEC": ("2025-01-15", "Dec 2024"),
+    "KXCPI-25JAN": ("2025-02-12", "Jan 2025"),
+    "KXCPI-25FEB": ("2025-03-12", "Feb 2025"),
+    "KXCPI-25MAR": ("2025-04-10", "Mar 2025"),
+    "KXCPI-25APR": ("2025-05-13", "Apr 2025"),
+    "KXCPI-25MAY": ("2025-06-11", "May 2025"),
+    "KXCPI-25JUN": ("2025-07-11", "Jun 2025"),
+    "KXCPI-25JUL": ("2025-08-12", "Jul 2025"),
+    "KXCPI-25AUG": ("2025-09-10", "Aug 2025"),
+    "KXCPI-25SEP": ("2025-10-14", "Sep 2025"),
+    "KXCPI-25OCT": ("2025-11-12", "Oct 2025"),
+    "KXCPI-25NOV": ("2025-12-10", "Nov 2025"),
+    "KXCPI-25DEC": ("2026-01-13", "Dec 2025"),
+}
+
+# SPF quarterly CPI forecasts (annual Q4/Q4 % change).
+# Source: Philadelphia Fed SPF median responses.
+# SPF forecasts annual CPI levels, not MoM. We convert using:
+#   Annual forecast -> implied quarterly MoM ~ (annual_rate / 12)
+# This is a rough approximation; SPF doesn't directly forecast MoM CPI.
+# We note this limitation explicitly.
+SPF_ANNUAL_CPI_FORECASTS = {
+    # survey_quarter: annual CPI % change forecast (Q4/Q4)
+    "2024Q4": 2.4,   # Q4 2024 SPF: 2.4% annual CPI
+    "2025Q1": 2.5,   # Q1 2025 SPF: 2.5% annual CPI
+    "2025Q2": 2.8,   # Q2 2025 SPF (tariff uncertainty)
+    "2025Q3": 2.6,   # Q3 2025 SPF
+    "2025Q4": 2.4,   # Q4 2025 SPF
+}
+
+
+def _event_to_quarter(event_ticker: str) -> str:
+    """Map event ticker to the most recent SPF survey quarter.
+
+    KXCPI-25MAR -> release Apr 2025 -> most recent SPF is 2025Q1.
+    """
+    cal = CPI_RELEASE_CALENDAR.get(event_ticker)
+    if not cal:
+        return ""
+    release_date = pd.Timestamp(cal[0])
+    year = release_date.year
+    month = release_date.month
+
+    # SPF releases: mid-Feb (Q1), mid-May (Q2), mid-Aug (Q3), mid-Nov (Q4)
+    if month <= 2:
+        return f"{year - 1}Q4"
+    elif month <= 5:
+        return f"{year}Q1"
+    elif month <= 8:
+        return f"{year}Q2"
+    elif month <= 11:
+        return f"{year}Q3"
+    else:
+        return f"{year}Q4"
+
+
+def get_spf_mom_forecast(event_ticker: str) -> Optional[float]:
+    """Get SPF-implied MoM CPI forecast for a given event.
+
+    SPF forecasts annual CPI (Q4/Q4). We convert to monthly:
+        MoM ≈ annual_rate / 12
+
+    This is an approximation. SPF does not directly forecast MoM CPI.
+    We document this limitation in the results.
+    """
+    quarter = _event_to_quarter(event_ticker)
+    annual = SPF_ANNUAL_CPI_FORECASTS.get(quarter)
+    if annual is None:
+        return None
+    return annual / 12.0
+
+
+def fetch_tips_monthly_forecast(
+    start_date: str = "2024-09-01",
+    end_date: str = "2026-02-01",
+) -> pd.Series:
+    """Fetch TIPS 10Y breakeven and convert to monthly CPI forecast.
+
+    Monthly CPI ≈ ((1 + T10YIE/100)^(1/12) - 1) * 100
+    """
+    tips = _fetch_fred_csv("T10YIE", start_date, end_date)
+    if tips is None or len(tips) == 0:
+        return pd.Series(dtype=float)
+    # Convert annual breakeven to monthly
+    monthly = ((1 + tips / 100) ** (1 / 12) - 1) * 100
+    return monthly
+
+
+def get_tips_forecast_for_event(
+    tips_monthly: pd.Series,
+    event_ticker: str,
+    lookback_days: int = 5,
+) -> Optional[float]:
+    """Get TIPS-implied MoM CPI forecast: average of lookback_days before release."""
+    cal = CPI_RELEASE_CALENDAR.get(event_ticker)
+    if not cal or len(tips_monthly) == 0:
+        return None
+
+    release_date = pd.Timestamp(cal[0])
+    # Average of lookback_days before release
+    window_start = release_date - pd.Timedelta(days=lookback_days + 5)  # buffer for weekends
+    window_end = release_date - pd.Timedelta(days=1)
+
+    window = tips_monthly[
+        (tips_monthly.index >= window_start) & (tips_monthly.index <= window_end)
+    ]
+    if len(window) == 0:
+        return None
+    return float(window.tail(lookback_days).mean())
+
+
+def run_cpi_horse_race(
+    cpi_events: pd.DataFrame,
+) -> dict:
+    """Run the CPI forecasting horse race.
+
+    For each CPI event, compare:
+    1. Kalshi implied mean (point forecast) MAE
+    2. SPF-implied MoM forecast MAE
+    3. TIPS-implied MoM forecast MAE
+
+    This is an apples-to-apples POINT forecast comparison.
+    The distributional CRPS comparison is separate (Kalshi vs historical CDF).
+
+    Args:
+        cpi_events: DataFrame with columns: event_ticker, realized, implied_mean, kalshi_crps
+
+    Returns:
+        dict with per-event results and statistical tests
+    """
+    print("\n  Fetching TIPS breakeven data from FRED...")
+    tips_monthly = fetch_tips_monthly_forecast()
+    print(f"  TIPS data: {len(tips_monthly)} daily observations")
+
+    results = []
+
+    for _, event in cpi_events.iterrows():
+        event_ticker = event["event_ticker"]
+        realized = event["realized"]
+        kalshi_mean = event.get("implied_mean")
+
+        row = {
+            "event_ticker": event_ticker,
+            "realized": realized,
+            "kalshi_implied_mean": kalshi_mean,
+            "kalshi_point_mae": abs(kalshi_mean - realized) if kalshi_mean is not None else None,
+            "kalshi_crps": event.get("kalshi_crps"),
+        }
+
+        # SPF forecast
+        spf_forecast = get_spf_mom_forecast(event_ticker)
+        if spf_forecast is not None:
+            row["spf_forecast"] = spf_forecast
+            row["spf_mae"] = abs(spf_forecast - realized)
+
+        # TIPS forecast
+        tips_forecast = get_tips_forecast_for_event(tips_monthly, event_ticker)
+        if tips_forecast is not None:
+            row["tips_forecast"] = tips_forecast
+            row["tips_mae"] = abs(tips_forecast - realized)
+
+        results.append(row)
+
+    results_df = pd.DataFrame(results)
+
+    # --- Statistical tests: point forecast comparisons ---
+    test_results = {}
+
+    # Kalshi implied mean MAE vs SPF MAE (apples-to-apples point forecasts)
+    valid = results_df.dropna(subset=["kalshi_point_mae", "spf_mae"])
+    if len(valid) >= 5:
+        stat, p = stats.wilcoxon(
+            valid["kalshi_point_mae"], valid["spf_mae"],
+            alternative="less",
+        )
+        test_results["kalshi_point_vs_spf"] = {
+            "n": len(valid),
+            "kalshi_mean_mae": float(valid["kalshi_point_mae"].mean()),
+            "spf_mean_mae": float(valid["spf_mae"].mean()),
+            "wilcoxon_p": float(p),
+            "significant": p < 0.05,
+            "note": "Apples-to-apples: Kalshi implied mean MAE vs SPF annual-to-monthly MAE",
+        }
+
+    # Kalshi implied mean MAE vs TIPS MAE
+    valid = results_df.dropna(subset=["kalshi_point_mae", "tips_mae"])
+    if len(valid) >= 5:
+        stat, p = stats.wilcoxon(
+            valid["kalshi_point_mae"], valid["tips_mae"],
+            alternative="less",
+        )
+        test_results["kalshi_point_vs_tips"] = {
+            "n": len(valid),
+            "kalshi_mean_mae": float(valid["kalshi_point_mae"].mean()),
+            "tips_mean_mae": float(valid["tips_mae"].mean()),
+            "wilcoxon_p": float(p),
+            "significant": p < 0.05,
+            "note": "Apples-to-apples: Kalshi implied mean MAE vs TIPS monthly-implied MAE",
+        }
+
+    # SPF vs TIPS (for context)
+    valid = results_df.dropna(subset=["spf_mae", "tips_mae"])
+    if len(valid) >= 5:
+        stat, p = stats.wilcoxon(
+            valid["spf_mae"], valid["tips_mae"],
+            alternative="two-sided",
+        )
+        test_results["spf_vs_tips"] = {
+            "n": len(valid),
+            "spf_mean_mae": float(valid["spf_mae"].mean()),
+            "tips_mean_mae": float(valid["tips_mae"].mean()),
+            "wilcoxon_p": float(p),
+            "significant": p < 0.05,
+        }
+
+    return {
+        "per_event": results_df.to_dict("records"),
+        "n_events": len(results_df),
+        "statistical_tests": test_results,
+        "methodology_notes": {
+            "spf_conversion": (
+                "SPF forecasts annual CPI (Q4/Q4 %). Converted to MoM via "
+                "annual_rate / 12. This is an approximation; SPF does not "
+                "directly forecast monthly CPI changes."
+            ),
+            "tips_conversion": (
+                "TIPS 10Y breakeven converted to monthly via "
+                "((1 + annual/100)^(1/12) - 1) * 100. Uses 5-day average "
+                "before CPI release. Includes risk premium and term structure effects."
+            ),
+            "crps_vs_mae": (
+                "CRPS <= MAE is a mathematical identity for any proper distribution. "
+                "Comparing Kalshi CRPS to point forecast MAE conflates distributional "
+                "advantage with forecasting accuracy. This horse race compares "
+                "point-vs-point (MAE vs MAE) for an honest comparison."
+            ),
+            "sample_size": (
+                f"n={len(results_df)} CPI events. Low statistical power; "
+                "effect sizes are more informative than p-values."
+            ),
+        },
+    }

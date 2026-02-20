@@ -33,11 +33,13 @@ def main():
         compute_event_responses,
         build_propagation_heatmap,
         analyze_surprise_vs_nonsurprise,
+        analyze_surprise_vs_nonsurprise_clustered,
         analyze_cross_domain_contagion,
         build_temporal_cascade_matrix,
         plot_propagation_heatmap,
         compute_response_ratio_ordering,
         test_response_ordering,
+        test_response_ordering_clustered,
     )
     from experiment2.event_study import get_economic_events
 
@@ -106,6 +108,23 @@ def main():
               f"non-surprise={stats_dict['nonsurprise_mean']:.4f}, "
               f"ratio={ratio_str}, p={stats_dict['p_value']:.4f}{sig}")
 
+    # Phase 4b: Surprise vs non-surprise (event-level clustered)
+    print("\n" + "=" * 70)
+    print("PHASE 4b: SURPRISE vs NON-SURPRISE (EVENT-LEVEL CLUSTERED)")
+    print("=" * 70)
+
+    surprise_clustered = analyze_surprise_vs_nonsurprise_clustered(responses)
+    for domain, stats_dict in sorted(surprise_clustered.items()):
+        if "p_value" in stats_dict:
+            ratio_str = f"{stats_dict['ratio']:.2f}x" if stats_dict.get('ratio') else "N/A"
+            sig = "*" if stats_dict["significant"] else ""
+            print(f"  {domain}: surprise={stats_dict['surprise_mean']:.4f}, "
+                  f"non-surprise={stats_dict['nonsurprise_mean']:.4f}, "
+                  f"ratio={ratio_str}, p={stats_dict['p_value']:.4f}{sig} "
+                  f"(n_s={stats_dict['n_surprise_events']}, n_ns={stats_dict['n_nonsurprise_events']})")
+        else:
+            print(f"  {domain}: {stats_dict.get('note', 'insufficient data')}")
+
     # Phase 5: Cross-domain contagion
     print("\n" + "=" * 70)
     print("PHASE 5: CROSS-DOMAIN CONTAGION ANALYSIS")
@@ -153,6 +172,21 @@ def main():
             print(f"    vs {cross_domain}: cross_mean={test['cross_mean']:.4f}, "
                   f"p={test['p_value']:.4f}{sig}")
 
+    # Phase 5d: Response ordering (event-level clustered)
+    print("\n" + "=" * 70)
+    print("PHASE 5d: RESPONSE ORDERING (EVENT-LEVEL CLUSTERED)")
+    print("=" * 70)
+
+    ordering_clustered = test_response_ordering_clustered(responses)
+    for event_type, result in sorted(ordering_clustered.items()):
+        origin = result["origin_domain"]
+        print(f"\n  {event_type} (origin={origin}, mean={result['origin_mean']:.4f}, "
+              f"n_events={result['n_origin_events']}):")
+        for cross_domain, test in result["cross_tests"].items():
+            sig = "*" if test["significant"] else ""
+            print(f"    vs {cross_domain}: cross_mean={test['cross_mean']:.4f}, "
+                  f"p={test['p_value']:.4f}{sig} (n={test['n_cross_events']})")
+
     # Phase 6: Build temporal cascade matrix
     print("\n" + "=" * 70)
     print("PHASE 6: BUILDING TEMPORAL CASCADE MATRIX")
@@ -186,11 +220,13 @@ def main():
         "first_significant_response": heatmap_result["first_significant_response"],
         "propagation_speeds": heatmap_result["propagation_speeds"],
         "surprise_analysis": surprise_results,
+        "surprise_analysis_clustered": surprise_clustered,
         "contagion_analysis": {
             k: v for k, v in contagion.items() if k != "raw_scores"
         },
         "response_ratio_ordering": ratios,
         "response_ordering_tests": ordering_tests,
+        "response_ordering_tests_clustered": ordering_clustered,
     }
 
     with open(os.path.join(DATA_DIR, "shock_propagation_results.json"), "w") as f:

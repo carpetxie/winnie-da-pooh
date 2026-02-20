@@ -263,6 +263,10 @@ def compute_lag_distributions(sig_df: pd.DataFrame) -> dict:
                 "mann_whitney_U": float(u_stat) if np.isfinite(u_stat) else None,
                 "mann_whitney_p": float(u_p) if np.isfinite(u_p) else None,
                 "asymmetry_significant": bool(u_p < 0.05) if np.isfinite(u_p) else False,
+                "independence_note": (
+                    "Each pair treated as independent. Pairs sharing leader/follower "
+                    "tickers are correlated; effective N may be lower than reported."
+                ),
             })
 
     return {"distributions": results, "asymmetry": asymmetry}

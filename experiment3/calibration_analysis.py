@@ -60,6 +60,23 @@ def load_market_predictions(
     df["market_prob"] = mid_probs
     df["market_prob"] = df["market_prob"].clip(0.01, 0.99)
 
+    # Extract event cluster from ticker for cluster-robust bootstrap
+    # Strike markets: "KXCPI-25DEC-T0.20" -> "KXCPI-25DEC"
+    # Non-strike: "KXRECESSION-25DEC31" -> "KXRECESSION-25DEC31"
+    # Fallback: use close_time month
+    import re
+    clusters = []
+    for _, row in df.iterrows():
+        ticker = str(row["ticker"])
+        # Try to extract event prefix before "-T" (strike threshold)
+        if "-T" in ticker:
+            cluster = ticker.rsplit("-T", 1)[0]
+        else:
+            # Use full ticker minus any trailing contract detail
+            cluster = ticker
+        clusters.append(cluster)
+    df["event_cluster"] = clusters
+
     # Filter
     df = df.dropna(subset=["market_prob", "open_time", "close_time"]).reset_index(drop=True)
 
@@ -289,6 +306,68 @@ def compute_regime_calibration(df: pd.DataFrame) -> dict:
                 "is driven by base rate composition, not calibration quality."
             ),
         }
+
+        # --- Cluster-robust bootstrap ---
+        # Resample event clusters (not individual markets) to correct for
+        # within-event correlation of market outcomes.
+        if "event_cluster" in high_df.columns and "event_cluster" in low_df.columns:
+            high_clusters = high_df["event_cluster"].unique()
+            low_clusters = low_df["event_cluster"].unique()
+
+            cl_diffs = []
+            cl_reliability_diffs = []
+            cl_rng = np.random.default_rng(42)
+
+            for _ in range(n_boot):
+                # Resample clusters with replacement
+                h_cl_sample = cl_rng.choice(high_clusters, len(high_clusters), replace=True)
+                l_cl_sample = cl_rng.choice(low_clusters, len(low_clusters), replace=True)
+
+                # Gather all markets in sampled clusters
+                h_frames = [high_df[high_df["event_cluster"] == c] for c in h_cl_sample]
+                l_frames = [low_df[low_df["event_cluster"] == c] for c in l_cl_sample]
+                h_sample = pd.concat(h_frames, ignore_index=True)
+                l_sample = pd.concat(l_frames, ignore_index=True)
+
+                if len(h_sample) < 5 or len(l_sample) < 5:
+                    continue
+
+                h_brier = compute_brier(h_sample["market_prob"].values, h_sample["result_binary"].values)
+                l_brier = compute_brier(l_sample["market_prob"].values, l_sample["result_binary"].values)
+                cl_diffs.append(h_brier - l_brier)
+
+                h_murphy = murphy_decomposition(h_sample["market_prob"].values, h_sample["result_binary"].values)
+                l_murphy = murphy_decomposition(l_sample["market_prob"].values, l_sample["result_binary"].values)
+                cl_reliability_diffs.append(h_murphy["reliability"] - l_murphy["reliability"])
+
+            cl_diffs = np.array(cl_diffs)
+            cl_reliability_diffs = np.array(cl_reliability_diffs)
+
+            results["statistical_test_clustered"] = {
+                "test": "cluster_robust_bootstrap_brier_difference",
+                "n_high_clusters": len(high_clusters),
+                "n_low_clusters": len(low_clusters),
+                "n_boot_valid": len(cl_diffs),
+                "mean_diff": float(cl_diffs.mean()) if len(cl_diffs) > 0 else None,
+                "ci_lower": float(np.percentile(cl_diffs, 2.5)) if len(cl_diffs) > 0 else None,
+                "ci_upper": float(np.percentile(cl_diffs, 97.5)) if len(cl_diffs) > 0 else None,
+                "significant": bool(
+                    np.percentile(cl_diffs, 2.5) > 0 or np.percentile(cl_diffs, 97.5) < 0
+                ) if len(cl_diffs) > 0 else False,
+                "note": "Resamples event clusters, not individual markets, to account for within-event correlation",
+            }
+            results["base_rate_control_clustered"] = {
+                "test": "cluster_robust_bootstrap_reliability_difference",
+                "n_high_clusters": len(high_clusters),
+                "n_low_clusters": len(low_clusters),
+                "reliability_diff_mean": float(cl_reliability_diffs.mean()) if len(cl_reliability_diffs) > 0 else None,
+                "reliability_diff_ci_lower": float(np.percentile(cl_reliability_diffs, 2.5)) if len(cl_reliability_diffs) > 0 else None,
+                "reliability_diff_ci_upper": float(np.percentile(cl_reliability_diffs, 97.5)) if len(cl_reliability_diffs) > 0 else None,
+                "reliability_significant": bool(
+                    np.percentile(cl_reliability_diffs, 2.5) > 0 or np.percentile(cl_reliability_diffs, 97.5) < 0
+                ) if len(cl_reliability_diffs) > 0 else False,
+                "note": "Resamples event clusters for reliability difference",
+            }
 
     # By domain × regime
     for domain in df["domain"].unique():

@@ -157,7 +157,19 @@ def apply_bonferroni_correction(
     significant = results[results["significant"]].copy()
     significant = significant.sort_values("adjusted_p")
 
+    # Count effective number of independent pairs (unordered)
+    unique_pairs = set()
+    for _, row in results.iterrows():
+        pair = tuple(sorted([row["leader_ticker"], row["follower_ticker"]]))
+        unique_pairs.add(pair)
+    n_unique_pairs = len(unique_pairs)
+
     print(f"  Bonferroni correction: {len(significant)}/{n_tests} pairs significant at α={alpha}")
+    print(f"  Note: {n_tests} directional tests from {n_unique_pairs} unique ticker pairs")
+    print(f"  (Conservative: treats A→B and B→A as independent tests)")
+
+    significant["n_unique_pairs"] = n_unique_pairs
+
     return significant
 
 
