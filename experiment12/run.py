@@ -190,6 +190,74 @@ def main():
                 if len(imp) > 0:
                     print(f"    Improvement:     {imp.mean():.1f}% better than historical")
 
+    # Phase 3b: Temporal CRPS evolution (early, mid, late snapshots)
+    print("\n" + "=" * 70)
+    print("PHASE 3b: TEMPORAL CRPS EVOLUTION (EARLY → MID → LATE)")
+    print("=" * 70)
+
+    temporal_crps = []
+
+    for event_ticker, event_markets in sorted(event_groups.items()):
+        series = event_markets["series_prefix"].iloc[0]
+        exp_val = event_markets["expiration_value"].iloc[0]
+        realized = _parse_expiration_value(exp_val, series)
+        if realized is None:
+            continue
+
+        snapshots = build_implied_cdf_snapshots(event_markets)
+        if len(snapshots) < 6:
+            continue
+
+        # Sample at 10%, 25%, 50%, 75%, 90% of market lifetime
+        n = len(snapshots)
+        for pct_label, idx in [("10%", n // 10), ("25%", n // 4),
+                                ("50%", n // 2), ("75%", 3 * n // 4),
+                                ("90%", 9 * n // 10)]:
+            idx = min(idx, n - 1)
+            snap = snapshots[idx]
+            strikes = snap["strikes"]
+            cdf_values = snap["cdf_values"]
+            if len(strikes) < 2:
+                continue
+            try:
+                crps_val = compute_crps(strikes, cdf_values, realized)
+                uniform_val = compute_uniform_crps(min(strikes), max(strikes), realized)
+                temporal_crps.append({
+                    "event_ticker": event_ticker,
+                    "series": series,
+                    "lifetime_pct": pct_label,
+                    "snapshot_idx": idx,
+                    "n_snapshots": n,
+                    "kalshi_crps": crps_val,
+                    "uniform_crps": uniform_val,
+                    "beats_uniform": crps_val < uniform_val,
+                })
+            except Exception:
+                continue
+
+    temporal_df = pd.DataFrame(temporal_crps)
+    if len(temporal_df) > 0:
+        print(f"\n  Events with temporal data: {temporal_df['event_ticker'].nunique()}")
+        for pct in ["10%", "25%", "50%", "75%", "90%"]:
+            t = temporal_df[temporal_df["lifetime_pct"] == pct]
+            if len(t) == 0:
+                continue
+            beats = t["beats_uniform"].mean()
+            print(f"  {pct} of lifetime: mean CRPS={t['kalshi_crps'].mean():.4f}, "
+                  f"beats uniform={beats:.0%} ({t['beats_uniform'].sum()}/{len(t)})")
+
+        # Per-series temporal evolution
+        for series in temporal_df["series"].unique():
+            s = temporal_df[temporal_df["series"] == series]
+            print(f"\n  {series}:")
+            for pct in ["10%", "25%", "50%", "75%", "90%"]:
+                t = s[s["lifetime_pct"] == pct]
+                if len(t) == 0:
+                    continue
+                print(f"    {pct}: CRPS={t['kalshi_crps'].mean():.4f}, "
+                      f"uniform={t['uniform_crps'].mean():.4f}, "
+                      f"ratio={t['kalshi_crps'].mean() / t['uniform_crps'].mean():.2f}x")
+
     # Phase 4: Statistical tests
     print("\n" + "=" * 70)
     print("PHASE 4: STATISTICAL TESTS (KALSHI vs BENCHMARKS)")
@@ -273,6 +341,7 @@ def main():
         "n_events": len(crps_df),
         "per_event_crps": crps_results,
         "statistical_tests": test_results,
+        "temporal_crps": temporal_crps if len(temporal_crps) > 0 else [],
         "per_series_summary": {},
     }
 

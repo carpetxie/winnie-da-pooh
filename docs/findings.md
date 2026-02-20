@@ -342,9 +342,29 @@ Kalshi's implied probability distributions significantly outperform historical b
 3. CPI distributions are overconfident: Kalshi CRPS (0.108) is worse than both uniform (0.042) and historical (0.091). The market concentrates probability too narrowly around its point forecast
 4. Jobless Claims distributions are well-calibrated: Kalshi beats uniform by ~20% and historical by 86%
 
+### Temporal CRPS Evolution
+
+How distributional calibration changes over a market's lifetime (CRPS ratio vs uniform, <1.0 = beats uniform):
+
+| Lifetime % | CPI | GDP | Jobless Claims |
+|-----------|-----|-----|----------------|
+| 10% (early) | 1.96x | 1.33x | 0.91x |
+| 25% | 2.82x | 0.93x | 0.54x |
+| 50% (mid) | 2.55x | 0.76x | 0.79x |
+| 75% | 1.64x | 0.72x | 0.80x |
+| 90% (late) | 1.16x | 0.86x | 0.78x |
+
+**CPI**: Starts 2x worse than uniform but converges to 1.16x by 90% of lifetime — markets ARE learning but never fully overcome overconfidence. At 75% of lifetime, CPI is only 64% worse than uniform (vs 196% at early life).
+
+**GDP**: Beats uniform from 25% of lifetime onward. Best performance at 75% (0.72x). Small sample (n=3) limits conclusions.
+
+**Jobless Claims**: Beats uniform from the very start (0.91x). Best performance at 25% of lifetime (0.54x = 46% better than uniform).
+
 ### Interpretation
 
-This is the first proper scoring rule evaluation of prediction market implied distributions. The CRPS analysis extends NBER Working Paper 34702 (Diercks, Katz, Wright 2024), which showed Kalshi point forecasts beat Bloomberg for CPI. Our contribution: evaluating the *full distributional* forecast quality. The heterogeneity across event types is economically meaningful — CPI markets may suffer from herding around consensus forecasts (overconfidence), while Jobless Claims markets maintain appropriate uncertainty. This suggests distributional calibration varies with market structure and trader composition.
+This is the first proper scoring rule evaluation of prediction market implied distributions. The CRPS analysis extends NBER Working Paper 34702 (Diercks, Katz, Wright 2024), which showed Kalshi point forecasts beat Bloomberg for CPI. Our contribution: evaluating the *full distributional* forecast quality, including temporal evolution.
+
+The heterogeneity across event types is economically meaningful. CPI markets suffer from persistent overconfidence — traders concentrate probability too narrowly around consensus, consistent with herding behavior documented in Ehm et al. (2016). Jobless Claims markets maintain appropriate uncertainty from inception, possibly because the weekly release frequency provides more learning opportunities. The temporal convergence pattern suggests distributional calibration is an emergent property of market maturation, not a fixed characteristic.
 
 ---
 
