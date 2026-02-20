@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Winnie** is a research platform exploring novel signals in Kalshi prediction market data, aimed at producing publishable work for Kalshi's research arm (`research@kalshi.com`). The goal is to demonstrate non-trivial, economically-valuable insights from Kalshi data.
 
-Eleven experiments are implemented (1-11). See `docs/findings.md` for the seven strong findings plus supporting results after PhD-level methodology review.
+Twelve experiments are implemented (1-12). See `docs/findings.md` for the eight strong findings plus supporting results after PhD-level methodology review.
 
 ## Commands
 
@@ -56,6 +56,9 @@ uv run python -m experiment10.run
 
 # Run Experiment 11 (Favorite-Longshot Bias × Microstructure — no API calls)
 uv run python -m experiment11.run
+
+# Run Experiment 12 (CRPS Distributional Calibration — fetches FRED data)
+uv run python -m experiment12.run
 
 # Tests
 uv run python -m pytest experiment1/tests/test_unit.py -v
@@ -131,7 +134,13 @@ Key findings: Macro markets respond first to CPI/NFP events (within 4-8h). Surpr
 Pipeline: load settled markets → load hourly microstructure → test overall FLB → analyze by OI/spread/volume tercile → analyze by time to expiration → domain breakdown → visualization.
 No API calls required. Uses cached data from exp2.
 
-Key findings: Spread predicts calibration quality: low-spread Brier=0.0001 vs high-spread Brier=0.130. Longshot bias concentrates in wide-spread markets (+0.040) and nearly vanishes in tight-spread markets (+0.011). Extends Whelan (CEPR 2024).
+Key findings: Economics-only analysis (1,141 markets) with T-24h candle prices to avoid settlement confound. Time-to-expiration is the dominant predictor of calibration (short=0.156 vs long=0.023 Brier). Extends Whelan (CEPR 2024).
+
+### Experiment 12 — CRPS Distributional Calibration (`experiment12/`)
+Pipeline: load multi-strike markets (from exp7) → fetch FRED historical benchmarks → compute CRPS per event (Kalshi, uniform, historical, point) → paired Wilcoxon tests → visualization.
+Fetches FRED data for benchmarks (CPI, Jobless Claims, GDP). Uses cached Kalshi data from exp2/exp7.
+
+Key findings: Kalshi distributions beat historical (CRPS, p=0.0001) and point forecasts (p=0.0031). CPI distributions are overconfident (worse than uniform). Jobless Claims well-calibrated (86% better than historical).
 
 ### Common Patterns
 - **Phase-based pipelines**: Each module is independent; expensive steps cached and skippable via `--skip-*` flags.
@@ -153,7 +162,8 @@ data/
 ├── exp8/         # TIPS comparison (kalshi_cpi_daily.csv, T10YIE.csv, tips_comparison_results.json, plots)
 ├── exp9/         # Indicator network (granger_with_indicators.csv, indicator_network_results.json, plots)
 ├── exp10/        # Shock propagation (shock_propagation_results.json, event_responses.csv, plots)
-└── exp11/        # Favorite-longshot bias (favorite_longshot_results.json, plots)
+├── exp11/        # Favorite-longshot bias (favorite_longshot_results.json, plots)
+└── exp12/        # CRPS distributional calibration (crps_results.json, crps_per_event.csv, plots)
 ```
 
 ## Docs
