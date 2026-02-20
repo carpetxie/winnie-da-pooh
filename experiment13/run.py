@@ -392,6 +392,102 @@ def main():
         print("  Insufficient CPI events for horse race")
 
     # ================================================================
+    # PHASE 6b: POWER ANALYSIS FOR HORSE RACE
+    # ================================================================
+    print("\n" + "=" * 70)
+    print("PHASE 6b: POWER ANALYSIS")
+    print("=" * 70)
+
+    power_analysis = {}
+    if horse_race_results and "statistical_tests" in horse_race_results:
+        for test_name, test in horse_race_results["statistical_tests"].items():
+            if "cohen_d" in test and test["cohen_d"] != 0:
+                d = abs(test["cohen_d"])
+                # Approximate sample size for 80% power, alpha=0.05, one-sided
+                # For Wilcoxon: n ≈ (z_alpha + z_beta)^2 / d^2 * (pi/3)
+                # where pi/3 ≈ 1.047 is the ARE correction for Wilcoxon vs t-test
+                z_alpha = 1.645  # one-sided 0.05
+                z_beta = 0.842   # 80% power
+                n_needed = int(np.ceil(((z_alpha + z_beta) ** 2 / d ** 2) * (np.pi / 3)))
+                power_analysis[test_name] = {
+                    "observed_d": round(d, 3),
+                    "n_current": test["n"],
+                    "n_needed_80pct_power": n_needed,
+                    "months_more_data": max(0, n_needed - test["n"]),
+                }
+                print(f"  {test_name}: |d|={d:.3f}, n={test['n']}, "
+                      f"need n={n_needed} for 80% power "
+                      f"({max(0, n_needed - test['n'])} more months)")
+
+    # ================================================================
+    # PHASE 6c: CPI OVERCONFIDENCE DIAGNOSTIC
+    # ================================================================
+    print("\n" + "=" * 70)
+    print("PHASE 6c: CPI OVERCONFIDENCE DIAGNOSTIC")
+    print("=" * 70)
+
+    cpi_overconfidence = {}
+    cpi_data = crps_df[crps_df["series"] == "KXCPI"].copy()
+    if len(cpi_data) > 0:
+        # For each CPI event, check where realized falls in the implied distribution
+        pit_values = []  # Probability Integral Transform
+        for _, row in cpi_data.iterrows():
+            event_ticker = row["event_ticker"]
+            realized = row["realized"]
+            event_markets = event_groups.get(event_ticker)
+            if event_markets is None:
+                continue
+
+            snapshots = build_implied_cdf_snapshots(event_markets)
+            if len(snapshots) < 2:
+                continue
+
+            mid_snap = snapshots[len(snapshots) // 2]
+            strikes = mid_snap["strikes"]
+            cdf_vals = mid_snap["cdf_values"]
+
+            # Find where realized falls in the CDF (PIT value)
+            pit = np.interp(realized, strikes, cdf_vals)
+            pit_values.append({"event_ticker": event_ticker, "realized": realized, "pit": pit})
+
+        if pit_values:
+            pit_df = pd.DataFrame(pit_values)
+            # If well-calibrated, PIT values should be ~ Uniform(0,1)
+            # Overconfidence → PIT values cluster at 0 and 1 (tails)
+            n_in_iqr = ((pit_df["pit"] >= 0.25) & (pit_df["pit"] <= 0.75)).sum()
+            n_in_tails = ((pit_df["pit"] < 0.1) | (pit_df["pit"] > 0.9)).sum()
+
+            cpi_overconfidence = {
+                "n_events": len(pit_df),
+                "mean_pit": float(pit_df["pit"].mean()),
+                "std_pit": float(pit_df["pit"].std()),
+                "pct_in_iqr": float(n_in_iqr / len(pit_df)),
+                "pct_in_tails": float(n_in_tails / len(pit_df)),
+                "expected_in_iqr": 0.50,
+                "expected_in_tails": 0.20,
+                "interpretation": (
+                    "If distribution is well-calibrated, 50% of realized values "
+                    "should fall in the IQR and 20% in the tails (PIT < 0.1 or > 0.9). "
+                    "Overconfident distributions have too many tail outcomes."
+                ),
+            }
+
+            print(f"  CPI PIT analysis (n={len(pit_df)}):")
+            print(f"    Mean PIT: {pit_df['pit'].mean():.3f} (ideal: 0.500)")
+            print(f"    Std PIT:  {pit_df['pit'].std():.3f} (ideal: 0.289)")
+            print(f"    In IQR (0.25-0.75): {n_in_iqr}/{len(pit_df)} = {n_in_iqr/len(pit_df):.0%} (ideal: 50%)")
+            print(f"    In tails (<0.1 or >0.9): {n_in_tails}/{len(pit_df)} = {n_in_tails/len(pit_df):.0%} (ideal: 20%)")
+
+            # KS test for uniformity
+            ks_stat, ks_p = stats.kstest(pit_df["pit"], "uniform")
+            cpi_overconfidence["ks_test"] = {
+                "statistic": float(ks_stat),
+                "p_value": float(ks_p),
+                "reject_uniform": ks_p < 0.05,
+            }
+            print(f"    KS test for uniformity: stat={ks_stat:.3f}, p={ks_p:.4f}")
+
+    # ================================================================
     # PHASE 7: SERIAL CORRELATION ACKNOWLEDGMENT
     # ================================================================
     serial_corr_note = {
@@ -427,6 +523,8 @@ def main():
         "statistical_tests": test_results,
         "temporal_crps": temporal_crps if len(temporal_crps) > 0 else [],
         "horse_race": horse_race_results,
+        "power_analysis": power_analysis,
+        "cpi_overconfidence_diagnostic": cpi_overconfidence,
         "serial_correlation_notes": serial_corr_note,
         "per_series_summary": {},
     }

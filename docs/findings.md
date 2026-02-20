@@ -154,13 +154,37 @@ Kalshi's implied probability distributions show heterogeneous calibration: Joble
 
 CPI markets learn over time (converging from 1.96x to 1.16x vs uniform) but never overcome overconfidence. Jobless Claims beat uniform from inception.
 
+### CPI Overconfidence Diagnostic (PIT Analysis)
+
+Probability Integral Transform (PIT) analysis reveals the nature of CPI overconfidence:
+
+| Metric | CPI (n=14) | Well-Calibrated |
+|--------|-----------|-----------------|
+| Mean PIT | 0.391 | 0.500 |
+| Std PIT | 0.222 | 0.289 |
+| % in IQR | 57% | 50% |
+| % in tails | 7% | 20% |
+
+The market is biased toward higher CPI: realized values consistently fall in the lower half of the implied distribution (mean PIT = 0.39). The distribution is also too wide (low tail density, compressed std). This is consistent with consensus herding around a high-CPI narrative during 2024-2025.
+
+### Power Analysis
+
+| Comparison | |d| | n now | n needed (80% power) |
+|-----------|-----|-------|----------------------|
+| vs Random Walk | 0.60 | 14 | 18 (+4 months) |
+| vs Trailing Mean | 0.32 | 14 | 66 (+52 months) |
+| vs SPF | 0.25 | 14 | 107 (+93 months) |
+| vs TIPS | 0.27 | 14 | 90 (+76 months) |
+
+The random walk comparison is near-powered (4 more months). Detecting differences vs professional forecasters requires years of data — a fundamental constraint of monthly CPI releases.
+
 ### Mathematical Note
 
-CRPS <= MAE is a mathematical identity for any proper distribution. Comparing distributional CRPS to point forecast MAE conflates distributional advantage with forecasting accuracy. This analysis compares distribution-vs-distribution (Kalshi CDF vs historical CDF) for honest evaluation.
+CRPS <= MAE is a mathematical identity for any proper distribution. This analysis compares distribution-vs-distribution (Kalshi CDF vs historical CDF) for honest evaluation.
 
 ### Interpretation
 
-The heterogeneity is the finding: Jobless Claims (weekly frequency, high liquidity) achieve well-calibrated distributional forecasts that massively beat historical baselines. CPI markets (monthly frequency, herding around consensus) suffer persistent overconfidence. Distributional calibration is an emergent property of trading frequency and market maturation.
+The heterogeneity is the finding: Jobless Claims (weekly frequency, high liquidity) achieve well-calibrated distributional forecasts that massively beat historical baselines. CPI markets (monthly frequency, consensus herding) are biased toward overestimating inflation. The PIT analysis suggests this is directional bias (high-CPI narrative), not excess uncertainty. Distributional calibration is an emergent property of trading frequency and information diversity.
 
 ---
 
