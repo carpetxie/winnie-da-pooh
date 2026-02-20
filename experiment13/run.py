@@ -225,7 +225,6 @@ def main():
     for comparison, col_a, col_b, label in [
         ("kalshi_vs_uniform", "kalshi_crps", "uniform_crps", "Kalshi vs Uniform"),
         ("kalshi_vs_historical", "kalshi_crps", "historical_crps", "Kalshi vs Historical"),
-        ("kalshi_dist_vs_point", "kalshi_crps", "point_crps", "Kalshi CRPS vs Point MAE"),
     ]:
         valid = crps_df.dropna(subset=[col_a, col_b])
         if len(valid) >= 5:
@@ -245,14 +244,16 @@ def main():
                   f"Benchmark={valid[col_b].mean():.4f}, "
                   f"p={p:.4f}{sig}")
 
-    # Add note about CRPS <= MAE
-    if "kalshi_dist_vs_point" in test_results:
-        test_results["kalshi_dist_vs_point"]["mathematical_note"] = (
+    # Note: CRPS vs Point MAE test removed — CRPS <= MAE is a mathematical
+    # identity for any proper distribution, so this comparison is tautological.
+    # The honest comparison is point-vs-point (Phase 6 horse race).
+    test_results["crps_vs_point_note"] = {
+        "note": (
             "CRPS <= MAE is a mathematical property of proper scoring rules. "
-            "Finding Kalshi CRPS < point MAE is expected for any well-formed "
-            "distribution and does NOT demonstrate superior forecasting accuracy. "
-            "The honest comparison is point-vs-point (Phase 6 horse race)."
-        )
+            "The CRPS-vs-point test is omitted as it is tautological. "
+            "See Phase 6 horse race for honest point-vs-point comparison."
+        ),
+    }
 
     # Per-series tests
     print("\n  --- Per-series Wilcoxon tests ---")

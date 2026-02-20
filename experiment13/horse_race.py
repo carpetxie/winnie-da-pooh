@@ -280,6 +280,15 @@ def run_cpi_horse_race(
     # --- Statistical tests: point forecast comparisons ---
     test_results = {}
 
+    def _paired_effect_size(a, b):
+        """Compute Cohen's d for paired samples."""
+        diff = a - b
+        d_mean = diff.mean()
+        d_std = diff.std(ddof=1)
+        if d_std == 0:
+            return float("inf") if d_mean != 0 else 0.0
+        return float(d_mean / d_std)
+
     # Kalshi implied mean MAE vs SPF MAE (apples-to-apples point forecasts)
     valid = results_df.dropna(subset=["kalshi_point_mae", "spf_mae"])
     if len(valid) >= 5:
@@ -291,6 +300,7 @@ def run_cpi_horse_race(
             "n": len(valid),
             "kalshi_mean_mae": float(valid["kalshi_point_mae"].mean()),
             "spf_mean_mae": float(valid["spf_mae"].mean()),
+            "cohen_d": _paired_effect_size(valid["kalshi_point_mae"].values, valid["spf_mae"].values),
             "wilcoxon_p": float(p),
             "significant": p < 0.05,
             "note": "Apples-to-apples: Kalshi implied mean MAE vs SPF annual-to-monthly MAE",
@@ -307,6 +317,7 @@ def run_cpi_horse_race(
             "n": len(valid),
             "kalshi_mean_mae": float(valid["kalshi_point_mae"].mean()),
             "tips_mean_mae": float(valid["tips_mae"].mean()),
+            "cohen_d": _paired_effect_size(valid["kalshi_point_mae"].values, valid["tips_mae"].values),
             "wilcoxon_p": float(p),
             "significant": p < 0.05,
             "note": "Apples-to-apples: Kalshi implied mean MAE vs TIPS monthly-implied MAE",
@@ -342,6 +353,7 @@ def run_cpi_horse_race(
                 "n": len(valid),
                 "kalshi_mean_mae": float(valid["kalshi_point_mae"].mean()),
                 f"{naive_label}_mean_mae": float(valid[naive_col].mean()),
+                "cohen_d": _paired_effect_size(valid["kalshi_point_mae"].values, valid[naive_col].values),
                 "wilcoxon_p": float(p),
                 "significant": p < 0.05,
                 "note": f"Kalshi implied mean vs {naive_label.replace('_', ' ')} forecast",

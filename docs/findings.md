@@ -98,15 +98,15 @@ The bond market's inflation expectations lead Kalshi CPI prediction market price
 
 Point forecast comparison (apples-to-apples MAE):
 
-| Forecaster | Mean MAE | Median MAE | n | vs Kalshi p |
-|-----------|----------|------------|---|-------------|
-| **Kalshi implied mean** | **0.082** | **0.056** | **14** | — |
-| SPF (annual/12 proxy) | 0.110 | 0.092 | 14 | 0.211 |
-| TIPS breakeven (monthly) | 0.112 | 0.107 | 14 | 0.163 |
-| Trailing 12-month mean | 0.118 | 0.066 | 14 | 0.155 |
-| Random walk (last month) | 0.143 | 0.100 | 14 | **0.026*** |
+| Forecaster | Mean MAE | Median MAE | Cohen's d | p-value | n |
+|-----------|----------|------------|-----------|---------|---|
+| **Kalshi implied mean** | **0.082** | **0.056** | — | — | **14** |
+| SPF (annual/12 proxy) | 0.110 | 0.092 | -0.25 | 0.211 | 14 |
+| TIPS breakeven (monthly) | 0.112 | 0.107 | -0.27 | 0.163 | 14 |
+| Trailing mean | 0.118 | 0.066 | -0.32 | 0.155 | 14 |
+| Random walk (last month) | 0.143 | 0.100 | **-0.60** | **0.026*** | 14 |
 
-Kalshi significantly beats the random walk naive benchmark (p=0.026) — prediction markets do better than "repeat last month." Kalshi is directionally better than SPF and TIPS but not significantly (underpowered at n=14).
+Kalshi significantly beats the random walk naive benchmark (p=0.026, d=-0.60). Against professional forecasters (SPF, TIPS), effect sizes are small-to-medium (d=-0.25 to -0.32) but the comparison is underpowered at n=14.
 
 **SPF caveat**: SPF forecasts annual CPI (Q4/Q4 %), converted to monthly via annual_rate/12 — an approximation.
 
