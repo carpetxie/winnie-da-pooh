@@ -211,11 +211,16 @@ def build_propagation_heatmap(
     average response at each hour offset. This shows how fast
     each domain reacts to each type of event.
 
+    Uses a GLOBAL pre-event baseline (all domains combined) to avoid the
+    bias where origin domains have inflated thresholds due to anticipation
+    trading. First significant response is detected via cumulative abnormal
+    returns (CAR) exceeding the 95th percentile of pre-event CAR values.
+
     Returns:
         {
             "heatmaps": {event_type: {domain: {hour: avg_response}}},
             "first_significant_response": {event_type: {domain: hour}},
-            "propagation_speeds": [{source, target, median_lag_hours, n_events}],
+            "propagation_speeds": [{source, target, ...}],
         }
     """
     heatmaps = {}
@@ -229,6 +234,34 @@ def build_propagation_heatmap(
         heatmaps[event_type] = {}
         first_response[event_type] = {}
 
+        # --- Global pre-event baseline across ALL domains ---
+        all_pre = evt_data[evt_data["hour_offset"] < 0]
+        if len(all_pre) < 5:
+            continue
+        global_hourly = all_pre.groupby("hour_offset")[metric].mean()
+        global_baseline = float(global_hourly.mean())
+
+        # Build null distribution of CAR from pre-event hours to set threshold.
+        # For each starting hour h_start in [-24, -1], compute CAR over a
+        # short window (same length we'll scan post-event, up to 6 hours)
+        # using the global baseline.
+        pre_hours_sorted = sorted(global_hourly.index)
+        null_car_values = []
+        scan_len = 6  # hours to accumulate
+        for start_idx in range(len(pre_hours_sorted)):
+            car = 0.0
+            for j in range(start_idx, min(start_idx + scan_len, len(pre_hours_sorted))):
+                car += max(float(global_hourly.iloc[j]) - global_baseline, 0.0)
+                null_car_values.append(car)
+
+        if len(null_car_values) < 3:
+            continue
+        global_threshold = float(np.percentile(null_car_values, 95))
+        # Ensure threshold is positive to avoid trivial triggers
+        if global_threshold <= 0:
+            global_threshold = global_baseline * 0.5 if global_baseline > 0 else 1e-9
+
+        # --- Per-domain: compute heatmap and CAR-based first response ---
         for domain in ECON_DOMAINS:
             dom_data = evt_data[evt_data["domain"] == domain]
             if len(dom_data) == 0:
@@ -240,27 +273,37 @@ def build_propagation_heatmap(
                 int(h): float(v) for h, v in hourly.items()
             }
 
-            # Find first significant response hour (>2σ above pre-event baseline)
-            pre_event = hourly[hourly.index < 0]
-            if len(pre_event) < 3:
-                continue
-
-            baseline_mean = pre_event.mean()
-            baseline_std = pre_event.std()
-            if baseline_std == 0:
-                continue
-
-            threshold = baseline_mean + 2 * baseline_std
+            # Post-event CAR detection with global baseline & threshold
             post_event = hourly[hourly.index >= 0].sort_index()
+            if len(post_event) == 0:
+                continue
 
+            car = 0.0
             first_sig_hour = None
             for hour, value in post_event.items():
-                if value > threshold:
+                car += max(float(value) - global_baseline, 0.0)
+                if car > global_threshold:
                     first_sig_hour = int(hour)
                     break
 
             if first_sig_hour is not None:
                 first_response[event_type][domain] = first_sig_hour
+
+        # Validate: warn if origin responds after cross-domains
+        origin_hour = first_response.get(event_type, {}).get(origin_domain)
+        cross_hours = {
+            d: h for d, h in first_response.get(event_type, {}).items()
+            if d != origin_domain
+        }
+        if origin_hour is not None and cross_hours:
+            min_cross = min(cross_hours.values())
+            if origin_hour > min_cross:
+                earliest_cross = [d for d, h in cross_hours.items() if h == min_cross]
+                print(
+                    f"  WARNING [{event_type}]: origin domain '{origin_domain}' "
+                    f"responds at h={origin_hour}, but {earliest_cross} respond "
+                    f"at h={min_cross}. Possible residual threshold bias."
+                )
 
         # Compute propagation speed: origin → each other domain
         if origin_domain in first_response.get(event_type, {}):
@@ -281,6 +324,102 @@ def build_propagation_heatmap(
         "first_significant_response": first_response,
         "propagation_speeds": propagation_speeds,
     }
+
+
+def compute_response_ratio_ordering(responses: pd.DataFrame) -> dict:
+    """Compute normalized response ratio per domain for each event type.
+
+    For each (event_type, domain), the ratio is:
+        mean(abs_return for h in [0, 6]) / mean(abs_return for h in [-24, -1])
+
+    Higher ratio means the domain reacts more strongly relative to its
+    own pre-event activity. This gives a simple, interpretable ordering
+    of which domain responds most to each event type.
+
+    Returns:
+        {event_type: {domain: ratio}}
+    """
+    result = {}
+
+    for event_type in responses["event_type"].unique():
+        evt_data = responses[responses["event_type"] == event_type]
+        result[event_type] = {}
+
+        for domain in ECON_DOMAINS:
+            dom_data = evt_data[evt_data["domain"] == domain]
+            if len(dom_data) == 0:
+                continue
+
+            post = dom_data[
+                (dom_data["hour_offset"] >= 0) & (dom_data["hour_offset"] <= 6)
+            ]["abs_return"]
+            pre = dom_data[
+                (dom_data["hour_offset"] >= -24) & (dom_data["hour_offset"] <= -1)
+            ]["abs_return"]
+
+            if len(pre) == 0 or pre.mean() == 0:
+                continue
+
+            ratio = float(post.mean() / pre.mean())
+            result[event_type][domain] = ratio
+
+    return result
+
+
+def test_response_ordering(responses: pd.DataFrame) -> dict:
+    """Test whether the origin domain responds more strongly than cross-domains.
+
+    For each event type, compares the origin domain's hourly abs_returns
+    (hours 0-6) against each cross-domain's hourly abs_returns (hours 0-6)
+    using the Mann-Whitney U test.
+
+    Returns:
+        {event_type: {
+            "origin_domain": str,
+            "origin_mean": float,
+            "cross_tests": {domain: {U, p_value, cross_mean, significant}},
+        }}
+    """
+    result = {}
+
+    for event_type in responses["event_type"].unique():
+        evt_data = responses[responses["event_type"] == event_type]
+        origin_domain = EVENT_DOMAIN_MAP.get(event_type, "other")
+
+        post = evt_data[
+            (evt_data["hour_offset"] >= 0) & (evt_data["hour_offset"] <= 6)
+        ]
+
+        origin_returns = post[post["domain"] == origin_domain]["abs_return"]
+        if len(origin_returns) < 5:
+            continue
+
+        cross_tests = {}
+        for domain in ECON_DOMAINS:
+            if domain == origin_domain:
+                continue
+
+            cross_returns = post[post["domain"] == domain]["abs_return"]
+            if len(cross_returns) < 5:
+                continue
+
+            stat, p = stats.mannwhitneyu(
+                origin_returns, cross_returns, alternative="greater"
+            )
+            cross_tests[domain] = {
+                "U": float(stat),
+                "p_value": float(p),
+                "cross_mean": float(cross_returns.mean()),
+                "significant": p < 0.05,
+            }
+
+        result[event_type] = {
+            "origin_domain": origin_domain,
+            "origin_mean": float(origin_returns.mean()),
+            "cross_tests": cross_tests,
+        }
+
+    return result
 
 
 def analyze_surprise_vs_nonsurprise(responses: pd.DataFrame) -> dict:

@@ -31,6 +31,8 @@ def main():
     from experiment11.favorite_longshot import (
         load_settled_markets,
         load_microstructure_from_candles,
+        filter_economics_markets,
+        extract_t_minus_prices,
         analyze_favorite_longshot_bias,
         analyze_bias_by_microstructure,
         analyze_bias_by_time_to_expiration,
@@ -38,18 +40,31 @@ def main():
         plot_favorite_longshot,
     )
 
-    # Phase 1: Load settled markets
+    # Phase 1: Load settled markets and filter to economics
     print("\n" + "=" * 70)
-    print("PHASE 1: LOADING SETTLED MARKETS")
+    print("PHASE 1: LOADING SETTLED MARKETS (ECONOMICS ONLY)")
     print("=" * 70)
 
-    markets = load_settled_markets()
-    print(f"  Settled markets with outcomes: {len(markets)}")
+    all_markets = load_settled_markets()
+    print(f"  All settled markets: {len(all_markets)}")
+
+    markets = filter_economics_markets(all_markets)
+    print(f"  Economics-only markets: {len(markets)}")
     print(f"  YES outcomes: {(markets['realized'] == 1).sum()} ({(markets['realized'] == 1).mean():.1%})")
     print(f"  NO outcomes: {(markets['realized'] == 0).sum()} ({(markets['realized'] == 0).mean():.1%})")
     print(f"  Mean implied probability: {markets['implied_prob'].mean():.3f}")
     print(f"  Mean open interest: {markets['open_interest'].mean():.0f}")
     print(f"  Mean volume: {markets['volume'].mean():.0f}")
+
+    # Phase 1b: Extract T-24h prices
+    print("\n  Extracting T-24h prices from candle data...")
+    markets = extract_t_minus_prices(markets)
+    n_candle = markets["has_candle_price"].sum()
+    print(f"  Markets with T-24h candle price: {n_candle} ({n_candle/len(markets):.1%})")
+    if n_candle > 0:
+        candle_markets = markets[markets["has_candle_price"]]
+        print(f"  T-24h mean implied prob: {candle_markets['implied_prob'].mean():.3f}")
+        print(f"  T-24h mean spread: ${candle_markets['t_minus_spread'].mean():.4f}")
 
     # Phase 2: Load microstructure from candles
     print("\n" + "=" * 70)

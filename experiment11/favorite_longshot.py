@@ -22,6 +22,116 @@ from collections import defaultdict
 CANDLE_DIR = "data/exp2/raw/candles"
 TARGETED_MARKETS = "data/exp2/raw/targeted_markets.json"
 
+ECONOMICS_DOMAINS = {"inflation", "monetary_policy", "labor", "macro", "fiscal"}
+
+
+def filter_economics_markets(df: pd.DataFrame) -> pd.DataFrame:
+    """Filter to economics-only markets, removing crypto/sports/politics/etc.
+
+    Uses extract_fine_domain to classify each ticker, then keeps only:
+    inflation, monetary_policy, labor, macro, fiscal.
+    """
+    from experiment1.data_collection import extract_fine_domain
+
+    df = df.copy()
+    df["domain"] = df["ticker"].apply(extract_fine_domain)
+    filtered = df[df["domain"].isin(ECONOMICS_DOMAINS)].copy()
+    filtered = filtered.drop(columns=["domain"])
+    return filtered
+
+
+def extract_t_minus_prices(
+    df: pd.DataFrame,
+    candle_dir: str = CANDLE_DIR,
+    hours_before: int = 24,
+) -> pd.DataFrame:
+    """Replace implied_prob with T-minus-N-hours mid-price from candle data.
+
+    For each market, loads hourly candle file and finds the candle closest to
+    (close_time - hours_before * 3600). Extracts mid-price = (bid + ask) / 2
+    as the true forecast price, avoiding the confound where last_price is
+    actually the settlement price for settled markets.
+
+    Also extracts the T-24h spread (ask - bid) for each market.
+
+    Markets without candle data keep their original implied_prob.
+
+    Args:
+        df: DataFrame with ticker, close_time columns and implied_prob.
+        candle_dir: Directory containing {ticker}_60.json candle files.
+        hours_before: Hours before close_time to extract price from.
+
+    Returns:
+        Modified DataFrame with updated implied_prob, has_candle_price bool column,
+        and t_minus_spread column.
+    """
+    df = df.copy()
+    df["has_candle_price"] = False
+    df["t_minus_spread"] = np.nan
+
+    for idx, row in df.iterrows():
+        ticker = row["ticker"]
+        candle_file = os.path.join(candle_dir, f"{ticker}_60.json")
+
+        if not os.path.exists(candle_file):
+            continue
+
+        # Parse close_time to epoch seconds
+        close_time = row.get("close_time")
+        if close_time is None:
+            continue
+
+        try:
+            close_dt = pd.to_datetime(close_time)
+            close_epoch = close_dt.timestamp()
+        except (ValueError, TypeError):
+            continue
+
+        target_epoch = close_epoch - hours_before * 3600
+
+        try:
+            with open(candle_file) as f:
+                candles = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            continue
+
+        if not candles:
+            continue
+
+        # Find candle closest to target time
+        best_candle = None
+        best_diff = float("inf")
+        for c in candles:
+            ts = c.get("end_period_ts")
+            if ts is None:
+                continue
+            diff = abs(ts - target_epoch)
+            if diff < best_diff:
+                best_diff = diff
+                best_candle = c
+
+        if best_candle is None:
+            continue
+
+        # Extract mid-price
+        try:
+            bid_close = float(best_candle.get("yes_bid", {}).get("close_dollars", 0) or 0)
+            ask_close = float(best_candle.get("yes_ask", {}).get("close_dollars", 0) or 0)
+        except (ValueError, TypeError):
+            continue
+
+        if bid_close <= 0 and ask_close <= 0:
+            continue
+
+        mid_price = (bid_close + ask_close) / 2.0
+        spread = max(0, ask_close - bid_close)
+
+        df.at[idx, "implied_prob"] = mid_price
+        df.at[idx, "has_candle_price"] = True
+        df.at[idx, "t_minus_spread"] = spread
+
+    return df
+
 
 def load_settled_markets() -> pd.DataFrame:
     """Load all settled markets with outcomes.

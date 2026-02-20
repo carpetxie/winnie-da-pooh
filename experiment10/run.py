@@ -36,6 +36,8 @@ def main():
         analyze_cross_domain_contagion,
         build_temporal_cascade_matrix,
         plot_propagation_heatmap,
+        compute_response_ratio_ordering,
+        test_response_ordering,
     )
     from experiment2.event_study import get_economic_events
 
@@ -126,6 +128,31 @@ def main():
             print(f"    Mann-Whitney p={st['mann_whitney_p']:.4f}, "
                   f"significant={st['significant']}")
 
+    # Phase 5b: Response ratio ordering
+    print("\n" + "=" * 70)
+    print("PHASE 5b: RESPONSE RATIO ORDERING")
+    print("=" * 70)
+
+    ratios = compute_response_ratio_ordering(responses)
+    for event_type, domain_ratios in sorted(ratios.items()):
+        sorted_domains = sorted(domain_ratios.items(), key=lambda x: x[1], reverse=True)
+        ratio_str = ", ".join(f"{d}={r:.2f}x" for d, r in sorted_domains)
+        print(f"  {event_type}: {ratio_str}")
+
+    # Phase 5c: Response ordering test (origin vs cross-domain)
+    print("\n" + "=" * 70)
+    print("PHASE 5c: RESPONSE ORDERING TEST (ORIGIN vs CROSS-DOMAIN)")
+    print("=" * 70)
+
+    ordering_tests = test_response_ordering(responses)
+    for event_type, result in sorted(ordering_tests.items()):
+        origin = result["origin_domain"]
+        print(f"\n  {event_type} (origin={origin}, mean={result['origin_mean']:.4f}):")
+        for cross_domain, test in result["cross_tests"].items():
+            sig = "*" if test["significant"] else ""
+            print(f"    vs {cross_domain}: cross_mean={test['cross_mean']:.4f}, "
+                  f"p={test['p_value']:.4f}{sig}")
+
     # Phase 6: Build temporal cascade matrix
     print("\n" + "=" * 70)
     print("PHASE 6: BUILDING TEMPORAL CASCADE MATRIX")
@@ -162,6 +189,8 @@ def main():
         "contagion_analysis": {
             k: v for k, v in contagion.items() if k != "raw_scores"
         },
+        "response_ratio_ordering": ratios,
+        "response_ordering_tests": ordering_tests,
     }
 
     with open(os.path.join(DATA_DIR, "shock_propagation_results.json"), "w") as f:
