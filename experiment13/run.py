@@ -374,6 +374,8 @@ def main():
             ("kalshi_point_mae", "Kalshi implied mean"),
             ("spf_mae", "SPF (annual/12)"),
             ("tips_mae", "TIPS breakeven"),
+            ("random_walk_mae", "Random walk (last month)"),
+            ("trailing_mean_mae", "Trailing mean"),
         ]:
             if col in hr_df.columns and hr_df[col].notna().any():
                 vals = hr_df[col].dropna()

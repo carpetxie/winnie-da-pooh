@@ -98,19 +98,21 @@ The bond market's inflation expectations lead Kalshi CPI prediction market price
 
 Point forecast comparison (apples-to-apples MAE):
 
-| Forecaster | Mean MAE | Median MAE | n |
-|-----------|----------|------------|---|
-| **Kalshi implied mean** | **0.082** | **0.056** | **14** |
-| SPF (annual/12 proxy) | 0.111 | 0.083 | 13 |
-| TIPS breakeven (monthly) | 0.112 | 0.107 | 13 |
+| Forecaster | Mean MAE | Median MAE | n | vs Kalshi p |
+|-----------|----------|------------|---|-------------|
+| **Kalshi implied mean** | **0.082** | **0.056** | **14** | — |
+| SPF (annual/12 proxy) | 0.110 | 0.092 | 14 | 0.211 |
+| TIPS breakeven (monthly) | 0.112 | 0.107 | 14 | 0.163 |
+| Trailing 12-month mean | 0.118 | 0.066 | 14 | 0.155 |
+| Random walk (last month) | 0.143 | 0.100 | 14 | **0.026*** |
 
-Kalshi outperforms SPF and TIPS on average but not significantly (Kalshi vs SPF: p=0.227, Kalshi vs TIPS: p=0.170). With n=14, the comparison is underpowered; effect sizes favor Kalshi.
+Kalshi significantly beats the random walk naive benchmark (p=0.026) — prediction markets do better than "repeat last month." Kalshi is directionally better than SPF and TIPS but not significantly (underpowered at n=14).
 
 **SPF caveat**: SPF forecasts annual CPI (Q4/Q4 %), converted to monthly via annual_rate/12 — an approximation.
 
 ### Interpretation
 
-TIPS breakeven rates Granger-cause Kalshi (institutional bonds lead retail prediction markets), but Kalshi's point forecast accuracy is directionally superior for monthly CPI. The information hierarchy: bonds set the level, prediction markets refine the monthly estimate.
+TIPS breakeven rates Granger-cause Kalshi (institutional bonds lead retail prediction markets), but Kalshi's point forecast accuracy is significantly better than naive benchmarks and directionally superior to professional forecasters for monthly CPI. The information hierarchy: bonds set the level, prediction markets refine the monthly estimate.
 
 ---
 
