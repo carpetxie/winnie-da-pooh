@@ -1,6 +1,7 @@
 .env
 kalshi_private_key.*
 data/
+context/
 *.pyc
 __pycache__/
 .venv/

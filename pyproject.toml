@@ -1,8 +1,7 @@
 [project]
 name = "winnie"
 version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
+description = "Research platform exploring novel signals in Kalshi prediction market data"
 requires-python = ">=3.13"
 dependencies = [
     "cryptography>=46.0.4",
