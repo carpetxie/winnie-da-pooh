@@ -1,7 +1,11 @@
-# Kalshi Prediction Market Research: Surviving Findings
+# Distributional Calibration of Event-Driven Prediction Markets: Evidence from Kalshi
 
 **Date:** 2026-02-20
-**Status:** Post PhD-review with independence corrections (iteration 2). Five findings survive rigorous testing across thirteen experiments.
+**Status:** Post PhD-review with independence corrections (iteration 3). Five findings survive rigorous testing across thirteen experiments.
+
+## Abstract
+
+We evaluate the distributional calibration of Kalshi prediction markets using 6,141 settled economic contracts across 41 multi-strike events. Applying Breeden-Litzenberger reconstruction to extract implied probability distributions, we score them using the Continuous Ranked Probability Score (CRPS) — the first proper scoring rule evaluation of prediction market implied distributions. We find striking heterogeneity: Jobless Claims markets (weekly frequency) achieve well-calibrated distributions that massively outperform historical baselines (Wilcoxon p<0.0001), while CPI markets (monthly frequency) exhibit persistent overconfidence driven by directional bias (PIT mean=0.39, consistent with high-CPI narrative herding). In a horse race against standard benchmarks, Kalshi's CPI point forecasts significantly beat random walk (p=0.026, d=-0.60) and are directionally superior to SPF and TIPS-implied forecasts. Information flows asymmetrically: inflation expectations Granger-cause monetary policy expectations at a 3-hour lag (permutation p<0.001), while TIPS breakeven rates lead Kalshi by 1 day (F=12.2, p=0.005). Three initially "significant" findings were invalidated by event-level clustering corrections for independence violations.
 
 **Narrative arc**: Kalshi prediction markets encode genuine economic information structure (Finding 1), enabling extraction of implied probability distributions (Finding 2) whose calibration quality depends on market maturity (Finding 3) and event series (Finding 5). The bond market sets the level while prediction markets refine monthly estimates (Finding 4).
 
