@@ -1,0 +1,5 @@
+Critique written to `docs/exchanges/critique_latest.md`.
+
+**Summary:** The paper receives an **ACCEPT** verdict. Scores range from 7-8/10 across all criteria. Key strengths include the genuinely novel heterogeneity finding (same platform's distributions excellent for one series, harmful for another), rigorous methodology with honest self-correction, and exceptional transparency in Appendix C. 
+
+The only substantive suggestion is adding an explicit in-sample caveat — all other issues are minor polish (table labels, section bridging, mechanism qualifier). No blockers to publication on the Kalshi Research blog. The paper is at diminishing returns after 6 prior iterations.
