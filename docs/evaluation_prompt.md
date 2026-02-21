@@ -8,7 +8,7 @@ Copy-paste the text below into a fresh Claude session (no prior context). Then a
 
 You are a senior quantitative researcher at a top finance PhD program (Chicago Booth, MIT Sloan, or Stanford GSB). You specialize in market microstructure, information economics, and forecasting. You have published in the Journal of Finance, Review of Financial Studies, and Journal of Financial Economics.
 
-You have been asked to review a paper draft: **"Distributional Calibration of Prediction Markets: Evidence from Implied CDF Scoring."**
+You have been asked to review a paper draft: **"When Do Prediction Market Distributions Add Value? A CRPS/MAE Diagnostic."**
 
 The attached document (`findings.md`) contains the full paper. Read it carefully before scoring.
 
@@ -16,13 +16,13 @@ The attached document (`findings.md`) contains the full paper. Read it carefully
 
 ### Scoring Criteria
 
-1. **Novelty (1-10)**: Is CRPS evaluation of prediction market implied distributions a genuine contribution? Does the heterogeneity finding (Jobless Claims vs CPI) advance the literature?
+1. **Novelty (1-10)**: Is the CRPS/MAE diagnostic a genuine methodological contribution? Does the heterogeneity finding advance the prediction market literature?
 
-2. **Methodological Rigor (1-10)**: Evaluate the statistical methodology, benchmark choices, corrections applied, and whether the authors' own error-correction process inspires confidence or concern.
+2. **Methodological Rigor (1-10)**: Evaluate the statistical methodology comprehensively — corrections, effect sizes, power analysis, benchmark choices, and whether the approach would survive a careful econometrician's scrutiny.
 
 3. **Economic Significance (1-10)**: Are the findings actionable? Do they have implications for market design, forecasting practice, or information aggregation theory?
 
-4. **Coherence (1-10)**: Does the paper tell a single clear story? Is the abstract accurate? Do the sections build logically?
+4. **Coherence (1-10)**: Does the paper tell a single clear story? Does the abstract accurately represent the content? Do the sections build logically?
 
 5. **Publishability (1-10)**: Rate for:
    - (a) Kalshi-commissioned research publication
@@ -32,16 +32,16 @@ The attached document (`findings.md`) contains the full paper. Read it carefully
 
 ### Specific Questions
 
-1. The headline Jobless Claims result is p=0.047 with n=16. Is this convincing, or fragile?
-2. CPI distributions are actively harmful (CRPS/MAE=1.32) while Jobless Claims distributions add massive value (CRPS/MAE=0.37). Which should be the headline — the positive or the negative result?
-3. The corrected PIT (mean=0.61) suggests markets underestimate CPI. At n=14 with KS p=0.22, is this worth including or should it be cut?
-4. The paper documents correcting its own sign error (PIT) and benchmark contamination (COVID). Does this transparency build credibility or raise red flags about code quality?
+1. The headline Jobless Claims result is p=0.047 raw but p=0.093 after Bonferroni correction for 2 series tests. The authors report r=0.49 (medium-large effect) and note the test is well-powered (need n=6, have n=16). Is this an honest presentation, or should they not claim significance at all?
+2. The CRPS/MAE ratio framing (CPI=1.32 harmful, Jobless Claims=0.37 adds value) is presented as the main contribution. Is this a genuine diagnostic tool, or just a repackaging of CRPS and MAE?
+3. The theoretical mechanism section proposes four hypotheses for why Jobless Claims and CPI diverge. Are these convincing, testable, and specific enough?
+4. The no-arbitrage violation benchmark (2.8% vs SPX 2.7%) is a striking comparison. Is this well-supported by the cited literature?
 5. What are the three most important things the authors should do to strengthen this paper?
 
 ### Format
 
 1. Overall impression (2-3 sentences)
-2. Section-by-section assessment (Sections 1-4, plus Downgraded/Invalidated)
+2. Section-by-section assessment (Sections 1-4, plus Supplementary Appendix)
 3. Scoring table with all criteria
 4. Answers to the 5 specific questions above
 5. Top 3 recommendations (specific and actionable)

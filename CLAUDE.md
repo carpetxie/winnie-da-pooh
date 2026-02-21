@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Winnie** is a research platform exploring novel signals in Kalshi prediction market data, aimed at producing publishable work for Kalshi's research arm (`research@kalshi.com`). The goal is to demonstrate non-trivial, economically-valuable insights from Kalshi data.
+**Winnie** is a research platform analyzing Kalshi prediction market data, producing a focused paper: "When Do Prediction Market Distributions Add Value? A CRPS/MAE Diagnostic." See `docs/findings.md` for the paper.
 
-Thirteen experiments are implemented (1-13). See `docs/findings.md` for the focused paper: "Distributional Calibration of Prediction Markets: Evidence from Implied CDF Scoring." Core result: heterogeneous CRPS calibration (Jobless Claims p<0.0001, CPI non-significant). Three findings invalidated by independence corrections; two more downgraded by controlled analysis.
+Core result: The CRPS/MAE ratio reveals heterogeneous distributional calibration — Jobless Claims distributions add massive value (ratio=0.37) while CPI distributions are actively harmful (ratio=1.32).
 
 ## Commands
 
@@ -16,30 +16,16 @@ Thirteen experiments are implemented (1-13). See `docs/findings.md` for the focu
 # Install dependencies
 uv sync
 
-# Run Experiment 1 (Causal Lead-Lag)
+# Run Experiment 1 (Causal Lead-Lag — data provider)
 uv run python -m experiment1.run                     # Full run
 uv run python -m experiment1.run --skip-fetch        # Use cached data
 uv run python -m experiment1.run --skip-granger      # Use cached Granger results
 uv run python -m experiment1.run --skip-llm          # Use cached LLM assessments
 
-# Run Experiment 2 (KUI)
+# Run Experiment 2 (KUI — data provider, cached candles used by 7, 11, 12, 13)
 uv run python -m experiment2.run                    # Full run
 uv run python -m experiment2.run --skip-fetch       # Use cached data
 uv run python -m experiment2.run --skip-candles     # Use cached candles
-
-# Run Experiment 3 (Calibration Under Uncertainty — no API calls)
-uv run python -m experiment3.run
-
-# Run Experiment 4 (Hourly Information Speed — no API calls)
-uv run python -m experiment4.run
-
-# Run Experiment 5 (Embeddings)
-uv run python -m experiment5.run                    # Full run (~20K markets)
-uv run python -m experiment5.run --skip-fetch       # Use cached markets.csv
-uv run python -m experiment5.run --skip-embed       # Use cached embeddings.npy
-
-# Run Experiment 6 (Market Microstructure — no API calls)
-uv run python -m experiment6.run
 
 # Run Experiment 7 (Implied Distributions & No-Arbitrage — no API calls)
 uv run python -m experiment7.run
@@ -47,12 +33,6 @@ uv run python -m experiment7.run
 # Run Experiment 8 (TIPS Breakeven Comparison)
 uv run python -m experiment8.run                    # Full run (fetches FRED data)
 uv run python -m experiment8.run --skip-fetch       # Use cached TIPS data
-
-# Run Experiment 9 (Indicator-Level Network — no API calls)
-uv run python -m experiment9.run
-
-# Run Experiment 10 (Cross-Event Shock Propagation — no API calls)
-uv run python -m experiment10.run
 
 # Run Experiment 11 (Favorite-Longshot Bias × Microstructure — no API calls)
 uv run python -m experiment11.run
@@ -66,7 +46,6 @@ uv run python -m experiment13.run
 # Tests
 uv run python -m pytest experiment1/tests/test_unit.py -v
 uv run python -m pytest experiment2/tests/test_unit.py -v
-uv run python -m pytest experiment5/tests/test_unit.py -v
 ```
 
 ## Architecture
@@ -76,101 +55,46 @@ uv run python -m pytest experiment5/tests/test_unit.py -v
 - `market_data.py`: Market fetching utilities and volatility calculations.
 
 ### Experiment 1 — Causal Lead-Lag Discovery (`experiment1/`)
-Pipeline: data collection → ADF stationarity + differencing → pairwise Granger causality (hourly, max_lag=24) → Bonferroni correction → LLM semantic filtering (Grok API) → signal-triggered trading simulation → propagation network analysis.
-
-Key finding: inflation → monetary_policy at 3h median (Mann-Whitney p=0.0008), validated by permutation test (p<0.001). 231 unidirectional pairs after removing 74 bidirectional co-movement pairs. Shock acceleration finding invalidated by corrected classification. No trading alpha.
+Data provider. Pipeline: data collection → ADF stationarity + differencing → pairwise Granger causality (hourly, max_lag=24) → Bonferroni correction → LLM semantic filtering → propagation network analysis.
 
 ### Experiment 2 — Kalshi Uncertainty Index (`experiment2/`)
-Pipeline: data collection → index construction → validation → event study → visualization.
-Produces `data/exp2/kui_daily.csv` with daily KUI + 6 domain sub-indices.
-
-Note: Original KUI→EPU Granger finding (p=0.024) invalidated by methodology fix (percentage returns). Event study directionally consistent but weak.
-
-### Experiment 3 — Calibration Under Uncertainty (`experiment3/`)
-Pipeline: load exp2 markets + KUI → assign uncertainty regimes → compute Brier/ECE per regime → bootstrap significance test.
-No API calls required. Uses existing exp2 data.
-
-Key finding: Markets genuinely better calibrated during high uncertainty (Murphy reliability 0.123 vs 0.262, p<0.05). Survives base rate controls via Murphy decomposition. GDP markets show 4x improvement.
-
-### Experiment 4 — Hourly Information Speed (`experiment4/`)
-Pipeline: load cached hourly candles → compute hourly BV per domain → event windows ±72h → detect first significant move → compare vs EPU/VIX daily.
-No API calls required. Uses cached hourly candle data from exp2.
-
-Key finding: Kalshi reacts to surprise events ~56h before EPU. Directionally consistent but underpowered (Wilcoxon p=0.10).
-
-### Experiment 5 — Market Description Embeddings (`experiment5/`)
-Pipeline: data collection → embeddings (BAAI/bge-large-en-v1.5) → clustering (PCA+UMAP+HDBSCAN) → k-NN prediction → cross-domain discovery.
-
-Key finding: k-NN(k=20) beats random by 15.7% on Brier. Cross-domain clusters are superficial (linguistic, not economic).
-
-### Experiment 6 — Market Microstructure (`experiment6/`)
-Pipeline: load all 725 cached candle files → extract bid-ask spread, open interest, OHLC range, volume → analyze spread as uncertainty → OI as conviction → event microstructure → spread vs KUI correlation.
-No API calls required. Uses cached hourly candle data from exp2.
-
-Key findings: Spread narrows after events (Wilcoxon p=0.013), range widens (p=0.017). Spread-KUI correlation r=0.25 (p<0.001). Higher-OI markets better calibrated (Brier 0.147 vs 0.246).
+Data provider. Pipeline: data collection → index construction → validation → event study → visualization. Produces cached candle data used by experiments 7, 11, 12, 13.
 
 ### Experiment 7 — Implied Distributions & No-Arbitrage (`experiment7/`)
-Pipeline: load targeted markets with floor_strike → group by event_ticker → build implied CDFs at each hour → test monotonicity → reconstruct PDFs → compare to realized outcomes.
-No API calls required. Uses cached data from exp2.
+Section 1 of paper. Pipeline: load targeted markets → group by event → build implied CDFs at each hour → test monotonicity → reconstruct PDFs.
 
-Key findings: CPI median forecast error 0.05pp. No-arbitrage violations in 2.8% of snapshots, 71% revert within 1h. 336 multi-strike markets across 41 events.
+Key findings: 336 multi-strike markets across 41 events. No-arbitrage violations in 2.8% of snapshots (comparable to SPX options), 86% revert within 1h.
 
 ### Experiment 8 — TIPS Breakeven Comparison (`experiment8/`)
-Pipeline: build daily Kalshi CPI index from candles → fetch TIPS breakeven from FRED → correlation → cross-correlation at lags → Granger causality both directions.
-Requires FRED API fetch for T10YIE and T5YIE.
+Section 3 of paper. Pipeline: build daily Kalshi CPI index → fetch TIPS breakeven from FRED → Granger causality both directions.
 
-Key finding: TIPS Granger-causes Kalshi CPI (F=12.2, p=0.005). Kalshi does NOT Granger-cause TIPS. Bond market leads prediction market by 1 day.
-
-### Experiment 9 — Indicator-Level Network (`experiment9/`)
-Pipeline: load exp1 Granger results → classify by indicator (CPI/PCE/PPI/Fed Funds/etc.) → build indicator-level directed graph → centrality analysis → lag asymmetry tests.
-No API calls required. Uses cached Granger results from exp1.
-
-Key finding: CPI → Fed Funds at 3h median (57 pairs, Mann-Whitney p=0.009). CPI dominates over PCE/PPI as market-implied inflation signal.
-
-### Experiment 10 — Cross-Event Shock Propagation (`experiment10/`)
-Pipeline: load hourly series → compute event responses (-24h to +48h) → build propagation heatmap → analyze surprise vs non-surprise → cross-domain contagion analysis → temporal cascade matrix → visualization.
-No API calls required. Uses cached hourly candle data from exp2.
-
-Key findings: Macro markets respond first to CPI/NFP events (within 4-8h). Surprise events cause 1.5-2.6x larger responses in inflation (p=0.0002) and monetary policy (p=0.007). 205 markets, 31 events, 9,108 observations.
+Key finding: TIPS Granger-causes Kalshi CPI (F=12.2, p=0.005). Bond market leads prediction market by 1 day.
 
 ### Experiment 11 — Favorite-Longshot Bias × Microstructure (`experiment11/`)
-Pipeline: load settled markets → load hourly microstructure → test overall FLB → analyze by OI/spread/volume tercile → analyze by time to expiration → domain breakdown → visualization.
-No API calls required. Uses cached data from exp2.
+Section 4 of paper. Pipeline: load settled markets → analyze by time to expiration → 50%-lifetime controlled analysis.
 
-Key findings: Economics-only analysis (1,141 markets) with T-24h candle prices to avoid settlement confound. Time-to-expiration is the dominant predictor of calibration (short=0.156 vs long=0.023 Brier). Extends Whelan (CEPR 2024).
+Key findings: T-24h gradient 7x collapses to 1.5x after controlling for observation timing.
 
 ### Experiment 12 — CRPS Distributional Calibration (`experiment12/`)
-Pipeline: load multi-strike markets (from exp7) → fetch FRED historical benchmarks → compute CRPS per event (Kalshi, uniform, historical, point) → paired Wilcoxon tests → visualization.
-Fetches FRED data for benchmarks (CPI, Jobless Claims, GDP). Uses cached Kalshi data from exp2/exp7.
-
-Key findings: Kalshi distributions beat historical (CRPS, p=0.0001) and point forecasts (p=0.0031). CPI distributions are overconfident (worse than uniform). Jobless Claims well-calibrated (86% better than historical).
+Section 2 of paper (base functions). Pipeline: load multi-strike markets → fetch FRED historical benchmarks → compute CRPS per event.
 
 ### Experiment 13 — Unified Distributional Calibration + CPI Horse Race (`experiment13/`)
-Pipeline: merge exp7+exp12 → per-series Wilcoxon tests → temporal CRPS evolution → CPI horse race vs SPF + TIPS → visualization.
-Fetches FRED data for TIPS breakevens. Uses cached Kalshi data from exp2/exp7.
+Main paper pipeline (Sections 2-3). Merges exp7+exp12 → per-series Wilcoxon with Bonferroni correction and rank-biserial effect sizes → CRPS/MAE ratio → temporal CRPS evolution → CPI horse race vs SPF + TIPS + naive benchmarks → power analysis → PIT diagnostic.
 
-Key findings: Per-series tests reveal pooled p=0.0001 is driven by Jobless Claims; CPI vs historical is NOT significant (p=0.709). CPI horse race: Kalshi MAE 0.082 vs SPF 0.111 vs TIPS 0.112 (not significant, n=13, underpowered). Acknowledges CRPS ≤ MAE mathematical identity.
+Key findings: CRPS/MAE ratio CPI=1.32 (harmful), Jobless Claims=0.37 (adds value). Jobless Claims vs Historical p=0.047 raw (p_adj=0.093 Bonferroni, r=0.49). Kalshi beats random walk (p=0.026, d=-0.60).
 
 ### Common Patterns
 - **Phase-based pipelines**: Each module is independent; expensive steps cached and skippable via `--skip-*` flags.
-- **Stationarity**: Granger tests use ADF-tested, differenced series (not raw price levels).
-- **Domain classification**: Experiment 1 uses fine-grained `FINE_DOMAIN_MAP` (inflation, monetary_policy, labor, macro, fiscal). Experiment 2 uses `UNCERTAINTY_DOMAIN_MAP`.
 - **Synthetic test data**: All unit tests use synthetic data (no API calls, no downloads).
 
 ## Data Layout
 
 ```
 data/
-├── exp1/         # Lead-lag outputs (granger_results, propagation_network, trading)
-├── exp2/         # KUI outputs (kui_daily.csv, correlations, event_study, plots, raw/candles/)
-├── exp3/         # Calibration outputs (calibration_results.json, fiscal_anomaly, plots)
-├── exp4/         # Hourly event study (hourly_event_results.csv, statistical_tests, plots)
-├── exp5/         # Embedding outputs (markets.csv, embeddings.npy, clusters)
-├── exp6/         # Microstructure (microstructure_summary.csv, microstructure_results.json, plots)
+├── exp1/         # Lead-lag outputs (granger_results, propagation_network)
+├── exp2/         # KUI outputs (kui_daily.csv, raw/candles/ — shared data provider)
 ├── exp7/         # Implied distributions (strike_markets.csv, implied_distribution_results.json, plots)
 ├── exp8/         # TIPS comparison (kalshi_cpi_daily.csv, T10YIE.csv, tips_comparison_results.json, plots)
-├── exp9/         # Indicator network (granger_with_indicators.csv, indicator_network_results.json, plots)
-├── exp10/        # Shock propagation (shock_propagation_results.json, event_responses.csv, plots)
 ├── exp11/        # Favorite-longshot bias (favorite_longshot_results.json, plots)
 ├── exp12/        # CRPS distributional calibration (crps_results.json, crps_per_event.csv, plots)
 └── exp13/        # Unified calibration + horse race (unified_results.json, crps_per_event.csv, plots)
@@ -180,5 +104,6 @@ data/
 
 ```
 docs/
-└── findings.md     # Surviving findings after PhD-review methodology corrections
+├── findings.md            # Paper: "When Do Prediction Market Distributions Add Value?"
+└── evaluation_prompt.md   # PhD-level review prompt for external evaluation
 ```

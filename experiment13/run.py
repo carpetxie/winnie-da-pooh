@@ -285,8 +285,12 @@ def main():
         ),
     }
 
-    # Per-series tests
+    # Per-series tests with rank-biserial effect sizes and Bonferroni correction
     print("\n  --- Per-series Wilcoxon tests ---")
+
+    # Collect all per-series vs historical raw p-values for Bonferroni correction
+    raw_historical_pvalues = {}
+
     for series in sorted(crps_df["series"].unique()):
         s = crps_df[crps_df["series"] == series]
 
@@ -298,6 +302,11 @@ def main():
             key = f"kalshi_{comparison}_{series}"
             if len(valid) >= 5:
                 stat, p = stats.wilcoxon(valid["kalshi_crps"], valid[col_b], alternative="less")
+                # Rank-biserial correlation r = 1 - (2T / n(n+1)/2)
+                # where T is the Wilcoxon test statistic (sum of positive ranks)
+                n_pairs = len(valid)
+                max_t = n_pairs * (n_pairs + 1) / 2
+                rank_biserial_r = 1.0 - (2.0 * stat / max_t) if max_t > 0 else 0.0
                 test_results[key] = {
                     "n": len(valid),
                     "series": series,
@@ -305,14 +314,19 @@ def main():
                     "benchmark_mean": float(valid[col_b].mean()),
                     "wilcoxon_stat": float(stat),
                     "p_value": float(p),
-                    "significant": p < 0.05,
+                    "rank_biserial_r": round(float(rank_biserial_r), 3),
+                    "significant_raw": p < 0.05,
                     "scope": f"per-series ({series})",
                 }
                 sig = "*" if p < 0.05 else ""
                 print(f"  {series} vs {label} (n={len(valid)}): "
                       f"Kalshi={valid['kalshi_crps'].mean():.4f}, "
                       f"{label}={valid[col_b].mean():.4f}, "
-                      f"p={p:.4f}{sig}")
+                      f"p={p:.4f}{sig}, r={rank_biserial_r:.3f}")
+
+                # Track for Bonferroni
+                if comparison == "vs_historical":
+                    raw_historical_pvalues[series] = p
             else:
                 test_results[key] = {
                     "n": len(valid),
@@ -320,6 +334,23 @@ def main():
                     "note": f"Insufficient data (n={len(valid)}, need >=5)",
                 }
                 print(f"  {series} vs {label}: insufficient data (n={len(valid)})")
+
+    # Bonferroni correction across per-series historical tests
+    n_series_tests = len(raw_historical_pvalues)
+    if n_series_tests > 0:
+        print(f"\n  --- Bonferroni correction ({n_series_tests} series tests) ---")
+        for series, raw_p in sorted(raw_historical_pvalues.items()):
+            adj_p = min(raw_p * n_series_tests, 1.0)
+            key = f"kalshi_vs_historical_{series}"
+            if key in test_results:
+                test_results[key]["p_value_bonferroni"] = round(float(adj_p), 4)
+                test_results[key]["n_tests_corrected"] = n_series_tests
+                test_results[key]["significant_bonferroni"] = adj_p < 0.05
+            sig_raw = "*" if raw_p < 0.05 else ""
+            sig_adj = "*" if adj_p < 0.05 else ""
+            print(f"  {series}: raw p={raw_p:.4f}{sig_raw}, "
+                  f"Bonferroni-adjusted p={adj_p:.4f}{sig_adj} "
+                  f"(×{n_series_tests})")
 
     # Sensitivity: Jobless Claims with COVID-contaminated window
     print("\n  --- Benchmark sensitivity (Jobless Claims) ---")
@@ -330,28 +361,36 @@ def main():
         print(f"  Post-COVID window (2022+): Kalshi={valid_clean['kalshi_crps'].mean():.0f}, "
               f"Historical={valid_clean['historical_crps'].mean():.0f}")
         stat, p = stats.wilcoxon(valid_clean["kalshi_crps"], valid_clean["historical_crps"], alternative="less")
+        n_pairs = len(valid_clean)
+        max_t = n_pairs * (n_pairs + 1) / 2
+        r = 1.0 - (2.0 * stat / max_t) if max_t > 0 else 0.0
         test_results["jobless_claims_vs_historical_clean"] = {
-            "n": len(valid_clean),
+            "n": n_pairs,
             "kalshi_mean": float(valid_clean["kalshi_crps"].mean()),
             "historical_mean": float(valid_clean["historical_crps"].mean()),
             "p_value": float(p),
+            "rank_biserial_r": round(float(r), 3),
             "significant": p < 0.05,
             "window": "2022-2025 (post-COVID)",
         }
-        print(f"    Wilcoxon p={p:.4f}{'*' if p < 0.05 else ''}")
+        print(f"    Wilcoxon p={p:.4f}{'*' if p < 0.05 else ''}, r={r:.3f}")
     if len(valid_covid) >= 5:
         print(f"  COVID window (2020+): Kalshi={valid_covid['kalshi_crps'].mean():.0f}, "
               f"Historical={valid_covid['historical_crps_covid'].mean():.0f}")
         stat, p = stats.wilcoxon(valid_covid["kalshi_crps"], valid_covid["historical_crps_covid"], alternative="less")
+        n_pairs = len(valid_covid)
+        max_t = n_pairs * (n_pairs + 1) / 2
+        r = 1.0 - (2.0 * stat / max_t) if max_t > 0 else 0.0
         test_results["jobless_claims_vs_historical_covid"] = {
-            "n": len(valid_covid),
+            "n": n_pairs,
             "kalshi_mean": float(valid_covid["kalshi_crps"].mean()),
             "historical_mean": float(valid_covid["historical_crps_covid"].mean()),
             "p_value": float(p),
+            "rank_biserial_r": round(float(r), 3),
             "significant": p < 0.05,
             "window": "2020-2025 (COVID-contaminated)",
         }
-        print(f"    Wilcoxon p={p:.4f}{'*' if p < 0.05 else ''}")
+        print(f"    Wilcoxon p={p:.4f}{'*' if p < 0.05 else ''}, r={r:.3f}")
 
     # CRPS/MAE ratio: measures how much distributional info adds beyond point forecast
     # CRPS <= MAE always. Ratio near 1 = distribution adds little. Ratio << 1 = distribution helps.
@@ -481,28 +520,59 @@ def main():
         print("  Insufficient CPI events for horse race")
 
     # ================================================================
-    # PHASE 6b: POWER ANALYSIS FOR HORSE RACE
+    # PHASE 6b: POWER ANALYSIS TABLE (ALL TESTS)
     # ================================================================
     print("\n" + "=" * 70)
-    print("PHASE 6b: POWER ANALYSIS")
+    print("PHASE 6b: POWER ANALYSIS TABLE")
     print("=" * 70)
 
     power_analysis = {}
+    z_alpha = 1.645  # one-sided 0.05
+    z_beta = 0.842   # 80% power
+
+    def _compute_n_needed(effect_size):
+        """Sample size for 80% power with Wilcoxon (ARE-corrected)."""
+        if effect_size == 0:
+            return float("inf")
+        return int(np.ceil(((z_alpha + z_beta) ** 2 / effect_size ** 2) * (np.pi / 3)))
+
+    # CRPS tests: use rank-biserial r as effect size proxy
+    print("  --- CRPS tests ---")
+    for key, result in test_results.items():
+        if not isinstance(result, dict) or "rank_biserial_r" not in result:
+            continue
+        r = abs(result["rank_biserial_r"])
+        if r == 0:
+            continue
+        # Convert rank-biserial r to approximate Cohen's d: d ≈ 2r / sqrt(1-r²)
+        d_approx = 2 * r / np.sqrt(1 - r ** 2) if r < 1 else float("inf")
+        n_needed = _compute_n_needed(d_approx)
+        series_label = result.get("series", result.get("window", key))
+        power_analysis[key] = {
+            "test": key,
+            "observed_r": round(r, 3),
+            "observed_d_approx": round(d_approx, 3),
+            "n_current": result["n"],
+            "n_needed_80pct_power": n_needed,
+            "more_events_needed": max(0, n_needed - result["n"]),
+        }
+        print(f"  {key}: r={r:.3f} (d≈{d_approx:.3f}), n={result['n']}, "
+              f"need n={n_needed} for 80% power "
+              f"({max(0, n_needed - result['n'])} more events)")
+
+    # Horse race tests
+    print("  --- Horse race tests ---")
     if horse_race_results and "statistical_tests" in horse_race_results:
         for test_name, test in horse_race_results["statistical_tests"].items():
             if "cohen_d" in test and test["cohen_d"] != 0:
                 d = abs(test["cohen_d"])
-                # Approximate sample size for 80% power, alpha=0.05, one-sided
-                # For Wilcoxon: n ≈ (z_alpha + z_beta)^2 / d^2 * (pi/3)
-                # where pi/3 ≈ 1.047 is the ARE correction for Wilcoxon vs t-test
-                z_alpha = 1.645  # one-sided 0.05
-                z_beta = 0.842   # 80% power
-                n_needed = int(np.ceil(((z_alpha + z_beta) ** 2 / d ** 2) * (np.pi / 3)))
-                power_analysis[test_name] = {
+                n_needed = _compute_n_needed(d)
+                power_analysis[f"horse_race_{test_name}"] = {
+                    "test": test_name,
                     "observed_d": round(d, 3),
                     "n_current": test["n"],
                     "n_needed_80pct_power": n_needed,
-                    "months_more_data": max(0, n_needed - test["n"]),
+                    "more_events_needed": max(0, n_needed - test["n"]),
                 }
                 print(f"  {test_name}: |d|={d:.3f}, n={test['n']}, "
                       f"need n={n_needed} for 80% power "
