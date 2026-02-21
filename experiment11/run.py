@@ -33,9 +33,11 @@ def main():
         load_microstructure_from_candles,
         filter_economics_markets,
         extract_t_minus_prices,
+        extract_pct_lifetime_prices,
         analyze_favorite_longshot_bias,
         analyze_bias_by_microstructure,
         analyze_bias_by_time_to_expiration,
+        analyze_bias_by_time_controlled,
         analyze_bias_by_domain,
         plot_favorite_longshot,
     )
@@ -65,6 +67,16 @@ def main():
         candle_markets = markets[markets["has_candle_price"]]
         print(f"  T-24h mean implied prob: {candle_markets['implied_prob'].mean():.3f}")
         print(f"  T-24h mean spread: ${candle_markets['t_minus_spread'].mean():.4f}")
+
+    # Phase 1c: Extract 50%-lifetime prices (controls for observation timing confound)
+    print("\n  Extracting 50%-lifetime prices from candle data...")
+    markets = extract_pct_lifetime_prices(markets, pct_elapsed=0.50)
+    n_pct = markets["pct_has_price"].sum()
+    print(f"  Markets with 50%-lifetime candle price: {n_pct} ({n_pct/len(markets):.1%})")
+    if n_pct > 0:
+        pct_markets = markets[markets["pct_has_price"]]
+        print(f"  50%-lifetime mean implied prob: {pct_markets['pct_implied_prob'].mean():.3f}")
+        print(f"  Mean actual % elapsed: {pct_markets['pct_elapsed_actual'].mean():.1%}")
 
     # Phase 2: Load microstructure from candles
     print("\n" + "=" * 70)
@@ -146,6 +158,25 @@ def main():
     else:
         print(f"  Error: {time_result['error']}")
 
+    # Phase 5b: Bias by time to expiration (CONTROLLED — fixed 50% of lifetime)
+    print("\n" + "=" * 70)
+    print("PHASE 5b: BIAS × TIME TO EXPIRATION (CONTROLLED: 50% lifetime)")
+    print("=" * 70)
+    print("  (Controls for T-24h confound: all markets evaluated at same relative point)")
+
+    time_controlled_result = analyze_bias_by_time_controlled(markets)
+    if "error" not in time_controlled_result:
+        for tercile in ["short", "medium", "long"]:
+            t = time_controlled_result.get(tercile, {})
+            if not t:
+                continue
+            lb = f"{t['longshot_bias']:+.3f}" if t.get("longshot_bias") is not None else "N/A"
+            print(f"  {tercile} lifetime ({t['mean_lifetime_hours']:.0f}h): "
+                  f"Brier={t['brier']:.4f}, longshot_bias={lb}, "
+                  f"n={t['n']}, actual_elapsed={t['mean_pct_elapsed_actual']:.1%}")
+    else:
+        print(f"  Error: {time_controlled_result['error']}")
+
     # Phase 6: Bias by domain
     print("\n" + "=" * 70)
     print("PHASE 6: BIAS × MARKET DOMAIN")
@@ -171,6 +202,7 @@ def main():
         "overall_bias": bias_result,
         "microstructure_bias": micro_result,
         "time_to_expiration_bias": time_result,
+        "time_to_expiration_controlled": time_controlled_result,
         "domain_bias": domain_result,
     }
 

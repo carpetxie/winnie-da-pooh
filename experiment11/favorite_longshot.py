@@ -133,6 +133,149 @@ def extract_t_minus_prices(
     return df
 
 
+def extract_pct_lifetime_prices(
+    df: pd.DataFrame,
+    candle_dir: str = CANDLE_DIR,
+    pct_elapsed: float = 0.50,
+) -> pd.DataFrame:
+    """Extract mid-price at a fixed percentage of market lifetime.
+
+    Unlike extract_t_minus_prices (fixed T-24h), this evaluates every market at
+    the same relative point in its life. This controls for the confound where
+    long-lived markets observed at T-24h are near-terminal (99% elapsed) while
+    short-lived markets are mid-life (57% elapsed).
+
+    Args:
+        df: DataFrame with ticker, open_time, close_time columns and implied_prob.
+        candle_dir: Directory containing {ticker}_60.json candle files.
+        pct_elapsed: Fraction of lifetime at which to evaluate (0.5 = midpoint).
+
+    Returns:
+        Modified DataFrame with pct_implied_prob and pct_has_price columns.
+    """
+    df = df.copy()
+    df["pct_implied_prob"] = np.nan
+    df["pct_has_price"] = False
+    df["pct_elapsed_actual"] = np.nan
+
+    for idx, row in df.iterrows():
+        ticker = row["ticker"]
+        candle_file = os.path.join(candle_dir, f"{ticker}_60.json")
+
+        if not os.path.exists(candle_file):
+            continue
+
+        open_time = row.get("open_time")
+        close_time = row.get("close_time")
+        if open_time is None or close_time is None:
+            continue
+
+        try:
+            open_dt = pd.to_datetime(open_time)
+            close_dt = pd.to_datetime(close_time)
+            open_epoch = open_dt.timestamp()
+            close_epoch = close_dt.timestamp()
+        except (ValueError, TypeError):
+            continue
+
+        lifetime_secs = close_epoch - open_epoch
+        if lifetime_secs <= 0:
+            continue
+
+        target_epoch = open_epoch + pct_elapsed * lifetime_secs
+
+        try:
+            with open(candle_file) as f:
+                candles = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            continue
+
+        if not candles:
+            continue
+
+        # Find candle closest to target time
+        best_candle = None
+        best_diff = float("inf")
+        for c in candles:
+            ts = c.get("end_period_ts")
+            if ts is None:
+                continue
+            diff = abs(ts - target_epoch)
+            if diff < best_diff:
+                best_diff = diff
+                best_candle = c
+
+        if best_candle is None:
+            continue
+
+        # Reject if closest candle is >2h away from target
+        if best_diff > 7200:
+            continue
+
+        try:
+            bid_close = float(best_candle.get("yes_bid", {}).get("close_dollars", 0) or 0)
+            ask_close = float(best_candle.get("yes_ask", {}).get("close_dollars", 0) or 0)
+        except (ValueError, TypeError):
+            continue
+
+        if bid_close <= 0 and ask_close <= 0:
+            continue
+
+        mid_price = (bid_close + ask_close) / 2.0
+        actual_ts = best_candle.get("end_period_ts", target_epoch)
+        actual_pct = (actual_ts - open_epoch) / lifetime_secs if lifetime_secs > 0 else pct_elapsed
+
+        df.at[idx, "pct_implied_prob"] = mid_price
+        df.at[idx, "pct_has_price"] = True
+        df.at[idx, "pct_elapsed_actual"] = actual_pct
+
+    return df
+
+
+def analyze_bias_by_time_controlled(df: pd.DataFrame) -> dict:
+    """Test lifetime-vs-calibration with controlled observation timing.
+
+    Uses pct_implied_prob (evaluated at fixed % of lifetime) instead of
+    T-24h prices, eliminating the confound where long-lived markets are
+    observed near termination.
+    """
+    df = df.copy()
+    df = df[df["pct_has_price"] & df["lifetime_hours"].notna() & (df["lifetime_hours"] > 0)]
+
+    if len(df) < 30:
+        return {"error": "insufficient_data"}
+
+    try:
+        df["time_tercile"] = pd.qcut(
+            df["lifetime_hours"].rank(method="first"), q=3, labels=["short", "medium", "long"]
+        )
+    except ValueError:
+        return {"error": "cannot_create_terciles"}
+
+    results = {}
+    for tercile in ["short", "medium", "long"]:
+        t_data = df[df["time_tercile"] == tercile]
+        if len(t_data) < 10:
+            continue
+
+        brier = float(np.mean((t_data["pct_implied_prob"] - t_data["realized"]) ** 2))
+
+        longshots = t_data[t_data["pct_implied_prob"] < 0.30]
+        longshot_bias = None
+        if len(longshots) >= 5:
+            longshot_bias = float(longshots["pct_implied_prob"].mean() - longshots["realized"].mean())
+
+        results[tercile] = {
+            "n": len(t_data),
+            "brier": brier,
+            "mean_lifetime_hours": float(t_data["lifetime_hours"].mean()),
+            "mean_pct_elapsed_actual": float(t_data["pct_elapsed_actual"].mean()),
+            "longshot_bias": longshot_bias,
+        }
+
+    return results
+
+
 def load_settled_markets() -> pd.DataFrame:
     """Load all settled markets with outcomes.
 
