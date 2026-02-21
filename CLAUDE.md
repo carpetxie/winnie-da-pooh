@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Winnie** is a research platform exploring novel signals in Kalshi prediction market data, aimed at producing publishable work for Kalshi's research arm (`research@kalshi.com`). The goal is to demonstrate non-trivial, economically-valuable insights from Kalshi data.
 
-Thirteen experiments are implemented (1-13). See `docs/findings.md` for findings after PhD-level methodology review with independence corrections.
+Thirteen experiments are implemented (1-13). See `docs/findings.md` for the focused paper: "Distributional Calibration of Prediction Markets: Evidence from Implied CDF Scoring." Core result: heterogeneous CRPS calibration (Jobless Claims p<0.0001, CPI non-significant). Three findings invalidated by independence corrections; two more downgraded by controlled analysis.
 
 ## Commands
 
