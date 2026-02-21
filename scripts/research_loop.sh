@@ -229,12 +229,11 @@ IMPORTANT: If the paper is in good shape (most scores 7+, no critical blockers),
         log "  Phase 1 total: ${PHASE_ELAPSED}s"
         log_separator
 
-        # Check for ACCEPT signal
+        # Check for ACCEPT signal — still run researcher to implement polish items
+        ACCEPTED=false
         if check_status "$EXCHANGES/critique_latest.md" "ACCEPT"; then
-            log "${GREEN}${BOLD}  >>> STATUS: ACCEPT — Paper accepted for publication! <<<${NC}"
-            echo ""
-            git_commit_push "Research loop iteration $i: ACCEPTED"
-            break
+            log "${GREEN}${BOLD}  >>> STATUS: ACCEPT — Paper accepted! Running researcher for final polish... <<<${NC}"
+            ACCEPTED=true
         fi
     else
         log "${RED}  FAILURE: No critique file produced!${NC}"
@@ -260,7 +259,16 @@ IMPORTANT: If the paper is in good shape (most scores 7+, no critical blockers),
     BEFORE_LINES=$(wc -l < "$REPO_ROOT/docs/findings.md" | tr -d ' ')
     log "  Paper snapshot before: ${BEFORE_WORDS} words, ${BEFORE_LINES} lines"
 
-    RESEARCHER_PROMPT="$(cat "$REPO_ROOT/docs/researcher_prompt.md")
+    if [ "$ACCEPTED" = true ]; then
+        RESEARCHER_PROMPT="$(cat "$REPO_ROOT/docs/researcher_prompt.md")
+
+This is iteration $i of a maximum $MAX_ITERATIONS. The critiquer has ACCEPTED the paper but left specific polish suggestions.
+
+Read the critique at docs/exchanges/critique_latest.md. Implement ALL reasonable polish items and suggestions the critiquer mentioned — these are final improvements before publication. Deliberate briefly on each, but lean toward implementing since the critiquer flagged them for good reason.
+
+Revise docs/findings.md with the polish changes. Write your deliberation and changelog to docs/exchanges/researcher_response.md. Do NOT set STATUS: CONVERGED — this is a final polish pass."
+    else
+        RESEARCHER_PROMPT="$(cat "$REPO_ROOT/docs/researcher_prompt.md")
 
 This is iteration $i of a maximum $MAX_ITERATIONS. Read the critique at docs/exchanges/critique_latest.md.
 
@@ -269,6 +277,7 @@ BEFORE making any changes, deliberate on each point. Ask yourself: Do I agree? I
 Then revise docs/findings.md — but ONLY make changes you believe in. Push back on bad suggestions. Write your full deliberation and changelog to docs/exchanges/researcher_response.md.
 
 If you believe the paper is at a good stopping point and further iteration would yield diminishing returns, set STATUS: CONVERGED at the top of your response. This is perfectly fine — not every iteration needs major changes."
+    fi
 
     PROMPT_LEN=${#RESEARCHER_PROMPT}
     log "  Prompt length: ${PROMPT_LEN} chars"
@@ -356,6 +365,16 @@ If you believe the paper is at a good stopping point and further iteration would
     fi
 
     # ── Git commit and push after each iteration ─────────────────────
+    if [ "$ACCEPTED" = true ]; then
+        git_commit_push "Research loop iteration $i: ACCEPTED (with final polish)"
+        ITER_ELAPSED=$(( $(date +%s) - ITER_START ))
+        echo ""
+        log "${BLUE}${BOLD}━━━ Iteration $i complete in ${ITER_ELAPSED}s ($(( ITER_ELAPSED / 60 ))m $(( ITER_ELAPSED % 60 ))s) ━━━${NC}"
+        log "${GREEN}${BOLD}Exiting: critiquer ACCEPTED and researcher applied final polish.${NC}"
+        echo ""
+        break
+    fi
+
     git_commit_push "Research loop iteration $i/$MAX_ITERATIONS"
 
     ITER_ELAPSED=$(( $(date +%s) - ITER_START ))

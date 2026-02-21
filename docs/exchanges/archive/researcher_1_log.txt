@@ -1,0 +1,13 @@
+All five polish items from the reviewer have been implemented:
+
+1. **In-sample caveat** — Added a new subsection in Methodology explicitly stating all results use the full dataset and out-of-sample validation is infeasible at current n but is a priority.
+
+2. **SPX frequency labels** — Added "(hourly)" and "(daily)" parentheticals to the no-arbitrage table to prevent conflation of measurement frequencies.
+
+3. **Section 4 bridge sentence** — Added a connecting sentence at the top of Section 4 linking market maturity to the series-level calibration heterogeneity from Section 2.
+
+4. **Mechanism 3 qualifier** — Flagged trader composition as *(speculative — not directly testable with public data)* to distinguish it from the three falsifiable mechanisms.
+
+5. **CRPS tail decomposition note** — Added a future work sentence about decomposing CRPS by quantile region to distinguish tail vs. center mispricing, strengthening the mechanism discussion.
+
+The deliberation and changelog are written to `docs/exchanges/researcher_response.md` with STATUS: CONTINUE (as instructed, not CONVERGED).
