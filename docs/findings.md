@@ -1,11 +1,11 @@
 # Distributional Calibration of Prediction Markets: Evidence from Implied CDF Scoring
 
 **Date:** 2026-02-20
-**Status:** Post PhD-review, iteration 4. Restructured as single focused paper.
+**Status:** Post PhD-review, iteration 5. Fixed historical benchmark contamination, PIT sign error, added CRPS/MAE ratio.
 
 ## Abstract
 
-We evaluate the distributional calibration of Kalshi prediction markets using 336 multi-strike contracts across 41 economic events. Applying Breeden-Litzenberger reconstruction to extract implied CDFs, we score them using the Continuous Ranked Probability Score (CRPS) — the first proper scoring rule evaluation of prediction market implied distributions. We find striking heterogeneity: Jobless Claims markets (weekly frequency, n=16) achieve well-calibrated distributions that massively outperform historical baselines (Wilcoxon p<0.0001), while CPI markets (monthly frequency, n=14) do not beat historical baselines (p=0.709). PIT analysis suggests CPI overconfidence reflects directional bias (mean PIT=0.39), though this is preliminary at n=14. In a point forecast horse race, Kalshi's CPI implied mean significantly beats random walk (p=0.026, d=-0.60) but comparisons to professional forecasters (SPF, TIPS) are underpowered. TIPS breakeven rates Granger-cause Kalshi CPI prices (F=12.2, p=0.005) but not vice versa, establishing the information hierarchy between bond and prediction markets. We document that three initially "significant" findings were invalidated by event-level clustering corrections.
+We evaluate the distributional calibration of Kalshi prediction markets using 336 multi-strike contracts across 41 economic events. Applying Breeden-Litzenberger reconstruction to extract implied CDFs, we score them using the Continuous Ranked Probability Score (CRPS) — the first proper scoring rule evaluation of prediction market implied distributions. We find heterogeneous calibration: Jobless Claims markets (weekly frequency, n=16) outperform regime-appropriate historical baselines (CRPS 4,840 vs 8,758; Wilcoxon p=0.047), while CPI markets (monthly frequency, n=14) do not beat historical baselines (p=0.709) and their distributional spread is actively harmful (CRPS/MAE=1.32). PIT analysis suggests CPI markets underestimate inflation (mean PIT=0.61), though this is preliminary at n=14 (KS p=0.22). In a point forecast horse race, Kalshi's CPI implied mean significantly beats random walk (p=0.026, d=-0.60) but comparisons to professional forecasters are underpowered. TIPS breakeven rates Granger-cause Kalshi CPI prices (F=12.2, p=0.005) but not vice versa. We document that three initially "significant" findings were invalidated by event-level clustering corrections, and the original Jobless Claims benchmark was contaminated by COVID-era data (inflating the CRPS advantage from 1.8x to 7.3x).
 
 ---
 
@@ -22,7 +22,7 @@ We evaluate the distributional calibration of Kalshi prediction markets using 33
 | Reversion rate | 168/195 = 86% within 1 hour |
 | CPI median forecast error | 0.05 percentage points |
 
-2.8% of snapshots violate CDF monotonicity, with 86% reverting within one hour — consistent with transient mispricing in thin markets, not systematic arbitrage. The implied distributions are well-formed enough to score.
+2.8% of snapshots violate CDF monotonicity, with 86% reverting within one hour — consistent with transient mispricing in thin markets, not systematic arbitrage.
 
 ---
 
@@ -30,11 +30,11 @@ We evaluate the distributional calibration of Kalshi prediction markets using 33
 
 ### CRPS by Event Series
 
-33 events with complete CRPS scoring:
+33 events with complete CRPS scoring. Historical benchmarks use regime-appropriate windows (Jobless Claims: 2022+, post-COVID normalization).
 
 | Series | n | Kalshi CRPS | Uniform CRPS | Historical CRPS |
 |--------|---|------------|-------------|----------------|
-| KXJOBLESSCLAIMS | 16 | 4,840 | 6,100 | 35,556 |
+| KXJOBLESSCLAIMS | 16 | 4,840 | 6,100 | 8,758 |
 | KXCPI | 14 | 0.108 | 0.042 | 0.091 |
 | KXGDP | 3 | 0.509 | 0.672 | 1.098 |
 
@@ -42,14 +42,23 @@ We evaluate the distributional calibration of Kalshi prediction markets using 33
 
 | Test | p-value | Significant |
 |------|---------|-------------|
-| **KXJOBLESSCLAIMS vs Historical (n=16)** | **<0.0001** | **Yes** |
+| **KXJOBLESSCLAIMS vs Historical (n=16, post-COVID)** | **0.047** | **Yes** |
+| KXJOBLESSCLAIMS vs Historical (n=16, COVID-contaminated) | <0.0001 | Yes* |
 | KXCPI vs Historical (n=14) | 0.709 | No |
-| KXCPI vs Uniform (n=14) | 0.999 | No (worse than uniform) |
-| KXGDP vs Historical (n=3) | — | Insufficient data |
+| KXCPI vs Uniform (n=14) | 0.999 | No (worse) |
+| Pooled Kalshi vs Historical (n=33, post-COVID) | 0.117 | No |
 
-The pooled Wilcoxon across all series (p=0.0001) is misleading — it is driven entirely by Jobless Claims. Per-series tests are the honest metric, and they reveal that CPI distributions are *not* well-calibrated.
+*The COVID-contaminated benchmark (2020-2025) includes claims of 3-6 million vs current 200-250K, inflating the CRPS advantage from 1.8x to 7.3x. The regime-appropriate benchmark (2022+) gives an honest 1.8x improvement.
 
-**Note on CRPS <= MAE**: CRPS is bounded above by MAE for any proper distribution. Comparisons between distributional CRPS and point-forecast MAE are mathematically favorable to the distribution and are therefore omitted. All comparisons here are distribution-vs-distribution.
+### CRPS/MAE Ratio (Distributional Value-Add)
+
+| Series | CRPS | MAE | CRPS/MAE | Interpretation |
+|--------|------|-----|----------|----------------|
+| KXCPI | 0.108 | 0.082 | **1.32** | Distribution harmful (spread adds noise) |
+| KXGDP | 0.509 | 1.097 | 0.46 | Distribution adds substantial value |
+| KXJOBLESSCLAIMS | 4,840 | 12,959 | **0.37** | Distribution adds massive value |
+
+For CPI, CRPS > MAE — the distributional spread is *actively harmful*. A point forecast (the implied mean) performs better than the full distribution. For Jobless Claims, the distribution captures 63% more information than the point forecast alone.
 
 ### Temporal CRPS Evolution
 
@@ -59,19 +68,17 @@ The pooled Wilcoxon across all series (p=0.0001) is misleading — it is driven 
 | 50% (mid) | 2.55x (worse) | 0.79x (better) |
 | 90% (late) | 1.16x (converging) | 0.78x (stable) |
 
-CPI markets learn over time (converging toward uniform) but never achieve calibration. Jobless Claims beat uniform from inception. This suggests distributional calibration is an emergent property of trading frequency.
+CPI markets learn over time but never achieve calibration. Jobless Claims beat uniform from inception.
 
-### CPI Overconfidence Diagnostic (PIT Analysis)
+### CPI PIT Analysis (Appendix-Level)
 
 | Metric | CPI (n=14) | Well-Calibrated |
 |--------|-----------|-----------------|
-| Mean PIT | 0.391 | 0.500 |
+| Mean PIT | 0.609 | 0.500 |
 | Std PIT | 0.222 | 0.289 |
-| % in IQR | 57% | 50% |
-| % in tails | 7% | 20% |
-| KS test for uniformity | p=0.221 | — |
+| KS test | p=0.221 | — |
 
-The PIT distribution is shifted left (mean 0.39): realized CPI consistently falls in the lower half of the implied distribution, suggesting the market systematically overestimates inflation. However, the KS test does not reject uniformity at n=14 (p=0.22), so this is preliminary. The 95% CI on mean PIT is approximately [0.27, 0.51] — compatible with both modest and substantial bias.
+Mean PIT = 0.61 (95% CI: [0.49, 0.73]): realized CPI tends to fall in the upper half of the implied distribution, suggesting markets *underestimate* inflation. However, the KS test does not reject uniformity (p=0.22), so this is suggestive only. At n=14, this observation warrants monitoring, not strong claims.
 
 ---
 
@@ -86,7 +93,7 @@ The PIT distribution is shifted left (mean 0.39): realized CPI consistently fall
 | TIPS → Kalshi | 1 day | 12.24 | 0.005 |
 | Kalshi → TIPS | — | 0.0 | 1.0 |
 
-TIPS breakeven rates (institutional bond market) Granger-cause Kalshi CPI prices (retail prediction market), not vice versa. This establishes the information hierarchy: the bond market sets the level, while the prediction market adds granularity through its multi-strike structure.
+TIPS breakeven rates lead Kalshi CPI prices. Kalshi is a useful aggregator even though it's not the first mover — it incorporates TIPS information while adding granularity through its multi-strike structure (distributional information that a single breakeven rate cannot provide).
 
 ### CPI Point Forecast Horse Race
 
@@ -98,29 +105,17 @@ TIPS breakeven rates (institutional bond market) Granger-cause Kalshi CPI prices
 | Trailing mean | 0.118 | -0.32 | 0.155 | 14 |
 | Random walk (last month) | 0.143 | **-0.60** | **0.026*** | 14 |
 
-Kalshi significantly outperforms the random walk benchmark (p=0.026, medium-large effect). Comparisons to professional forecasters have insufficient power to distinguish:
-
-| Comparison | |d| | n needed (80% power) | Additional months |
-|-----------|-----|----------------------|-------------------|
-| vs Random Walk | 0.60 | 18 | +4 |
-| vs Trailing Mean | 0.32 | 66 | +52 |
-| vs SPF | 0.25 | 107 | +93 |
-| vs TIPS | 0.27 | 90 | +76 |
-
-**SPF caveat**: SPF forecasts annual CPI (Q4/Q4 %), converted to monthly via annual_rate/12. This is an approximation that may bias against SPF.
+Kalshi significantly beats random walk (p=0.026, d=-0.60). Comparisons to professional forecasters are underpowered (need 76-107 more months at observed effect sizes).
 
 ---
 
 ## 4. Supporting: Market Maturity and Calibration
-
-Economics-domain markets (n=1,141) show a calibration gradient by contract lifetime, but most of the effect is mechanical.
 
 ### T-24h Analysis (confounded)
 
 | Lifetime | Brier (T-24h) | n |
 |----------|---------------|---|
 | Short (~533h) | 0.156 | 374 |
-| Medium (~2585h) | 0.059 | 374 |
 | Long (~7650h) | 0.023 | 374 |
 
 ### 50%-Lifetime Analysis (controlled)
@@ -128,32 +123,32 @@ Economics-domain markets (n=1,141) show a calibration gradient by contract lifet
 | Lifetime | Brier (50% of life) | n |
 |----------|---------------------|---|
 | Short (~147h) | 0.166 | 85 |
-| Medium (~409h) | 0.110 | 85 |
 | Long (~2054h) | 0.114 | 85 |
 
-The T-24h gradient (7x) is largely mechanical: long-lived markets at T-24h are observed at ~99% of lifetime (near-terminal prices), while short-lived markets are at ~57%. The controlled analysis (all markets evaluated at 50% of lifetime) shows a 1.5x gradient — short-lived markets are genuinely worse, but medium and long markets are nearly identical. The dominant factor is total information aggregation time, not maturity per se.
+The T-24h gradient (7x) is largely mechanical. The controlled analysis (50% of lifetime) shows a 1.5x residual — short-lived markets are modestly worse, but medium and long are similar. Remaining confounds (contract type, liquidity, trader composition) prevent causal interpretation.
 
 ---
 
 ## Downgraded and Invalidated Findings
 
-### Downgraded to Suggestive
+### Downgraded
 
-| Finding | Direction | Naive p | Corrected p | Issue |
-|---------|-----------|---------|-------------|-------|
-| Calibration under uncertainty | High-uncertainty → better calibration | 0.016* | CI includes zero | Cluster-robust bootstrap (80 event clusters) |
-| Microstructure event response | Spread narrows after events | 0.013* | 0.542 | 767 pairs from 31 events |
-| Shock propagation (surprise) | Surprise → larger inflation response | 0.0002* | 0.436 | Hourly obs from 31 events |
-| Information asymmetry (lead-lag) | Inflation → monetary policy at 3h | 0.0008* | 0.0008 | Confirmatory (Taylor Rule); relegated from main findings |
-| Maturity gradient (T-24h) | 7x Brier gradient | — | 1.5x controlled | Observation timing confound |
+| Finding | Naive | Corrected | Issue |
+|---------|-------|-----------|-------|
+| Calibration under uncertainty | p=0.016* | CI includes zero | Cluster-robust bootstrap |
+| Microstructure event response | p=0.013* | p=0.542 | Within-event correlation |
+| Shock propagation (surprise) | p=0.0002* | p=0.436 | Within-event correlation |
+| Information asymmetry (lead-lag) | p=0.0008* | p=0.0008 | Confirmatory (Taylor Rule) |
+| Maturity gradient | 7x | 1.5x | Observation timing confound |
+| **Jobless Claims CRPS headline** | **p<0.0001** | **p=0.047** | **COVID-contaminated benchmark** |
 
 ### Invalidated
 
 | Finding | Original | Corrected | Reason |
 |---------|----------|-----------|--------|
-| Shock acceleration | 4h vs 8h, p<0.001 | 6h vs 8h, p=0.48 | Circular classification artifact |
-| KUI leads EPU (Granger) | p=0.024 | p=0.658 | Absolute return bias |
-| Trading Sharpe | +5.23 (4 trades) | -2.26 (23 trades) | Small-sample artifact |
+| Shock acceleration | p<0.001 | p=0.48 | Circular classification |
+| KUI leads EPU | p=0.024 | p=0.658 | Absolute return bias |
+| Trading Sharpe | +5.23 | -2.26 | Small-sample artifact |
 
 ---
 
@@ -166,10 +161,12 @@ The T-24h gradient (7x) is largely mechanical: long-lived markets at T-24h are o
 
 ### Key Corrections
 1. **Event-level clustering**: Three findings invalidated by correcting independence violations
-2. **Per-series Wilcoxon**: Pooled p=0.0001 was a Jobless Claims story; CPI is non-significant
+2. **Per-series Wilcoxon**: Pooled p=0.0001 was misleading; per-series tests reveal heterogeneity
 3. **Controlled observation timing**: T-24h maturity gradient (7x) reduced to 1.5x at 50% lifetime
-4. **CRPS <= MAE**: Distribution-vs-point comparisons omitted as mathematically tautological
-5. **Effect sizes and power**: Reported for all underpowered comparisons
+4. **Regime-appropriate benchmarks**: Jobless Claims historical window changed from 2020+ to 2022+ (post-COVID), reducing advantage from 7.3x to 1.8x
+5. **PIT sign correction**: cdf_values store survival P(X>strike), not CDF P(X≤strike). Corrected PIT = 1 - interpolated survival. Mean PIT changed from 0.39 to 0.61 (reversed interpretation)
+6. **CRPS/MAE ratio**: Distribution-vs-point ratio reported per series. CPI ratio > 1 (distribution harmful); Jobless Claims ratio = 0.37 (distribution adds value)
+7. **Effect sizes and power**: Cohen's d and power analysis for all underpowered comparisons
 
 ### Experiments Summary
 

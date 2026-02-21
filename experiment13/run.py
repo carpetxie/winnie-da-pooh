@@ -120,21 +120,40 @@ def main():
     print("=" * 70)
 
     # Fetch historical data
+    # Use regime-appropriate windows for historical benchmarks.
+    # Jobless Claims: 2022-01-01 (post-COVID normalization) to avoid
+    # contamination from COVID-era claims of 3-6M vs current 200-250K.
+    # CPI: 2020-01-01 is acceptable (CPI MoM doesn't have the same
+    # regime break as levels-based claims data).
+    # GDP: 2015-01-01 for longer history (quarterly data).
     historical = {}
+    historical_covid = {}  # For sensitivity analysis with contaminated window
+
     try:
         cpi_hist = fetch_historical_cpi_from_fred("2020-01-01", "2025-12-01")
         historical["KXCPI"] = cpi_hist
-        print(f"  CPI history: {len(cpi_hist)} monthly changes")
+        print(f"  CPI history: {len(cpi_hist)} monthly changes (2020-2025)")
     except Exception as e:
         print(f"  CPI fetch failed: {e}")
         historical["KXCPI"] = []
+
     try:
-        claims_hist = fetch_historical_jobless_claims("2020-01-01", "2025-12-01")
+        # Post-COVID window (regime-appropriate)
+        claims_hist = fetch_historical_jobless_claims("2022-01-01", "2025-12-01")
         historical["KXJOBLESSCLAIMS"] = claims_hist
-        print(f"  Jobless Claims history: {len(claims_hist)} weekly values")
+        print(f"  Jobless Claims history: {len(claims_hist)} weekly values (2022-2025, post-COVID)")
     except Exception as e:
         print(f"  Jobless Claims fetch failed: {e}")
         historical["KXJOBLESSCLAIMS"] = []
+
+    try:
+        # COVID-contaminated window for sensitivity comparison
+        claims_hist_covid = fetch_historical_jobless_claims("2020-01-01", "2025-12-01")
+        historical_covid["KXJOBLESSCLAIMS"] = claims_hist_covid
+        print(f"  Jobless Claims history (COVID window): {len(claims_hist_covid)} weekly values (2020-2025)")
+    except Exception as e:
+        historical_covid["KXJOBLESSCLAIMS"] = []
+
     try:
         gdp_hist = fetch_historical_gdp("2015-01-01", "2025-12-01")
         historical["KXGDP"] = gdp_hist
@@ -183,6 +202,14 @@ def main():
             except Exception:
                 hist_crps = None
 
+        # COVID-contaminated historical for sensitivity
+        hist_crps_covid = None
+        if series in historical_covid and historical_covid[series]:
+            try:
+                hist_crps_covid = compute_historical_crps(historical_covid[series], realized)
+            except Exception:
+                hist_crps_covid = None
+
         point_crps = None
         if implied_mean is not None:
             point_crps = compute_point_crps(implied_mean, realized)
@@ -197,6 +224,7 @@ def main():
             "kalshi_crps": kalshi_crps,
             "uniform_crps": uniform_crps,
             "historical_crps": hist_crps,
+            "historical_crps_covid": hist_crps_covid,
             "point_crps": point_crps,
         })
 
@@ -210,7 +238,9 @@ def main():
         if s["uniform_crps"].notna().any():
             print(f"    Uniform CRPS:    mean={s['uniform_crps'].mean():.4f}")
         if s["historical_crps"].notna().any():
-            print(f"    Historical CRPS: mean={s['historical_crps'].mean():.4f}")
+            print(f"    Historical CRPS: mean={s['historical_crps'].mean():.4f} (regime-appropriate window)")
+        if s["historical_crps_covid"].notna().any():
+            print(f"    Historical CRPS (COVID window): mean={s['historical_crps_covid'].mean():.4f} (contaminated)")
 
     # ================================================================
     # PHASE 4: PER-SERIES WILCOXON TESTS (NOT JUST POOLED)
@@ -290,6 +320,65 @@ def main():
                     "note": f"Insufficient data (n={len(valid)}, need >=5)",
                 }
                 print(f"  {series} vs {label}: insufficient data (n={len(valid)})")
+
+    # Sensitivity: Jobless Claims with COVID-contaminated window
+    print("\n  --- Benchmark sensitivity (Jobless Claims) ---")
+    jc = crps_df[crps_df["series"] == "KXJOBLESSCLAIMS"]
+    valid_clean = jc.dropna(subset=["kalshi_crps", "historical_crps"])
+    valid_covid = jc.dropna(subset=["kalshi_crps", "historical_crps_covid"])
+    if len(valid_clean) >= 5:
+        print(f"  Post-COVID window (2022+): Kalshi={valid_clean['kalshi_crps'].mean():.0f}, "
+              f"Historical={valid_clean['historical_crps'].mean():.0f}")
+        stat, p = stats.wilcoxon(valid_clean["kalshi_crps"], valid_clean["historical_crps"], alternative="less")
+        test_results["jobless_claims_vs_historical_clean"] = {
+            "n": len(valid_clean),
+            "kalshi_mean": float(valid_clean["kalshi_crps"].mean()),
+            "historical_mean": float(valid_clean["historical_crps"].mean()),
+            "p_value": float(p),
+            "significant": p < 0.05,
+            "window": "2022-2025 (post-COVID)",
+        }
+        print(f"    Wilcoxon p={p:.4f}{'*' if p < 0.05 else ''}")
+    if len(valid_covid) >= 5:
+        print(f"  COVID window (2020+): Kalshi={valid_covid['kalshi_crps'].mean():.0f}, "
+              f"Historical={valid_covid['historical_crps_covid'].mean():.0f}")
+        stat, p = stats.wilcoxon(valid_covid["kalshi_crps"], valid_covid["historical_crps_covid"], alternative="less")
+        test_results["jobless_claims_vs_historical_covid"] = {
+            "n": len(valid_covid),
+            "kalshi_mean": float(valid_covid["kalshi_crps"].mean()),
+            "historical_mean": float(valid_covid["historical_crps_covid"].mean()),
+            "p_value": float(p),
+            "significant": p < 0.05,
+            "window": "2020-2025 (COVID-contaminated)",
+        }
+        print(f"    Wilcoxon p={p:.4f}{'*' if p < 0.05 else ''}")
+
+    # CRPS/MAE ratio: measures how much distributional info adds beyond point forecast
+    # CRPS <= MAE always. Ratio near 1 = distribution adds little. Ratio << 1 = distribution helps.
+    # If CRPS > MAE, something is wrong (distributional spread is harmful).
+    print("\n  --- CRPS / MAE ratio (distributional value-add) ---")
+    crps_mae_results = {}
+    for series in sorted(crps_df["series"].unique()):
+        s = crps_df[crps_df["series"] == series]
+        valid = s.dropna(subset=["kalshi_crps", "point_crps"])
+        if len(valid) >= 3:
+            mean_crps = float(valid["kalshi_crps"].mean())
+            mean_mae = float(valid["point_crps"].mean())
+            ratio = mean_crps / mean_mae if mean_mae > 0 else float("inf")
+            crps_mae_results[series] = {
+                "n": len(valid),
+                "mean_crps": mean_crps,
+                "mean_mae": mean_mae,
+                "ratio": ratio,
+                "interpretation": (
+                    "ratio < 1: distribution adds value beyond point forecast. "
+                    "ratio > 1: distributional spread is harmful (overconfidence)."
+                ),
+            }
+            flag = " *** DISTRIBUTION HARMFUL" if ratio > 1.0 else ""
+            print(f"  {series} (n={len(valid)}): CRPS={mean_crps:.4f}, MAE={mean_mae:.4f}, "
+                  f"CRPS/MAE={ratio:.3f}{flag}")
+    test_results["crps_mae_ratio"] = crps_mae_results
 
     # ================================================================
     # PHASE 5: TEMPORAL CRPS EVOLUTION
@@ -447,7 +536,10 @@ def main():
             cdf_vals = mid_snap["cdf_values"]
 
             # Find where realized falls in the CDF (PIT value)
-            pit = np.interp(realized, strikes, cdf_vals)
+            # cdf_vals are SURVIVAL probabilities P(X > strike), not CDF values.
+            # PIT = P(X <= realized) = 1 - P(X > realized) = 1 - interp(survival)
+            survival = np.interp(realized, strikes, cdf_vals)
+            pit = 1.0 - survival
             pit_values.append({"event_ticker": event_ticker, "realized": realized, "pit": pit})
 
         if pit_values:
@@ -466,9 +558,10 @@ def main():
                 "expected_in_iqr": 0.50,
                 "expected_in_tails": 0.20,
                 "interpretation": (
-                    "If distribution is well-calibrated, 50% of realized values "
-                    "should fall in the IQR and 20% in the tails (PIT < 0.1 or > 0.9). "
-                    "Overconfident distributions have too many tail outcomes."
+                    "PIT = P(X <= realized) from the implied CDF. "
+                    "If well-calibrated, PIT ~ Uniform(0,1): mean=0.5, std=0.289, "
+                    "50% in IQR, 20% in tails. Mean PIT > 0.5 means markets "
+                    "underestimate the variable (realized tends to be high)."
                 ),
             }
 
