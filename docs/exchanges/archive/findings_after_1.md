@@ -1,7 +1,7 @@
 # When Do Prediction Market Distributions Add Value? A CRPS/MAE Diagnostic
 
 **Date:** 2026-02-21
-**Status:** Post PhD-review, iteration 7. Polish pass: in-sample caveat, frequency labels, section bridge, mechanism qualifier, tail decomposition note.
+**Status:** Accepted for publication. PhD-review complete (2 iterations, ACCEPT). All polish items incorporated.
 
 ## Abstract
 

@@ -1,11 +1,3 @@
 Critique written to `docs/exchanges/critique_latest.md`.
 
-**Summary**: The paper receives an **ACCEPT** verdict. It's a well-executed piece of applied prediction market research with a genuinely novel finding — the CRPS/MAE ratio reveals that Jobless Claims distributions add massive value while CPI distributions are actively harmful. The methodology is rigorous (Bonferroni correction, effect sizes, power analysis, regime-appropriate benchmarks), and the transparency appendix documenting invalidated findings builds strong credibility.
-
-**Key scores**: Novelty 7/10, Rigor 8/10, Economic Significance 7/10, Clarity 7/10, Blog Publishability 8/10.
-
-**The one big thing**: Add an explicit in-sample caveat — one sentence noting all results use the full dataset without hold-out validation. This is polish, not a blocker.
-
-**Minor suggestions**: SPX comparison frequency labels in the table, a bridge sentence connecting Section 4 to the main narrative, flagging mechanism 3 (trader composition) as more speculative, and a note about CRPS tail decomposition for future work.
-
-No must-fix items. The paper is at diminishing returns and ready to publish.
+**Summary:** Iteration 2 — **ACCEPT**. All five polish items from the previous critique were implemented cleanly. Scores are 7-8/10 across all criteria (Narrative Clarity improved to 8/10 with the bridge sentence and frequency labels). No remaining must-fix or should-fix items. The paper has converged and is ready to publish on the Kalshi Research blog.

@@ -1,7 +1,7 @@
 # When Do Prediction Market Distributions Add Value? A CRPS/MAE Diagnostic
 
 **Date:** 2026-02-21
-**Status:** Post PhD-review, iteration 6. Bonferroni correction, effect sizes, restructured headline, mechanism section, power analysis.
+**Status:** Post PhD-review, iteration 7. Polish pass: in-sample caveat, frequency labels, section bridge, mechanism qualifier, tail decomposition note.
 
 ## Abstract
 
@@ -19,7 +19,7 @@ We introduce the CRPS/MAE ratio as a diagnostic for whether prediction market im
 
 | Metric | Kalshi | Benchmark |
 |--------|--------|-----------|
-| Violation rate (non-monotone CDF) | 2.8% of hourly snapshots | SPX call spread: 2.7% of days (Brigo et al., 2023) |
+| Violation rate (non-monotone CDF) | 2.8% of snapshots (hourly) | SPX call spread: 2.7% of violations (daily) (Brigo et al., 2023) |
 | Reversion rate | 86% within 1 hour | Polymarket: ~1h resolution (Messias et al., 2025) |
 | Other prediction markets | — | Polymarket: 41%, PredictIt: ~95%, IEM: 37.7% |
 
@@ -71,11 +71,11 @@ We hypothesize four mechanisms driving the calibration heterogeneity:
 
 2. **Signal dimensionality**: CPI is a composite index aggregating shelter, food, energy, and services — each with different dynamics. Jobless Claims is a single administrative count with well-understood seasonal patterns. Lower-dimensional signals may be easier to price distributionally.
 
-3. **Trader composition**: Jobless Claims markets attract specialized labor-market traders with domain expertise in distributional shape. CPI markets attract broader macro traders whose point forecasts are accurate (MAE=0.082) but whose uncertainty estimates are poorly calibrated.
+3. **Trader composition** *(speculative — not directly testable with public data)*: Jobless Claims markets attract specialized labor-market traders with domain expertise in distributional shape. CPI markets attract broader macro traders whose point forecasts are accurate (MAE=0.082) but whose uncertainty estimates are poorly calibrated.
 
 4. **Liquidity and market depth**: If CPI markets have thinner order books at extreme strikes, the distributional tails will be poorly priced, inflating CRPS without affecting the implied mean (MAE). This is consistent with the CRPS/MAE > 1 finding.
 
-These hypotheses are testable as more data accumulates: mechanisms 1 and 2 predict that other weekly releases (e.g., mortgage applications) should also have CRPS/MAE < 1, while other monthly composites (e.g., PCE) should have CRPS/MAE > 1.
+These hypotheses are testable as more data accumulates: mechanisms 1 and 2 predict that other weekly releases (e.g., mortgage applications) should also have CRPS/MAE < 1, while other monthly composites (e.g., PCE) should have CRPS/MAE > 1. Future work should also decompose CRPS by quantile region to distinguish tail mispricing (thin liquidity at extreme strikes) from center mispricing, which would provide direct evidence for or against mechanism 4.
 
 ---
 
@@ -119,6 +119,8 @@ Kalshi significantly beats random walk (p=0.026, d=-0.60). Professional forecast
 
 ## 4. Supporting: Market Maturity and Calibration
 
+This structural dependence on market maturity complements the series-level calibration heterogeneity in Section 2: distributional quality varies not only across event types but also within a contract's lifecycle.
+
 ### T-24h Analysis (confounded)
 
 | Lifetime | Brier (T-24h) | n |
@@ -143,6 +145,10 @@ The T-24h gradient (7x) is largely mechanical — for long-lived markets, T-24h 
 - 6,141 settled Kalshi markets with outcomes (Oct 2024 - Feb 2026)
 - 336 multi-strike markets across 41 events (CPI, Jobless Claims, GDP, other)
 - External: TIPS breakeven (T10YIE), SPF median CPI, FRED historical data
+
+### In-Sample Caveat
+
+All CRPS/MAE ratios and Wilcoxon tests are computed on the full available dataset. With n=14–16 events per series, train/test splitting is impractical; rolling-window out-of-sample validation is infeasible at current sample sizes but is a priority as data accumulates.
 
 ### Statistical Corrections Applied
 1. **Regime-appropriate benchmarks**: Jobless Claims window 2022+ (post-COVID), avoiding COVID-era data contamination

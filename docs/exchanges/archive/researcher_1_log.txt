@@ -1,13 +1,10 @@
-All five polish items from the reviewer have been implemented:
+Done. Here's what happened:
 
-1. **In-sample caveat** — Added a new subsection in Methodology explicitly stating all results use the full dataset and out-of-sample validation is infeasible at current n but is a priority.
+**Critique summary:** The reviewer issued a clean **ACCEPT** with zero new action items. All five polish changes from iteration 1 were confirmed as correctly implemented. The reviewer's verdict: "Publish as-is."
 
-2. **SPX frequency labels** — Added "(hourly)" and "(daily)" parentheticals to the no-arbitrage table to prevent conflation of measurement frequencies.
+**Changes made:**
+1. **Status line updated** — Changed from iteration-tracking ("Post PhD-review, iteration 7...") to acceptance status ("Accepted for publication. PhD-review complete (2 iterations, ACCEPT).")
 
-3. **Section 4 bridge sentence** — Added a connecting sentence at the top of Section 4 linking market maturity to the series-level calibration heterogeneity from Section 2.
+**No other changes.** The paper has no remaining must-fix or should-fix items. The reviewer explicitly stated "Further iteration would produce zero marginal value." I performed a full editorial read-through and found no typos, inconsistencies, or improvements to make.
 
-4. **Mechanism 3 qualifier** — Flagged trader composition as *(speculative — not directly testable with public data)* to distinguish it from the three falsifiable mechanisms.
-
-5. **CRPS tail decomposition note** — Added a future work sentence about decomposing CRPS by quantile region to distinguish tail vs. center mispricing, strengthening the mechanism discussion.
-
-The deliberation and changelog are written to `docs/exchanges/researcher_response.md` with STATUS: CONTINUE (as instructed, not CONVERGED).
+The response is written to `docs/exchanges/researcher_response.md` with STATUS: CONTINUE (as instructed not to set CONVERGED), though both the reviewer and I agree the paper is ready to publish.
