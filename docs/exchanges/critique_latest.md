@@ -4,48 +4,47 @@ STATUS: ACCEPT
 
 ## Overall Assessment
 
-This paper introduces the CRPS/MAE ratio as a per-series diagnostic for prediction market distributional value and delivers a clean, surprising result: Jobless Claims distributions add massive value (ratio=0.37) while CPI distributions are actively harmful (ratio=1.32). The methodology is unusually rigorous for applied prediction market research — Bonferroni corrections, effect sizes, power analysis, regime-appropriate benchmarks, and an exemplary transparency appendix documenting invalidated findings. This is ready for the Kalshi Research blog.
+This paper introduces the CRPS/MAE ratio as a per-series diagnostic for prediction market distributional value and delivers a genuinely surprising result: Jobless Claims distributions add massive value (ratio=0.37) while CPI distributions are actively harmful (ratio=1.32). The methodology is unusually disciplined for applied prediction market work — regime-appropriate benchmarks, Bonferroni correction, effect sizes, power analysis, and an exemplary transparency appendix documenting downgraded and invalidated findings. The paper is ready for the Kalshi Research blog with minor polish.
 
 ## Scores
 | Criterion | Score | Delta | Comment |
 |-----------|-------|-------|---------|
-| Novelty | 7/10 | — | The CRPS/MAE ratio itself is a straightforward construction, but the applied insight — that the *same platform's* distributions are excellent for one series and harmful for another — is genuinely novel. No prior prediction market literature has documented this within-platform heterogeneity. |
-| Methodological Rigor | 8/10 | — | Strong. The COVID-contamination catch (deflating the Jobless Claims advantage from 7.3x to 1.8x), Bonferroni correction that honestly renders the headline result marginal (p_adj=0.093), power analysis, and regime-appropriate benchmarks all demonstrate serious self-correction. The downgraded/invalidated findings appendix is rare and commendable. |
-| Economic Significance | 7/10 | — | Actionable for both Kalshi (market design: allocate liquidity incentives to series where distributions work) and traders (use Jobless Claims distributions, ignore CPI distributional spread). The testable predictions about release frequency are a concrete research agenda. |
-| Narrative Clarity | 7/10 | — | Well-structured: build CDFs → score them → find heterogeneity → hypothesize mechanisms → contextualize. Section 4 (maturity/favorite-longshot) feels somewhat disconnected from the CRPS story. The abstract is dense but informative. |
-| Blog Publishability | 8/10 | — | Would enhance Kalshi's credibility. Publishing "our CPI distributions are harmful" and "TIPS leads us, not vice versa" signals intellectual seriousness. The methodological rigor would impress sophisticated readers while the core finding is accessible to traders. |
+| Novelty | 7/10 | — | CRPS/MAE is a straightforward construction, but applying it as a per-series diagnostic to reveal within-platform heterogeneity is genuinely new. No prior prediction market literature documents that the same platform's distributions are excellent for one series and harmful for another. |
+| Methodological Rigor | 8/10 | — | Exemplary self-correction: catching COVID contamination (7.3x → 1.8x), honest Bonferroni adjustment that renders the headline marginal (p_adj=0.093), power analysis for all tests, regime-appropriate windows. The invalidated findings appendix is rare and builds enormous credibility. |
+| Economic Significance | 7/10 | — | Directly actionable: traders should use Jobless Claims distributions but ignore CPI distributional spread; Kalshi can use CRPS/MAE as an ongoing quality metric for multi-strike offerings and prioritize liquidity incentives accordingly. |
+| Narrative Clarity | 7/10 | — | Clean structure: build CDFs → score them → reveal heterogeneity → hypothesize mechanisms → contextualize. Section 4 (maturity/favorite-longshot) feels somewhat disconnected. The abstract packs a lot but remains informative. |
+| Blog Publishability | 8/10 | — | Publishing "our CPI distributions are harmful" and "TIPS leads us, not vice versa" signals intellectual seriousness that sophisticated readers will respect. Self-critical empirical work is exactly what builds a research brand. |
 
 ## Seed Question Responses
 
 **1. Is the CRPS/MAE ratio framing genuinely useful, or trivial repackaging?**
 
-Genuinely useful. CRPS/MAE is mathematically simple — CRPS ≤ MAE for any well-calibrated distribution, so ratio > 1 signals the distribution is actively destroying value vs. the point forecast. But the *application* as a per-series diagnostic is the contribution. An analyst looking only at aggregate CRPS would miss the dramatic divergence between series. The ratio gives market designers a concrete, interpretable metric: "should we offer distributional contracts for this event type?"
+Genuinely useful. The mathematical construction is simple — CRPS ≤ MAE for any distribution, so ratio > 1 means the distributional spread destroys value relative to the point forecast. But the *application* as a per-series diagnostic is the real contribution. Aggregate CRPS would mask the dramatic CPI/Jobless Claims divergence. The ratio gives market designers a concrete, interpretable decision metric: "should we offer distributional contracts for this event type?" That's actionable.
 
 **2. Does the heterogeneity finding have practical implications for Kalshi's market design?**
 
-Yes, concretely. If weekly releases produce well-calibrated distributions while monthly composites don't, Kalshi can: (a) prioritize multi-strike offerings for weekly events, (b) adjust strike spacing based on demonstrated calibration quality, (c) use CRPS/MAE as an ongoing quality metric for new event types, and (d) test the frequency hypothesis as they expand to new contracts. The testable prediction framework (Section 2's four mechanisms) gives Kalshi a principled R&D agenda.
+Yes, concretely. If weekly releases produce well-calibrated distributions while monthly composites don't, Kalshi can: (a) prioritize multi-strike offerings for weekly events, (b) use CRPS/MAE as an ongoing quality metric when launching new contract types, (c) adjust strike spacing based on demonstrated calibration quality, and (d) test the frequency hypothesis as they expand coverage. The four testable mechanisms in Section 2 give Kalshi a principled R&D agenda.
 
 **3. Are there claims that overreach the evidence?**
 
-The paper is disciplined. Two mild concerns:
-- The SPX comparison (2.8% vs 2.7%) juxtaposes hourly prediction market snapshots with daily equity option measurements. The text acknowledges the difference but the table invites direct comparison. Adding "(hourly)" and "(daily)" labels in the table itself would help.
-- Mechanism 3 (trader composition) is essentially unfalsifiable with public data, unlike mechanisms 1, 2, and 4 which have testable predictions. It should be flagged as more speculative.
+The paper is disciplined about hedging. Two mild concerns:
+
+- The SPX comparison (2.8% vs 2.7%) juxtaposes hourly prediction market snapshots with daily equity option measurements. The text notes this but the table invites direct numerical comparison. Adding "(hourly)" and "(daily)" labels in the table would prevent casual conflation.
+- Mechanism 3 (trader composition) is essentially unfalsifiable with public data, unlike mechanisms 1, 2, and 4 which have concrete testable predictions. It should be flagged as more speculative.
 
 **4. What's missing that would make this substantially stronger?**
 
-The single biggest gap is **out-of-sample validation**. All CRPS/MAE ratios and Wilcoxon tests are computed on the full Oct 2024 – Feb 2026 dataset. With n=16 (Jobless Claims) and n=14 (CPI), splitting into train/test is impractical, but the limitation should be stated explicitly. A sentence in the Methodology section noting "all results are in-sample; rolling-window validation is a priority as more data accumulates" would preempt the most obvious critique.
+The single biggest gap is an **explicit in-sample caveat**. All CRPS/MAE ratios and Wilcoxon tests are computed on the full Oct 2024 – Feb 2026 dataset. With n=14–16, train/test splitting is impractical, but the paper never directly states this limitation. One sentence in the Methodology section — "All scoring uses the full available sample; rolling-window out-of-sample validation is infeasible at current n but is a priority as data accumulates" — would preempt the sharpest criticism from quantitative readers.
 
-A secondary gap: the paper doesn't discuss whether the CRPS/MAE > 1 for CPI is driven by tail mispricing (extreme strikes) or center mispricing. This decomposition would sharpen the mechanism story — if it's tail-driven, mechanism 4 (liquidity at extreme strikes) gains support.
+A secondary gap: the paper doesn't discuss whether CPI's CRPS/MAE > 1 is driven by tail mispricing (extreme strikes with thin liquidity) or center mispricing. This decomposition would sharpen the mechanism story — if it's tail-driven, mechanism 4 gains direct support.
 
 **5. Would this enhance or damage Kalshi's research credibility?**
 
-Strongly enhance. Self-critical empirical work builds credibility with sophisticated audiences. The paper's willingness to report negative findings (CPI distributions harmful, TIPS leads Kalshi, many prior results invalidated) is exactly what a research-oriented blog should publish. This is the kind of paper that makes traders take future Kalshi research seriously.
+Strongly enhance. Self-critical empirical work that publishes negative findings (CPI distributions harmful, TIPS leads Kalshi, extensive appendix of invalidated results) builds exactly the kind of credibility that makes sophisticated readers take future research seriously. This is the kind of paper that signals "we care about truth, not marketing."
 
 ## The One Big Thing
 
-**Add an explicit in-sample caveat.** The paper is honest about sample sizes and power but never directly states that results are computed on the full available dataset without hold-out validation. One sentence in the Methodology section would preempt the sharpest criticism from quantitative readers: "All scoring uses the full available sample; rolling-window out-of-sample validation is infeasible at current n but is a priority as data accumulates."
-
-This is the only substantive improvement remaining. It does not block publication.
+**Add an explicit in-sample caveat.** The paper is honest about sample sizes and power but never directly states that all results are computed on the full available dataset without hold-out validation. One sentence in the Methodology section would preempt the most predictable criticism from quantitative reviewers. This does not block publication — it's a polish item.
 
 ## Other Issues
 
@@ -54,27 +53,27 @@ This is the only substantive improvement remaining. It does not block publicatio
 
 ### Should Fix (strengthens paper)
 
-1. **SPX comparison labels**: Add "(hourly)" and "(daily)" parentheticals directly in the no-arbitrage table to prevent casual conflation of measurement frequencies.
+1. **SPX comparison frequency labels**: Add "(hourly)" and "(daily)" parentheticals directly in the no-arbitrage table to prevent casual conflation of measurement frequencies across very different market structures.
 
-2. **Section 4 bridge sentence**: The maturity/favorite-longshot analysis feels orphaned. A single sentence connecting it to the CRPS narrative (e.g., "This structural dependence on market maturity complements the series-level heterogeneity identified in Section 2") would improve flow.
+2. **Section 4 bridge sentence**: The maturity/favorite-longshot analysis feels orphaned from the CRPS narrative. A single sentence connecting it back (e.g., "This structural dependence on market maturity complements the series-level calibration heterogeneity identified in Section 2") would improve coherence.
 
-3. **Mechanism 3 qualifier**: Label the trader composition hypothesis as "speculative / not directly testable" to distinguish it from the other three mechanisms that have concrete predictions.
+3. **Mechanism 3 qualifier**: Flag the trader composition hypothesis as "speculative / not directly testable with public data" to distinguish it from the other three mechanisms that have concrete, falsifiable predictions.
 
-4. **CRPS decomposition hint**: A brief note on whether CPI's CRPS/MAE > 1 is driven by tail vs. center mispricing would sharpen the mechanism discussion. Even "future work should decompose CRPS by quantile region" would signal awareness.
+4. **CRPS tail decomposition note**: Even a brief mention — "future work should decompose CRPS contributions by quantile region to distinguish tail mispricing from center mispricing" — would signal methodological awareness and strengthen the mechanism discussion.
 
 ### Acknowledged Limitations (inherent, not actionable)
 
-1. **Small n**: 14-16 events per series is inherent to the ~16-month data window. Cannot be fixed without waiting.
-2. **Single platform**: CRPS/MAE framework generalizes, but specific series findings are Kalshi-specific.
-3. **No order book data**: Cannot directly test mechanism 4 (liquidity at extreme strikes) without microstructure data.
-4. **Two-series comparison**: With only CPI and Jobless Claims at testable n, the frequency hypothesis relies on a single contrast. GDP (n=3) is directionally consistent but statistically useless.
+1. **Small n**: 14–16 events per series is inherent to the ~16-month data window. Cannot be addressed without waiting for more data.
+2. **Single platform**: The CRPS/MAE framework generalizes, but the specific series findings are Kalshi-specific and may not transfer to other prediction markets.
+3. **No order book data**: Cannot directly test mechanism 4 (liquidity at extreme strikes) without microstructure data that isn't publicly available.
+4. **Two-series comparison**: The frequency hypothesis relies on a single CPI vs. Jobless Claims contrast. GDP (n=3) is directionally consistent but statistically useless. The hypothesis needs more series to test properly.
 
 ## Verdict
 
 **ACCEPT** — Minor polish recommended but not required.
 
-The paper delivers a novel, well-executed diagnostic with a genuinely surprising heterogeneity finding. The methodology is rigorous, the claims are appropriately hedged, and the transparency about prior errors (Appendix C) sets a high bar. The "should fix" items above are improvements that would strengthen the paper, but none are blockers. This is ready for the Kalshi Research blog.
+The paper delivers a novel, well-executed diagnostic with a genuinely surprising heterogeneity finding. The methodology is rigorous, claims are appropriately hedged, and the transparency about prior errors (Appendix C) sets a high bar for applied prediction market research. The "should fix" items above are improvements, not blockers. This is ready for the Kalshi Research blog.
 
 ## Convergence Assessment
 
-The paper has been through 6 iterations of review and it shows. The statistical corrections are thorough, the claims are calibrated to the evidence, and the narrative is coherent. The remaining suggestions (in-sample caveat, table labels, section bridge) are cosmetic. I see no need for further iteration — this paper is at diminishing returns. Publish it.
+The paper has been through 6 iterations of internal review and it shows — the statistical corrections are thorough, claims are calibrated to the evidence, and the narrative is coherent. The remaining suggestions (in-sample caveat, table labels, section bridge, mechanism qualifier) are all minor polish. I see no need for further substantive iteration. This paper is at diminishing returns. Publish it.

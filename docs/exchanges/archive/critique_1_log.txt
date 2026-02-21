@@ -1,5 +1,7 @@
 Critique written to `docs/exchanges/critique_latest.md`.
 
-**Summary:** The paper receives an **ACCEPT** verdict. Scores range from 7-8/10 across all criteria. Key strengths include the genuinely novel heterogeneity finding (same platform's distributions excellent for one series, harmful for another), rigorous methodology with honest self-correction, and exceptional transparency in Appendix C. 
+**Summary:** The paper receives an **ACCEPT** verdict. Scores range from 7–8/10 across all criteria. The CRPS/MAE ratio diagnostic is genuinely useful (not trivial repackaging), the heterogeneity finding has concrete implications for Kalshi's market design, and the self-critical transparency (publishing negative findings, documenting invalidated results) would strongly enhance Kalshi's research credibility.
 
-The only substantive suggestion is adding an explicit in-sample caveat — all other issues are minor polish (table labels, section bridging, mechanism qualifier). No blockers to publication on the Kalshi Research blog. The paper is at diminishing returns after 6 prior iterations.
+**The One Big Thing:** Add an explicit in-sample caveat — one sentence noting all results use the full dataset without hold-out validation. This is polish, not a blocker.
+
+**No must-fix items.** Four minor "should fix" suggestions: SPX table frequency labels, Section 4 bridge sentence, mechanism 3 qualifier, and a CRPS tail decomposition note for future work. The paper is ready to publish.
