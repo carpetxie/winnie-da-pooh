@@ -684,8 +684,39 @@ def main():
         }
         print(f"  CPI aggregate ratio: {heterogeneity_results['cpi_aggregate_ratio']:.3f}, JC: {heterogeneity_results['jc_aggregate_ratio']:.3f}")
         print(f"  Difference: {observed_diff:.3f}")
-        print(f"  Mann-Whitney U p = {u_p:.4f}, rank-biserial r = {r_rb:.3f}")
+        print(f"  Mann-Whitney U (tail-aware) p = {u_p:.4f}, rank-biserial r = {r_rb:.3f}")
         print(f"  Permutation test p = {perm_p:.4f} ({n_perm} permutations)")
+
+        # --- Interior-only Mann-Whitney as robustness check ---
+        cpi_events_int = crps_df[crps_df["series"] == "KXCPI"].dropna(subset=["kalshi_crps", "point_crps"])
+        jc_events_int = crps_df[crps_df["series"] == "KXJOBLESSCLAIMS"].dropna(subset=["kalshi_crps", "point_crps"])
+        cpi_per_event_int = cpi_events_int["kalshi_crps"].values / np.maximum(cpi_events_int["point_crps"].values, 1e-10)
+        jc_per_event_int = jc_events_int["kalshi_crps"].values / np.maximum(jc_events_int["point_crps"].values, 1e-10)
+        u_int, p_int = stats.mannwhitneyu(cpi_per_event_int, jc_per_event_int, alternative='two-sided')
+        n1_int, n2_int = len(cpi_per_event_int), len(jc_per_event_int)
+        r_rb_int = 1 - (2 * u_int) / (n1_int * n2_int)
+        heterogeneity_results["mann_whitney_U_interior"] = float(u_int)
+        heterogeneity_results["mann_whitney_p_interior"] = float(p_int)
+        heterogeneity_results["rank_biserial_r_interior"] = float(r_rb_int)
+        print(f"  Mann-Whitney U (interior-only) p = {p_int:.4f}, rank-biserial r = {r_rb_int:.3f}")
+
+        # --- Mean-of-ratios comparison (illustrates ratio instability) ---
+        cpi_mean_of_ratios_ta = float(np.mean(cpi_per_event))
+        jc_mean_of_ratios_ta = float(np.mean(jc_per_event))
+        cpi_mean_of_ratios_int = float(np.mean(cpi_per_event_int))
+        jc_mean_of_ratios_int = float(np.mean(jc_per_event_int))
+        heterogeneity_results["cpi_mean_of_ratios_tail_aware"] = cpi_mean_of_ratios_ta
+        heterogeneity_results["jc_mean_of_ratios_tail_aware"] = jc_mean_of_ratios_ta
+        heterogeneity_results["cpi_mean_of_ratios_interior"] = cpi_mean_of_ratios_int
+        heterogeneity_results["jc_mean_of_ratios_interior"] = jc_mean_of_ratios_int
+        print(f"\n  --- Ratio-of-means vs Mean-of-ratios comparison ---")
+        print(f"  CPI: ratio-of-means={heterogeneity_results['cpi_aggregate_ratio']:.2f}, "
+              f"median={heterogeneity_results['cpi_median_per_event']:.2f}, "
+              f"mean-of-ratios(TA)={cpi_mean_of_ratios_ta:.2f}, mean-of-ratios(int)={cpi_mean_of_ratios_int:.2f}")
+        print(f"  JC:  ratio-of-means={heterogeneity_results['jc_aggregate_ratio']:.2f}, "
+              f"median={heterogeneity_results['jc_median_per_event']:.2f}, "
+              f"mean-of-ratios(TA)={jc_mean_of_ratios_ta:.2f}, mean-of-ratios(int)={jc_mean_of_ratios_int:.2f}")
+
     test_results["heterogeneity_test"] = heterogeneity_results
 
     # --- CRPS minus MAE signed difference test ---
@@ -782,40 +813,9 @@ def main():
         crps_vals = np.array(event_crps_vals)
         n = len(pits)
 
-        # Hersbach (2000) decomposition using K bins
-        K = min(5, n // 2)  # adaptive bin count for small samples
-        bin_edges = np.linspace(0, 1, K + 1)
-        bin_counts = np.zeros(K)
-        bin_avg_pit = np.zeros(K)
-
-        for i in range(K):
-            lo, hi = bin_edges[i], bin_edges[i + 1]
-            if i < K - 1:
-                mask = (pits >= lo) & (pits < hi)
-            else:
-                mask = (pits >= lo) & (pits <= hi)
-            bin_counts[i] = mask.sum()
-            if mask.sum() > 0:
-                bin_avg_pit[i] = pits[mask].mean()
-            else:
-                bin_avg_pit[i] = (lo + hi) / 2
-
-        # Reliability: measures deviation from perfect calibration
-        # Rel = sum over bins of (n_k/n) * (bar_o_k - p_k)^2
-        # where bar_o_k = observed frequency in bin, p_k = bin midpoint
-        reliability = 0.0
-        for i in range(K):
-            p_k = (bin_edges[i] + bin_edges[i + 1]) / 2
-            if bin_counts[i] > 0:
-                # Observed frequency: fraction of events where PIT <= p_k
-                # Actually Hersbach's decomposition for CRPS uses the full integral formulation
-                # Simplified: reliability ≈ (1/n) * sum of (PIT_i - U_i)^2 contributions
-                pass
-
-        # Simpler approach: use the CRPS = CRPS_pot + Reliability decomposition
-        # CRPS_pot (potential CRPS) = CRPS of a perfectly reliable system with same resolution
-        # For ensemble of size 1 (our case): use the empirical decomposition
-        # Reliability component ≈ calibration error = (mean_PIT - 0.5)^2 * scale
+        # Hersbach (2000) CRPS decomposition deferred: infeasible at n<20 per series.
+        # Binning PIT values across K bins yields ~3 observations per bin, too few for
+        # reliable reliability/resolution estimates. Revisit when n>=20.
         mean_pit = pits.mean()
         pit_bias = mean_pit - 0.5
         pit_dispersion = pits.std()
