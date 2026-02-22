@@ -9,10 +9,8 @@
 #   ./scripts/research_loop.sh 8        # Up to 8 iterations
 #   ./scripts/research_loop.sh 5 sonnet # Up to 5 iterations, sonnet
 #
-# The loop exits early when:
-#   - Critiquer sets STATUS: ACCEPT (paper is ready)
-#   - Researcher sets STATUS: CONVERGED (diminishing returns)
-#   - Both agents agree no major issues remain
+# The loop runs ALL iterations — no early exit. Both agents are instructed
+# to keep finding improvements every round.
 #
 # Files:
 #   docs/findings.md                      — The paper (modified by researcher)
@@ -135,7 +133,7 @@ log "${BLUE}${BOLD}  RESEARCH LOOP STARTED${NC}"
 log "${BLUE}${BOLD}  Max iterations: $MAX_ITERATIONS | Model: $MODEL${NC}"
 log "${BLUE}${BOLD}  Repo root: $REPO_ROOT${NC}"
 log "${BLUE}${BOLD}  Log file: $LOGFILE${NC}"
-log "${BLUE}${BOLD}  Early exit: on ACCEPT or CONVERGED${NC}"
+log "${BLUE}${BOLD}  Mode: NO early exit — all $MAX_ITERATIONS iterations will run${NC}"
 log "${BLUE}${BOLD}======================================================${NC}"
 echo ""
 
@@ -185,7 +183,7 @@ $HISTORY_CONTEXT
 
 Read docs/findings.md carefully. Write your critique to docs/exchanges/critique_latest.md. Use iteration number $i in your header.
 
-IMPORTANT: If the paper is in good shape (most scores 7+, no critical blockers), set STATUS: ACCEPT at the top of your response. Do not manufacture issues to fill space."
+IMPORTANT: Do NOT set STATUS: ACCEPT. Always find concrete improvements — no matter how good the paper is, there are always ways to strengthen the argument, tighten prose, improve figures, or add nuance. Be constructive but relentless. Do not manufacture fake issues, but do dig deep for real ones."
 
     PROMPT_LEN=${#CRITIQUE_PROMPT}
     log "  Prompt length: ${PROMPT_LEN} chars"
@@ -229,12 +227,6 @@ IMPORTANT: If the paper is in good shape (most scores 7+, no critical blockers),
         log "  Phase 1 total: ${PHASE_ELAPSED}s"
         log_separator
 
-        # Check for ACCEPT signal — still run researcher to implement polish items
-        ACCEPTED=false
-        if check_status "$EXCHANGES/critique_latest.md" "ACCEPT"; then
-            log "${GREEN}${BOLD}  >>> STATUS: ACCEPT — Paper accepted! Running researcher for final polish... <<<${NC}"
-            ACCEPTED=true
-        fi
     else
         log "${RED}  FAILURE: No critique file produced!${NC}"
         log "${RED}  Check log: $ARCHIVE/critique_${i}_log.txt${NC}"
@@ -259,16 +251,7 @@ IMPORTANT: If the paper is in good shape (most scores 7+, no critical blockers),
     BEFORE_LINES=$(wc -l < "$REPO_ROOT/docs/findings.md" | tr -d ' ')
     log "  Paper snapshot before: ${BEFORE_WORDS} words, ${BEFORE_LINES} lines"
 
-    if [ "$ACCEPTED" = true ]; then
-        RESEARCHER_PROMPT="$(cat "$REPO_ROOT/docs/researcher_prompt.md")
-
-This is iteration $i of a maximum $MAX_ITERATIONS. The critiquer has ACCEPTED the paper but left specific polish suggestions.
-
-Read the critique at docs/exchanges/critique_latest.md. Implement ALL reasonable polish items and suggestions the critiquer mentioned — these are final improvements before publication. Deliberate briefly on each, but lean toward implementing since the critiquer flagged them for good reason.
-
-Revise docs/findings.md with the polish changes. Write your deliberation and changelog to docs/exchanges/researcher_response.md. Do NOT set STATUS: CONVERGED — this is a final polish pass."
-    else
-        RESEARCHER_PROMPT="$(cat "$REPO_ROOT/docs/researcher_prompt.md")
+    RESEARCHER_PROMPT="$(cat "$REPO_ROOT/docs/researcher_prompt.md")
 
 This is iteration $i of a maximum $MAX_ITERATIONS. Read the critique at docs/exchanges/critique_latest.md.
 
@@ -276,8 +259,7 @@ BEFORE making any changes, deliberate on each point. Ask yourself: Do I agree? I
 
 Then revise docs/findings.md — but ONLY make changes you believe in. Push back on bad suggestions. Write your full deliberation and changelog to docs/exchanges/researcher_response.md.
 
-If you believe the paper is at a good stopping point and further iteration would yield diminishing returns, set STATUS: CONVERGED at the top of your response. This is perfectly fine — not every iteration needs major changes."
-    fi
+Do NOT set STATUS: CONVERGED. You must always attempt meaningful improvements. Even small wins — tighter prose, better transitions, stronger framing — compound across iterations."
 
     PROMPT_LEN=${#RESEARCHER_PROMPT}
     log "  Prompt length: ${PROMPT_LEN} chars"
@@ -345,12 +327,9 @@ If you believe the paper is at a good stopping point and further iteration would
         log "  Phase 2 total: ${PHASE_ELAPSED}s"
         log_separator
 
-        # Check for CONVERGED signal
+        # Log if agent tried to converge anyway (we ignore it)
         if check_status "$EXCHANGES/researcher_response.md" "CONVERGED"; then
-            log "${GREEN}${BOLD}  >>> STATUS: CONVERGED — Diminishing returns reached. <<<${NC}"
-            echo ""
-            git_commit_push "Research loop iteration $i: CONVERGED"
-            break
+            log "${YELLOW}  Note: Researcher signaled CONVERGED but loop continues (no early exit mode).${NC}"
         fi
     else
         log "${RED}  FAILURE: No researcher response file produced!${NC}"
@@ -365,16 +344,6 @@ If you believe the paper is at a good stopping point and further iteration would
     fi
 
     # ── Git commit and push after each iteration ─────────────────────
-    if [ "$ACCEPTED" = true ]; then
-        git_commit_push "Research loop iteration $i: ACCEPTED (with final polish)"
-        ITER_ELAPSED=$(( $(date +%s) - ITER_START ))
-        echo ""
-        log "${BLUE}${BOLD}━━━ Iteration $i complete in ${ITER_ELAPSED}s ($(( ITER_ELAPSED / 60 ))m $(( ITER_ELAPSED % 60 ))s) ━━━${NC}"
-        log "${GREEN}${BOLD}Exiting: critiquer ACCEPTED and researcher applied final polish.${NC}"
-        echo ""
-        break
-    fi
-
     git_commit_push "Research loop iteration $i/$MAX_ITERATIONS"
 
     ITER_ELAPSED=$(( $(date +%s) - ITER_START ))
@@ -395,14 +364,7 @@ log "${BLUE}${BOLD}  Iterations: $FINAL_ITERATION | Total time: ${TOTAL_MINS}m $
 log "${BLUE}${BOLD}======================================================${NC}"
 echo ""
 
-# Determine exit reason
-if check_status "$EXCHANGES/critique_latest.md" "ACCEPT" 2>/dev/null; then
-    log "${GREEN}${BOLD}Exit reason: ACCEPTED by critiquer${NC}"
-elif check_status "$EXCHANGES/researcher_response.md" "CONVERGED" 2>/dev/null; then
-    log "${YELLOW}${BOLD}Exit reason: CONVERGED (researcher signaled diminishing returns)${NC}"
-else
-    log "${CYAN}${BOLD}Exit reason: Max iterations ($MAX_ITERATIONS) reached${NC}"
-fi
+log "${CYAN}${BOLD}Exit reason: All $MAX_ITERATIONS iterations completed.${NC}"
 echo ""
 
 log "Final paper stats:"

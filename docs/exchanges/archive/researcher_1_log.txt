@@ -1,10 +1,17 @@
-Done. Here's what happened:
+Both files look good. Here's a summary of what I did:
 
-**Critique summary:** The reviewer issued a clean **ACCEPT** with zero new action items. All five polish changes from iteration 1 were confirmed as correctly implemented. The reviewer's verdict: "Publish as-is."
+## Summary of Iteration 1
 
-**Changes made:**
-1. **Status line updated** — Changed from iteration-tracking ("Post PhD-review, iteration 7...") to acceptance status ("Accepted for publication. PhD-review complete (2 iterations, ACCEPT).")
+**Critique received:** The reviewer identified two must-fix issues and four should-fix items. The paper's central framing (CRPS ≤ MAE as a mathematical bound) was incorrect, and the SPX no-arbitrage comparison had an unacknowledged granularity mismatch.
 
-**No other changes.** The paper has no remaining must-fix or should-fix items. The reviewer explicitly stated "Further iteration would produce zero marginal value." I performed a full editorial read-through and found no typos, inconsistencies, or improvements to make.
+**Changes made to `docs/findings.md`:**
+1. **Fixed CRPS/MAE mathematical framing** (Section 2) — Rewrote from "CRPS is always ≤ MAE" (incorrect) to framing ratio > 1 as a diagnostic signal of miscalibration, with explicit note that this is not a mathematical bound
+2. **Added no-arbitrage granularity caveat** (Abstract + Section 1) — Changed "comparable" to "directionally comparable," added caveat about hourly vs daily sampling mismatch
+3. **Added strike structure reporting** (Section 2) — New paragraph documenting CPI avg 2.3 strikes vs Jobless Claims avg 2.8, with assessment that the confound is real but insufficient to explain the full 32% penalty
+4. **Added Hersbach (2000) reference** — CRPS decomposition cited as priority future work
+5. **Strengthened SPF caveat** — Added explicit footnote explaining the annual/12 conversion's limitations
+6. **Connected PIT to CRPS/MAE** — New paragraph linking mean PIT=0.61 to the CRPS/MAE > 1 finding as corroborating evidence of directional miscalibration
 
-The response is written to `docs/exchanges/researcher_response.md` with STATUS: CONTINUE (as instructed not to set CONVERGED), though both the reviewer and I agree the paper is ready to publish.
+**Pushback:** Declined to implement CRPS quantile decomposition — with only 2–3 strikes per CPI event, the analysis would be misleading.
+
+**Full deliberation written to `docs/exchanges/researcher_response.md`.**

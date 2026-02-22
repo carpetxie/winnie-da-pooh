@@ -1,3 +1,17 @@
-Critique written to `docs/exchanges/critique_latest.md`.
+Critique written to `docs/exchanges/critique_latest.md`. Here's a summary of the key findings:
 
-**Summary:** Iteration 2 — **ACCEPT**. All five polish items from the previous critique were implemented cleanly. Scores are 7-8/10 across all criteria (Narrative Clarity improved to 8/10 with the bridge sentence and frequency labels). No remaining must-fix or should-fix items. The paper has converged and is ready to publish on the Kalshi Research blog.
+**Verdict: MINOR REVISIONS**
+
+**The One Big Thing:** The paper's central claim — "CRPS is always ≤ MAE for any distribution" — is mathematically incorrect. CRPS can exceed MAE for miscalibrated distributions (which is exactly what happens for CPI). The ratio > 1 is a *diagnostic signal*, not a violation of a mathematical bound. This is a 2-sentence fix but it's in the conceptual foundation of the paper.
+
+**Two Must-Fix items:**
+1. Reframe the CRPS/MAE ratio as a calibration diagnostic rather than a mathematical inequality
+2. Add a granularity caveat to the no-arbitrage SPX comparison (hourly Kalshi vs daily SPX aren't directly comparable)
+
+**Four Should-Fix items:**
+1. Report strike counts/spacing per series (potential CPI confound)
+2. Cite Hersbach (2000) CRPS decomposition — preempts obvious critique from forecasting specialists
+3. Strengthen the SPF "annual/12 proxy" caveat
+4. Connect the PIT analysis (mean=0.61, suggesting inflation underestimation) to the CRPS/MAE > 1 finding in the main text
+
+**Scores:** Novelty 7, Rigor 6, Economic Significance 7, Clarity 7, Publishability 6. All fixable to 7-8 range with the revisions above.
