@@ -601,6 +601,93 @@ def main():
             print(f"    Drop {r['dropped']}: {r['ratio']:.3f}")
     test_results["leave_one_out_jc_tail_aware"] = loo_results_ta
 
+    # --- Leave-one-out sensitivity for CPI (interior-only and tail-aware) ---
+    print("\n  --- Leave-one-out sensitivity (CPI CRPS/MAE) ---")
+    cpi_valid = crps_df[(crps_df["series"] == "KXCPI")].dropna(subset=["kalshi_crps", "point_crps"])
+    loo_results_cpi = []
+    loo_results_cpi_ta = []
+    if len(cpi_valid) >= 4:
+        cpi_valid_ta = cpi_valid.dropna(subset=["point_crps_tail_aware"])
+        for drop_idx in range(len(cpi_valid)):
+            loo = cpi_valid.drop(cpi_valid.index[drop_idx])
+            loo_ratio = loo["kalshi_crps"].mean() / loo["point_crps"].mean() if loo["point_crps"].mean() > 0 else float("inf")
+            loo_results_cpi.append({
+                "dropped": cpi_valid.iloc[drop_idx]["event_ticker"],
+                "ratio": loo_ratio,
+            })
+        for drop_idx in range(len(cpi_valid_ta)):
+            loo = cpi_valid_ta.drop(cpi_valid_ta.index[drop_idx])
+            loo_ratio = loo["kalshi_crps"].mean() / loo["point_crps_tail_aware"].mean() if loo["point_crps_tail_aware"].mean() > 0 else float("inf")
+            loo_results_cpi_ta.append({
+                "dropped": cpi_valid_ta.iloc[drop_idx]["event_ticker"],
+                "ratio": loo_ratio,
+            })
+        loo_ratios_cpi = [r["ratio"] for r in loo_results_cpi]
+        loo_ratios_cpi_ta = [r["ratio"] for r in loo_results_cpi_ta]
+        n_above_1 = sum(1 for r in loo_ratios_cpi if r > 1.0)
+        n_above_1_ta = sum(1 for r in loo_ratios_cpi_ta if r > 1.0)
+        print(f"  CPI interior LOO CRPS/MAE range: [{min(loo_ratios_cpi):.3f}, {max(loo_ratios_cpi):.3f}]")
+        print(f"  {n_above_1}/{len(loo_ratios_cpi)} interior LOO ratios > 1.0")
+        print(f"  CPI tail-aware LOO CRPS/MAE range: [{min(loo_ratios_cpi_ta):.3f}, {max(loo_ratios_cpi_ta):.3f}]")
+        print(f"  {n_above_1_ta}/{len(loo_ratios_cpi_ta)} tail-aware LOO ratios > 1.0")
+        for r in sorted(loo_results_cpi_ta, key=lambda x: x["ratio"]):
+            print(f"    Drop {r['dropped']}: {r['ratio']:.3f}")
+    test_results["leave_one_out_cpi"] = loo_results_cpi
+    test_results["leave_one_out_cpi_tail_aware"] = loo_results_cpi_ta
+
+    # --- Formal heterogeneity test: CPI ratio ≠ JC ratio ---
+    print("\n  --- Heterogeneity test: CPI CRPS/MAE vs JC CRPS/MAE ---")
+    heterogeneity_results = {}
+    cpi_events = crps_df[crps_df["series"] == "KXCPI"].dropna(subset=["kalshi_crps", "point_crps_tail_aware"])
+    jc_events = crps_df[crps_df["series"] == "KXJOBLESSCLAIMS"].dropna(subset=["kalshi_crps", "point_crps_tail_aware"])
+    if len(cpi_events) >= 4 and len(jc_events) >= 4:
+        # Compute per-event ratios using CRPS/MAE for each event
+        cpi_per_event = cpi_events["kalshi_crps"].values / np.maximum(cpi_events["point_crps_tail_aware"].values, 1e-10)
+        jc_per_event = jc_events["kalshi_crps"].values / np.maximum(jc_events["point_crps_tail_aware"].values, 1e-10)
+        # Mann-Whitney U test on per-event ratios
+        u_stat, u_p = stats.mannwhitneyu(cpi_per_event, jc_per_event, alternative='two-sided')
+        # Rank-biserial effect size
+        n1, n2 = len(cpi_per_event), len(jc_per_event)
+        r_rb = 1 - (2 * u_stat) / (n1 * n2)
+        # Permutation test on the ratio-of-means difference
+        observed_diff = (cpi_events["kalshi_crps"].mean() / cpi_events["point_crps_tail_aware"].mean()) - \
+                        (jc_events["kalshi_crps"].mean() / jc_events["point_crps_tail_aware"].mean())
+        all_crps = np.concatenate([cpi_events["kalshi_crps"].values, jc_events["kalshi_crps"].values])
+        all_mae = np.concatenate([cpi_events["point_crps_tail_aware"].values, jc_events["point_crps_tail_aware"].values])
+        rng = np.random.RandomState(42)
+        n_perm = 10000
+        perm_diffs = np.zeros(n_perm)
+        n_cpi = len(cpi_events)
+        for i in range(n_perm):
+            idx = rng.permutation(len(all_crps))
+            perm_cpi_crps = all_crps[idx[:n_cpi]]
+            perm_cpi_mae = all_mae[idx[:n_cpi]]
+            perm_jc_crps = all_crps[idx[n_cpi:]]
+            perm_jc_mae = all_mae[idx[n_cpi:]]
+            perm_cpi_ratio = perm_cpi_crps.mean() / max(perm_cpi_mae.mean(), 1e-10)
+            perm_jc_ratio = perm_jc_crps.mean() / max(perm_jc_mae.mean(), 1e-10)
+            perm_diffs[i] = perm_cpi_ratio - perm_jc_ratio
+        perm_p = float(np.mean(np.abs(perm_diffs) >= abs(observed_diff)))
+        heterogeneity_results = {
+            "cpi_aggregate_ratio": float(cpi_events["kalshi_crps"].mean() / cpi_events["point_crps_tail_aware"].mean()),
+            "jc_aggregate_ratio": float(jc_events["kalshi_crps"].mean() / jc_events["point_crps_tail_aware"].mean()),
+            "observed_difference": float(observed_diff),
+            "mann_whitney_U": float(u_stat),
+            "mann_whitney_p": float(u_p),
+            "rank_biserial_r_heterogeneity": float(r_rb),
+            "permutation_p": perm_p,
+            "n_permutations": n_perm,
+            "n_cpi": len(cpi_events),
+            "n_jc": len(jc_events),
+            "cpi_median_per_event": float(np.median(cpi_per_event)),
+            "jc_median_per_event": float(np.median(jc_per_event)),
+        }
+        print(f"  CPI aggregate ratio: {heterogeneity_results['cpi_aggregate_ratio']:.3f}, JC: {heterogeneity_results['jc_aggregate_ratio']:.3f}")
+        print(f"  Difference: {observed_diff:.3f}")
+        print(f"  Mann-Whitney U p = {u_p:.4f}, rank-biserial r = {r_rb:.3f}")
+        print(f"  Permutation test p = {perm_p:.4f} ({n_perm} permutations)")
+    test_results["heterogeneity_test"] = heterogeneity_results
+
     # --- CRPS minus MAE signed difference test ---
     print("\n  --- CRPS - MAE signed difference test (complementary to ratio) ---")
     crps_diff_results = {}
