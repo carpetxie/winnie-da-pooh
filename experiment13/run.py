@@ -649,7 +649,10 @@ def main():
         # Rank-biserial effect size
         n1, n2 = len(cpi_per_event), len(jc_per_event)
         r_rb = 1 - (2 * u_stat) / (n1 * n2)
-        # Permutation test on the ratio-of-means difference
+        # NOTE: This raw-value permutation test mixes CPI-scale (~0.1pp) and
+        # JC-scale (~10,000) CRPS/MAE values, making it potentially invalid.
+        # It is retained as a sensitivity check only; the paper reports the
+        # scale-free permutation test on per-event ratios below (Phase 5 interior-only).
         observed_diff = (cpi_events["kalshi_crps"].mean() / cpi_events["point_crps_tail_aware"].mean()) - \
                         (jc_events["kalshi_crps"].mean() / jc_events["point_crps_tail_aware"].mean())
         all_crps = np.concatenate([cpi_events["kalshi_crps"].values, jc_events["kalshi_crps"].values])
@@ -1052,6 +1055,14 @@ def main():
         if "sensitivity_excl_first_event" in horse_race_results:
             print("\n  Sensitivity: excluding first event (KXCPI-24NOV):")
             for test_name, test in horse_race_results["sensitivity_excl_first_event"].items():
+                sig = "*" if test["wilcoxon_p"] < 0.05 else ""
+                print(f"    {test_name}: d={test['cohen_d']:.3f}, "
+                      f"p={test['wilcoxon_p']:.4f}{sig}, "
+                      f"p_bonf={test['wilcoxon_p_bonferroni']:.4f}, n={test['n']}")
+        # Sensitivity: excluding first two events (warm-up)
+        if "sensitivity_excl_first_two_events" in horse_race_results:
+            print("\n  Sensitivity: excluding first two events (KXCPI-24NOV, KXCPI-24DEC):")
+            for test_name, test in horse_race_results["sensitivity_excl_first_two_events"].items():
                 sig = "*" if test["wilcoxon_p"] < 0.05 else ""
                 print(f"    {test_name}: d={test['cohen_d']:.3f}, "
                       f"p={test['wilcoxon_p']:.4f}{sig}, "
@@ -1545,6 +1556,56 @@ def main():
         else:
             print(f"  {series}: insufficient data for strike-count comparison")
     test_results["strike_count_significance"] = strike_sig_results
+
+    # ================================================================
+    # PHASE 7E: HIGH-SURPRISE vs LOW-SURPRISE CPI CRPS/MAE SPLIT
+    # ================================================================
+    print("\n" + "=" * 70)
+    print("PHASE 7E: HIGH-SURPRISE vs LOW-SURPRISE CPI CRPS/MAE SPLIT")
+    print("=" * 70)
+
+    surprise_split_results = {}
+    for series in ["KXCPI", "KXJOBLESSCLAIMS"]:
+        s = crps_df[crps_df["series"] == series].dropna(subset=["kalshi_crps", "point_crps_tail_aware"])
+        if len(s) < 4:
+            continue
+        surprises = s["point_crps_tail_aware"].values  # MAE = |realized - implied_mean_ta|
+        median_surprise = float(np.median(surprises))
+        high_mask = surprises >= median_surprise
+        low_mask = surprises < median_surprise
+        high_events = s[high_mask]
+        low_events = s[low_mask]
+
+        high_ratio = float(high_events["kalshi_crps"].mean() / high_events["point_crps_tail_aware"].mean()) if high_events["point_crps_tail_aware"].mean() > 0 else None
+        low_ratio = float(low_events["kalshi_crps"].mean() / low_events["point_crps_tail_aware"].mean()) if low_events["point_crps_tail_aware"].mean() > 0 else None
+
+        # Also compute interior-only split
+        s_int = crps_df[crps_df["series"] == series].dropna(subset=["kalshi_crps", "point_crps"])
+        surprises_int = s_int["point_crps"].values
+        median_surprise_int = float(np.median(surprises_int))
+        high_int = s_int[surprises_int >= median_surprise_int]
+        low_int = s_int[surprises_int < median_surprise_int]
+        high_ratio_int = float(high_int["kalshi_crps"].mean() / high_int["point_crps"].mean()) if high_int["point_crps"].mean() > 0 else None
+        low_ratio_int = float(low_int["kalshi_crps"].mean() / low_int["point_crps"].mean()) if low_int["point_crps"].mean() > 0 else None
+
+        surprise_split_results[series] = {
+            "n_high": int(high_mask.sum()),
+            "n_low": int(low_mask.sum()),
+            "median_surprise_ta": median_surprise,
+            "high_surprise_crps_mae_ta": high_ratio,
+            "low_surprise_crps_mae_ta": low_ratio,
+            "high_surprise_crps_mae_int": high_ratio_int,
+            "low_surprise_crps_mae_int": low_ratio_int,
+            "high_surprise_mean_crps": float(high_events["kalshi_crps"].mean()),
+            "low_surprise_mean_crps": float(low_events["kalshi_crps"].mean()),
+            "high_surprise_mean_mae": float(high_events["point_crps_tail_aware"].mean()),
+            "low_surprise_mean_mae": float(low_events["point_crps_tail_aware"].mean()),
+        }
+        print(f"\n  {series} (median surprise = {median_surprise:.4f}):")
+        print(f"    High surprise (n={high_mask.sum()}): CRPS/MAE(TA)={high_ratio:.3f}" + (f", CRPS/MAE(int)={high_ratio_int:.3f}" if high_ratio_int else ""))
+        print(f"    Low surprise  (n={low_mask.sum()}): CRPS/MAE(TA)={low_ratio:.3f}" + (f", CRPS/MAE(int)={low_ratio_int:.3f}" if low_ratio_int else ""))
+
+    test_results["surprise_split"] = surprise_split_results
 
     # ================================================================
     # PHASE 9: VISUALIZATION
