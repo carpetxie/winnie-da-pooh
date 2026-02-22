@@ -1,17 +1,17 @@
 # When Do Prediction Market Distributions Add Value? A CRPS/MAE Diagnostic
 
 **Date:** 2026-02-22
-**Status:** Draft — under review (iteration 5).
+**Status:** Draft — under review (iteration 6).
 
 ## Abstract
 
 Prediction market point forecasts and distributional forecasts can diverge dramatically in quality — accurate centers with miscalibrated spreads. We introduce the CRPS/MAE ratio as a diagnostic that flags this decoupling, and apply it to 336 multi-strike Kalshi contracts across 41 economic events.
 
-Jobless Claims distributions robustly add value (CRPS/MAE=0.66, 95% CI [0.57, 0.76]), with CIs excluding 1.0 at all five temporal snapshots from 10% to 90% of market life. CPI distributions are actively harmful (CRPS/MAE=1.58, 95% CI [1.04, 2.52]; block bootstrap CI [1.06, 2.63] confirming robustness to serial correlation). This heterogeneity is statistically significant (Mann-Whitney p=0.003, scale-free permutation p=0.016). Yet CPI *point* forecasts beat all benchmarks including random walk (d=−0.71, p_adj=0.059) — to our knowledge, the first empirical demonstration that prediction market point and distributional calibration can diverge independently.
+Jobless Claims distributions robustly add value (CRPS/MAE=0.66, 95% CI [0.57, 0.76]), with CIs excluding 1.0 at all five temporal snapshots from 10% to 90% of market life. CPI distributions are actively harmful (CRPS/MAE=1.58, 95% CI [1.04, 2.52]; block bootstrap CI [1.06, 2.63] confirming robustness to serial correlation). This heterogeneity is statistically significant (Mann-Whitney p=0.003, scale-free permutation p=0.016). Yet CPI *point* forecasts beat all benchmarks including random walk (d=−0.85, p_adj=0.014) — to our knowledge, the first empirical demonstration that prediction market point and distributional calibration can diverge independently.
 
 > **Practical Takeaways:**
 > - **Jobless Claims:** Use the full distribution — it yields a 34% CRPS improvement over point forecasts alone. This finding survives every robustness check: leave-one-out, serial correlation adjustment, signed-difference test (p=0.001), and CI exclusion at all five temporal snapshots.
-> - **CPI:** Use only the implied mean; ignore the distributional spread. The distribution adds noise, not signal (all 14 leave-one-out ratios > 1.0). The point forecast beats random walk, TIPS breakeven, and trailing mean.
+> - **CPI:** Use only the implied mean; ignore the distributional spread. The distribution adds noise, not signal (all 14 leave-one-out ratios > 1.0). The point forecast significantly beats random walk (d=−0.85, p=0.014 after Bonferroni), TIPS breakeven, and trailing mean.
 > - **The CRPS/MAE ratio** tells you which regime you're in. Values below 1 mean the distribution adds value; values above 1 mean it's actively harmful. Monitor it per series.
 >
 > All results are in-sample (n=14–16 events per series); out-of-sample validation is pending as data accumulates.
@@ -104,7 +104,7 @@ The headline ratios (tail-aware CPI=1.58, JC=0.66; interior-only CPI=1.32, JC=0.
 
 The tail-aware mean-of-ratios is dominated by the extreme events (KXCPI-25JUN at 21.5, KXJOBLESSCLAIMS-26JAN29 at 10.4), inflating both series' estimates far above the robust ratio-of-means. Even the interior mean-of-ratios is 13% higher for CPI (1.78 vs 1.58) due to the right-skewed ratio distribution. The ratio-of-means and median converge closely (CPI: 1.58 vs 1.60; JC: 0.66 vs 0.65), confirming that neither is driven by outliers.
 
-**Market design implications:** The CRPS/MAE diagnostic suggests concrete levers for improving distributional quality. First, *increasing strike density* — particularly at ±1σ and ±2σ from the expected value — would give CPI markets the granularity needed to express meaningful distributional information; the current 2–3 strike structure is too coarse to capture tail risk. Second, *liquidity incentives at extreme strikes* could address the thin order books that likely degrade tail pricing (mechanism 4 above). Third, *real-time CRPS/MAE monitoring* during market life could flag series or events where the distribution is adding noise rather than signal, enabling targeted intervention. The Jobless Claims markets demonstrate that prediction market distributions *can* be well-calibrated — the challenge is replicating that quality across series.
+**Market design implications:** The CRPS/MAE diagnostic suggests concrete levers for improving distributional quality. First, *increasing strike density* — adding strikes at the 25th and 75th percentiles of the historical CPI distribution (approximately ±0.15pp from the expected value) would increase CPI strike density from 2–3 to 4–5, matching the Jobless Claims structure that produces CRPS/MAE < 1. This is the most directly actionable recommendation. Second, *liquidity incentives at extreme strikes* could address the thin order books that likely degrade tail pricing (mechanism 4 above). Third, *real-time CRPS/MAE monitoring* during market life could flag series or events where the distribution is adding noise rather than signal — Kalshi could publish a distributional quality dashboard per series, analogous to how exchanges publish implied volatility metrics. The Jobless Claims markets demonstrate that prediction market distributions *can* be well-calibrated — the challenge is replicating that quality across series.
 
 ### CRPS vs Historical Baselines
 
@@ -143,7 +143,7 @@ To test whether the mid-life snapshot choice drives our results, we computed CRP
 | 75% | 0.86 | [0.65, 1.27] | **0.67** | **[0.55, 0.85]** |
 | 90% (late) | 0.88 | [0.72, 1.21] | **0.72** | **[0.54, 0.90]** |
 
-*Temporal CIs use the percentile bootstrap method rather than BCa; the headline CRPS/MAE ratios use BCa.*
+*Temporal CIs use the percentile bootstrap method rather than BCa (percentile method used because BCa can be numerically unstable at the smaller per-timepoint sample sizes); the headline CRPS/MAE ratios use BCa.*
 
 **Bold** entries: CI excludes 1.0 (distribution significantly adds value at that timepoint).
 
@@ -226,17 +226,17 @@ TIPS breakeven rates Granger-cause Kalshi CPI prices at a 1-day lag. This means 
 | SPF (annual/12 proxy)† | 0.110 | -0.43 | 0.086 | 0.345 | 14 |
 | TIPS breakeven (monthly) | 0.112 | -0.47 | **0.045** | 0.181 | 14 |
 | Trailing mean | 0.118 | -0.47 | **0.021** | 0.084 | 14 |
-| Random walk (last month) | 0.143 | **-0.71** | **0.015** | **0.059** | 14 |
+| Random walk (last month) | 0.150 | **-0.85** | **0.003** | **0.014** | 14 |
 
-*Interior-only Kalshi MAE = 0.082. Switching to the tail-aware mean (consistent with CRPS computation) improves the point forecast and strengthens all horse race comparisons.*
+*Interior-only Kalshi MAE = 0.082. Switching to the tail-aware mean (consistent with CRPS computation) improves the point forecast and strengthens all horse race comparisons. The trailing mean uses an expanding window (1 observation for the second event, growing to 13), giving it an inherent warm-up disadvantage for early events.*
 
 †*SPF does not forecast monthly CPI directly; this conversion divides the annual Q4/Q4 forecast by 12, assuming uniform monthly contributions. This ignores seasonality, base effects, and within-year dynamics, and should be treated as indicative rather than definitive.*
 
 *Bonferroni correction applied across 4 benchmark comparisons (SPF, TIPS, random walk, trailing mean), consistent with the correction applied to CRPS series tests in Section 2.*
 
-Using the tail-aware implied mean (consistent with the CRPS computation), the Kalshi CPI implied mean outperforms random walk with a large effect size (d=−0.71, p_raw=0.015, p_adj=0.059), significant at the 10% level after Bonferroni correction for 4 benchmarks. The power analysis confirms this test has adequate power (>80%) at the observed effect size — the test is not underpowered, the effect is genuinely large. Kalshi also outperforms TIPS breakeven (p_raw=0.045) and trailing mean (p_raw=0.021), both significant at the raw level. The tail-aware mean is a strictly better point forecast than the interior-only mean (MAE=0.068 vs 0.082), which strengthens all comparisons.
+Using the tail-aware implied mean (consistent with the CRPS computation), the Kalshi CPI implied mean outperforms random walk with a large effect size (d=−0.85, p_raw=0.003, p_adj=0.014), **significant at the 5% level after Bonferroni correction** for 4 benchmarks. This result is robust to excluding the first event, which requires a hardcoded benchmark (n=13: d=−0.89, p_adj=0.016). The power analysis confirms this test has adequate power (>80%) at the observed effect size — the test is well-powered. Kalshi also outperforms TIPS breakeven (p_raw=0.045) and trailing mean (p_raw=0.021), both significant at the raw level. The tail-aware mean is a strictly better point forecast than the interior-only mean (MAE=0.068 vs 0.082), which strengthens all comparisons.
 
-**The point-vs-distribution decoupling.** This is, to our knowledge, the first empirical demonstration that prediction market point forecasts and distributional forecasts can be independently calibrated — accurate centers with miscalibrated spreads. CPI point forecasts beat all benchmarks while CPI distributions are actively harmful (CRPS/MAE=1.58, CI excludes 1.0). This decoupling is invisible to standard evaluation metrics (Brier score, calibration curves) that evaluate individual contracts rather than distributional coherence. The PIT diagnostic confirms the mechanism: mean PIT=0.61, indicating systematic inflation underestimation that biases the distributional tails without affecting the center. For traders, this means the CPI implied mean is a reliable signal, but the distributional spread should be ignored or replaced with historical dispersion estimates.
+**The point-vs-distribution decoupling.** This is, to our knowledge, the first empirical demonstration that prediction market point forecasts and distributional forecasts can be independently calibrated — accurate centers with miscalibrated spreads. CPI point forecasts significantly beat random walk (d=−0.85, p=0.014 Bonferroni-adjusted) while CPI distributions are actively harmful (CRPS/MAE=1.58, CI excludes 1.0). This decoupling is invisible to standard evaluation metrics (Brier score, calibration curves) that evaluate individual contracts rather than distributional coherence. The PIT diagnostic confirms the mechanism: mean PIT=0.61, indicating systematic inflation underestimation that biases the distributional tails without affecting the center. For traders, this means the CPI implied mean is a reliable signal, but the distributional spread should be ignored or replaced with historical dispersion estimates.
 
 ### Power Analysis
 
@@ -244,7 +244,7 @@ Using the tail-aware implied mean (consistent with the CRPS computation), the Ka
 |------|------------|-------------|---------------|-----------------|
 | Jobless Claims vs Historical CRPS | r=0.10 | 16 | 152 | 136 more events |
 | CPI vs Historical CRPS | r=0.16 | 14 | 61 | 47 more months |
-| Kalshi vs Random Walk (tail-aware) | d=0.71 | 14 | 13 | **Already powered** |
+| Kalshi vs Random Walk (tail-aware) | d=0.85 | 14 | 9 | **Already powered** |
 | Kalshi vs SPF (tail-aware) | d=0.43 | 14 | 35 | 21 more months |
 | Kalshi vs TIPS (tail-aware) | d=0.47 | 14 | 30 | 16 more months |
 | Kalshi vs Trailing Mean (tail-aware) | d=0.47 | 14 | 30 | 16 more months |
@@ -323,7 +323,7 @@ During the research process, several initially significant findings were invalid
 | Jobless Claims CRPS/MAE ratio | 0.37 | 0.60 (interior) / 0.66 (tail-aware) | Scale-inappropriate tail integration → tail-aware mean correction |
 | Jobless Claims vs Historical | p=0.047 | p=0.372 | Tail-extension bug inflated CRPS gap |
 | Kalshi vs Random Walk (interior) | p=0.026 | p=0.102 | Bonferroni correction for 4 benchmarks |
-| Kalshi vs Random Walk (tail-aware) | p=0.015 | p=0.059 | Tail-aware mean + Bonferroni |
+| Kalshi vs Random Walk (tail-aware) | p=0.003 | **p=0.014** | Data leakage fix + Bonferroni (upgraded from p=0.059) |
 
 **Invalidated:**
 
