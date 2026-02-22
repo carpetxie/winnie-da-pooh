@@ -1,0 +1,11 @@
+The critique has been written to `docs/exchanges/critique_latest.md`. Here's a summary of the key findings:
+
+**Verdict: MINOR REVISIONS** (upgraded from Major Revisions in iteration 1)
+
+**Two Must-Fix items:**
+1. **Worked example factual error**: The JC worked example claims CRPS=751 and ratio=0.043, but the actual data shows CRPS=9,189 and ratio=0.53. Off by a factor of 12.
+2. **Serial correlation CI prose error**: The paper says CI [0.90, 2.58] "barely excludes 1.0" — but 0.90 < 1.0, so it actually *includes* 1.0.
+
+**Main structural issue — Internal metric inconsistency**: The paper declares tail-aware as the primary metric, but the leave-one-out analysis, horse race, temporal table, and per-event ratio ranges all silently use the interior-only mean. Four specific code changes are suggested to resolve this.
+
+**Scores improved**: Methodological Rigor 5→7, Blog Publishability 5→7. The tail-aware fix, leave-one-out, strike breakdown, and PIT promotion all strengthened the paper materially.
