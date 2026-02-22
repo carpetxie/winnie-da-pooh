@@ -1282,6 +1282,82 @@ def main():
     }
 
     # ================================================================
+    # PHASE 7B: SURPRISE MAGNITUDE & AUTOCORRELATION DIAGNOSTICS
+    # ================================================================
+    print("\n" + "=" * 70)
+    print("PHASE 7B: SURPRISE MAGNITUDE & AUTOCORRELATION DIAGNOSTICS")
+    print("=" * 70)
+
+    from scipy.stats import spearmanr as _spearmanr
+
+    surprise_magnitude_results = {}
+    for series in ["KXCPI", "KXJOBLESSCLAIMS"]:
+        s = crps_df[crps_df["series"] == series].dropna(subset=["kalshi_crps", "point_crps_tail_aware"])
+        if len(s) < 4:
+            continue
+        # Per-event CRPS/MAE ratio (tail-aware)
+        ratios_ta = (s["kalshi_crps"] / s["point_crps_tail_aware"]).values
+        # Surprise magnitude = MAE = |realized - implied_mean_tail_aware|
+        surprise_ta = s["point_crps_tail_aware"].values  # This IS |realized - implied_mean_ta|
+
+        # Also compute with interior-only
+        s_int = crps_df[crps_df["series"] == series].dropna(subset=["kalshi_crps", "point_crps"])
+        ratios_int = (s_int["kalshi_crps"] / s_int["point_crps"]).values
+        surprise_int = s_int["point_crps"].values
+
+        # Spearman correlation: surprise magnitude vs CRPS/MAE ratio
+        rho_ta, p_ta = _spearmanr(surprise_ta, ratios_ta)
+        rho_int, p_int = _spearmanr(surprise_int, ratios_int)
+
+        # Autocorrelation of per-event ratios (AR(1))
+        s_sorted = s.sort_values("event_ticker")
+        ratios_sorted_ta = (s_sorted["kalshi_crps"] / s_sorted["point_crps_tail_aware"]).values
+        s_int_sorted = s_int.sort_values("event_ticker")
+        ratios_sorted_int = (s_int_sorted["kalshi_crps"] / s_int_sorted["point_crps"]).values
+
+        ar1_ta = float(np.corrcoef(ratios_sorted_ta[:-1], ratios_sorted_ta[1:])[0, 1]) if len(ratios_sorted_ta) >= 4 else None
+        ar1_int = float(np.corrcoef(ratios_sorted_int[:-1], ratios_sorted_int[1:])[0, 1]) if len(ratios_sorted_int) >= 4 else None
+
+        # Conditional CRPS/MAE by surprise direction (CPI only)
+        conditional_results = None
+        if series == "KXCPI":
+            upside = s[s["realized"] > s["implied_mean_tail_aware"]]
+            downside = s[s["realized"] <= s["implied_mean_tail_aware"]]
+            if len(upside) >= 2 and len(downside) >= 2:
+                upside_ratio = float(upside["kalshi_crps"].mean() / upside["point_crps_tail_aware"].mean()) if upside["point_crps_tail_aware"].mean() > 0 else None
+                downside_ratio = float(downside["kalshi_crps"].mean() / downside["point_crps_tail_aware"].mean()) if downside["point_crps_tail_aware"].mean() > 0 else None
+                conditional_results = {
+                    "upside_n": len(upside),
+                    "downside_n": len(downside),
+                    "upside_crps_mae": upside_ratio,
+                    "downside_crps_mae": downside_ratio,
+                    "upside_mean_mae": float(upside["point_crps_tail_aware"].mean()),
+                    "downside_mean_mae": float(downside["point_crps_tail_aware"].mean()),
+                    "upside_mean_crps": float(upside["kalshi_crps"].mean()),
+                    "downside_mean_crps": float(downside["kalshi_crps"].mean()),
+                }
+
+        surprise_magnitude_results[series] = {
+            "spearman_rho_tail_aware": float(rho_ta),
+            "spearman_p_tail_aware": float(p_ta),
+            "spearman_rho_interior": float(rho_int),
+            "spearman_p_interior": float(p_int),
+            "ar1_per_event_ratio_tail_aware": ar1_ta,
+            "ar1_per_event_ratio_interior": ar1_int,
+            "n": len(s),
+            "conditional_by_direction": conditional_results,
+        }
+
+        print(f"\n  {series} (n={len(s)}):")
+        print(f"    Spearman(surprise, CRPS/MAE) tail-aware: rho={rho_ta:.3f}, p={p_ta:.4f}")
+        print(f"    Spearman(surprise, CRPS/MAE) interior:   rho={rho_int:.3f}, p={p_int:.4f}")
+        print(f"    AR(1) per-event CRPS/MAE ratio (tail-aware): {ar1_ta:.3f}" if ar1_ta is not None else "    AR(1): insufficient data")
+        print(f"    AR(1) per-event CRPS/MAE ratio (interior):   {ar1_int:.3f}" if ar1_int is not None else "    AR(1): insufficient data")
+        if conditional_results:
+            print(f"    Conditional CRPS/MAE (upside inflation, n={conditional_results['upside_n']}): {conditional_results['upside_crps_mae']:.3f}")
+            print(f"    Conditional CRPS/MAE (downside inflation, n={conditional_results['downside_n']}): {conditional_results['downside_crps_mae']:.3f}")
+
+    # ================================================================
     # PHASE 8: VISUALIZATION
     # ================================================================
     print("\n" + "=" * 70)
@@ -1304,6 +1380,7 @@ def main():
         "cpi_overconfidence_diagnostic": cpi_overconfidence,
         "pit_diagnostics": pit_results,
         "serial_correlation_notes": serial_corr_note,
+        "surprise_magnitude_diagnostics": surprise_magnitude_results,
         "per_series_summary": {},
     }
 
