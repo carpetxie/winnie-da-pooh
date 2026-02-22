@@ -1,0 +1,11 @@
+The critique has been written to `docs/exchanges/critique_latest.md`. Here's a summary of the key findings:
+
+**The One Big Thing:** The horse race section (Section 3) runs 4 benchmark comparisons but doesn't apply Bonferroni correction, unlike the CRPS tests. The only significant result — Kalshi beats random walk at p=0.026 — becomes p=0.104 after correction, no longer significant. The abstract claims this result without qualification.
+
+**Must Fix items:**
+1. Monte Carlo simulation claims robustness with uniform/skew-normal distributions, but only Normal is implemented in code
+2. Temporal sensitivity table silently uses different n (13 vs 16 for JC) without disclosure
+
+**Should Fix items:** Quantify CPI serial correlation's effective-n impact, add per-event CRPS/MAE visualization, upgrade to BCa bootstrap, tighten abstract, add market design implications paragraph, fix a remaining code comment.
+
+**Verdict:** MINOR REVISIONS — the paper has improved substantially from Iteration 1 and the core argument is sound. One more iteration should bring it to acceptance.
