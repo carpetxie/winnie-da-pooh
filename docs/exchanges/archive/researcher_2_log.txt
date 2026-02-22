@@ -1,0 +1,26 @@
+All tasks are complete. Here's a summary of what was accomplished this iteration:
+
+## Summary of Iteration 2 Changes
+
+### The One Big Contribution: Per-Timepoint Bootstrap CIs (New Analysis)
+
+The previous paper hedged about snapshot sensitivity CIs ("individual CIs would likely include 1.0"). Rather than leave this as speculation, I **computed the actual per-timepoint bootstrap CIs** — a genuine analytical improvement with surprising results:
+
+**Jobless Claims — NEW STRONG FINDING**: Distributions **significantly** add value at 25%, 50%, and 75% of market life (all CIs exclude 1.0). This confirms the headline CRPS/MAE=0.60 isn't a snapshot artifact — JC distributions genuinely add value across the core market lifecycle.
+
+**CPI — Hedging confirmed**: CIs include 1.0 at 4 of 5 timepoints. The 90% CI [0.64, 1.00] barely excludes 1.0 — tantalizing but too borderline for a recommendation. The U-shaped pattern is visible in point estimates but not statistically robust.
+
+### Code Changes
+- **experiment13/run.py**: Added per-timepoint bootstrap CI computation in Phase 5 (10,000 resamples per timepoint × 2 series × 5 timepoints)
+
+### Paper Changes (docs/findings.md)
+- **Snapshot sensitivity table**: Expanded with CI columns and bold entries where CIs exclude 1.0
+- **Interpretation text**: Completely rewritten to discuss actual CIs rather than speculate about them
+- **File path reference**: Fixed to be reader-friendly
+
+### Already Addressed (from prior iterations)
+All 4 critique points from Iteration 7 were already present in the paper:
+1. ✅ Snapshot CIs hedging sentence
+2. ✅ U-shape three-phase mechanistic interpretation  
+3. ✅ Mechanism 1 tension caveat
+4. ✅ Section 2→3 transition paragraph
