@@ -1,66 +1,67 @@
-# Critique — Iteration 7
+# Critique — Iteration 8
 
 STATUS: CONTINUE
 
 ## Overall Assessment (2-3 sentences)
 
-The paper is in excellent shape. The iteration 6 fixes were well-executed: the maturity-conditional CPI recommendation in the trader box is more faithful to the data and more useful to traders, the temporal table transition paragraph is a clean addition, and the F=0.0 gloss preempts exactly the right question. One genuine issue remains: the maturity-conditional recommendation now rests on snapshot sensitivity point estimates without confidence intervals, which at n=14 is a fragile foundation for the paper's most prominent practical claim.
+The paper has reached a high level of polish. The iteration 7 changes — snapshot CI hedging, three-phase mechanistic hypothesis, mechanism 1 caveat, and the Section 2→3 transition — were all well-executed and address my prior concerns. The researcher's pushback on the trader box was correct: keeping the blanket CPI recommendation rather than injecting unconfirmed maturity-conditional guidance is the more honest choice. What remains is structural tightening rather than statistical or interpretive issues.
 
 ## Reflection on Prior Feedback
 
-All four iteration 6 suggestions were accepted and improved the paper. The Big Thing (abstract CPI contradiction) was a real internal inconsistency, and the fix makes the trader box substantially more useful. The researcher's decision to embed the in-sample caveat directly in the trader box was smart — combining two fixes in one edit. The transition paragraph between temporal tables is well-crafted: the CPI mid-life example (beats uniform but CRPS/MAE > 1) is exactly the right illustration of why both diagnostics matter.
+My iteration 7 suggestions were net-positive. The hedging paragraph on snapshot point estimates was the right call — the paper now holds the temporal analysis to the same uncertainty-quantification standard as everything else. The mechanistic three-phase interpretation (prior inheritance → partial-signal overreaction → convergence) gives the U-shape explanatory depth, and the mechanism 1 caveat is genuinely insightful: it discriminates between competing hypotheses using the paper's own evidence rather than just listing them as equals.
 
-No dead ends this iteration. The researcher's note that "all four critique points were well-founded" and offered no pushbacks confirms alignment. Looking back across the full arc, the paper has improved monotonically through 6 iterations with no wasted effort. The remaining issues are genuinely at the margin — but one of them matters for the paper's internal consistency of standards.
+The researcher was right to push back on the trader box. I had misread it as making a maturity-conditional claim; it doesn't. The blanket "ignore CPI distributional spread" is the correct recommendation given the evidence, and the body text provides maturity nuance for sophisticated readers. I should have read more carefully before critiquing. Lesson noted.
+
+No dead ends this iteration. All three changes (snapshot hedging, three-phase hypothesis, mechanism 1 caveat) added substance. The transition sentence is minor but improves flow. The arc from iteration 6 to 8 has been: internal consistency fix → uncertainty quantification → mechanistic depth. Clean progression.
 
 ## Scores
 
 | Criterion | Score | Delta | Comment |
 |-----------|-------|-------|---------|
-| Novelty | 7/10 | — | Stable. The CRPS/MAE diagnostic and per-series heterogeneity finding remain the core contribution. |
-| Methodological Rigor | 8/10 | — | Sound throughout. The one gap (snapshot CIs) is identified below. |
-| Economic Significance | 7.5/10 | +0.5 | The maturity-conditional recommendation is more actionable than the blanket "ignore CPI." |
-| Narrative Clarity | 8/10 | +0.5 | Temporal table transition, F=0.0 gloss, and revised trader box all tighten the narrative. |
-| Blog Publishability | 8.5/10 | +0.5 | Very close to ready. The issue below is a credibility concern for quantitative readers, not a blocker. |
+| Novelty | 7/10 | — | Stable. CRPS/MAE diagnostic and per-series heterogeneity remain the core contribution. |
+| Methodological Rigor | 8/10 | — | Stable. Honest uncertainty quantification throughout; serial correlation, BCa CIs, power analysis all solid. |
+| Economic Significance | 7/10 | — | Market design implications are concrete; trader recommendations are appropriately hedged. |
+| Narrative Clarity | 7.5/10 | +0.5 | Improved transitions, mechanistic interpretation, and hypothesis discrimination. One structural issue remains. |
+| Blog Publishability | 7.5/10 | — | Close to publishable; the structural issue below is the main remaining friction for a blog reader. |
 
 ## The One Big Thing
 
-**The maturity-conditional CPI recommendation now rests on snapshot sensitivity point estimates without confidence intervals — and at n=14, those point estimates may not be distinguishable from 1.0.**
+**Section 4 is structurally disconnected from the paper's core argument and should be either integrated or demoted.**
 
-The trader box says: "treat mid-life distributional spread with caution (CRPS/MAE=1.32 at 50% of market life), but note that late-life distributions show improvement (CRPS/MAE=0.73–0.76 at 75–90% of market life)." This is better than the previous blanket recommendation, but it upgrades the snapshot sensitivity table from a descriptive aside to a *load-bearing element* of the paper's most prominent claim. That table reports only point estimates.
+The paper's through-line is: *implied distributions from multi-strike markets add value for some series but not others, and here's a diagnostic for telling which.* Sections 1–3 execute this cleanly: methodology → CRPS/MAE diagnostic with heterogeneity → information hierarchy explaining why CPI struggles. Then Section 4 abruptly switches to Brier scores on individual binary contracts, discussing a T-24h vs. 50%-lifetime maturity gradient. This is a *different question* (single-contract calibration vs. distributional quality) using a *different metric* (Brier score vs. CRPS/MAE).
 
-At n=14 CPI events, the CI on the mid-life ratio (1.32) is already [0.84, 2.02] — it includes 1.0. The 75% ratio of 0.73 very likely also has a CI that includes 1.0 (and probably extends well above it). If so, the paper is distinguishing between two timepoints whose CIs overlap substantially: telling traders "mid-life is bad, late-life is good" when the data may not support that distinction at conventional significance levels.
+The opening sentence — "This structural dependence on market maturity complements the series-level calibration heterogeneity in Section 2" — asserts a connection but doesn't demonstrate one analytically. The snapshot sensitivity analysis *already in Section 2* covers the maturity dimension of the distributional story (CRPS/MAE across market lifetime). Section 4's Brier-score analysis is about binary contract accuracy, not distributional value. A Kalshi blog reader following the CRPS/MAE thread will hit Section 4 and wonder what happened to the argument.
 
-**The fix is not to remove the recommendation** — the point estimates are directionally interesting and the pattern is plausible. The fix is to **add a hedging sentence** in the snapshot sensitivity discussion acknowledging that per-timepoint ratios lack individual CIs and the maturity pattern is suggestive rather than statistically confirmed. Something like: "These per-timepoint ratios are point estimates; at n=14, individual CIs would likely include 1.0 at most timepoints. The U-shaped maturity pattern is suggestive and consistent with an information-incorporation process, but requires confirmation with more data."
-
-This matters because the paper has built its credibility on honest uncertainty quantification — CIs on the primary ratios, power analysis, the in-sample caveat, the entire downgraded findings appendix. Making a maturity-conditional recommendation that relies on unquantified point estimates is inconsistent with that standard. One hedging sentence restores the consistency.
+**Recommended fix:** Either (a) demote Section 4 to an appendix (e.g., "Appendix E: Market Maturity and Binary Contract Calibration") with a one-sentence forward pointer from Section 2's snapshot sensitivity discussion, or (b) add 2–3 sentences explicitly connecting the Brier-score finding to the distributional story — e.g., does the 1.5x residual Brier gradient align with the CRPS/MAE maturity pattern? Do short-lived markets also show worse CRPS/MAE ratios? If the connection is purely thematic rather than analytical, option (a) is cleaner. This would tighten the paper from four body sections to three, giving it a more focused structure for a blog audience.
 
 ## Other Issues
 
 ### Must Fix (blocks publication)
 
-None.
+*None.* The paper has no remaining issues that would block Kalshi blog publication.
 
 ### Should Fix (strengthens paper)
 
-1. **The CPI U-shape (well-calibrated at 10%, bad at 25–50%, good again at 75–90%) deserves 2–3 sentences of mechanistic interpretation in the paper body.** The researcher's own response identifies a plausible hypothesis: early markets inherit reasonable priors from strike structure, mid-life markets overreact to partial signals, late markets converge as release date forces information integration. This isn't in the paper — currently the text says only "markets have incorporated some information but not yet converged to the final consensus," which doesn't explain why *early* distributions are also well-calibrated. Adding the prior-inheritance mechanism would make the U-shape interpretable rather than puzzling, and it strengthens the intellectual content without overclaiming (label it speculative).
+1. **Abstract density for a blog audience.** The abstract packs ~8 numbers with confidence intervals into a single paragraph. For a blog post, consider splitting into two paragraphs: (i) the question and headline finding (CRPS/MAE diagnostic, heterogeneity result), and (ii) supporting evidence (CIs, PIT, horse race). The current version reads like a journal abstract, not a blog lede. The "Bottom line for traders" box partially compensates, but a reader who bounces off a number-dense opening may never reach it.
 
-2. **The early CPI result (CRPS/MAE=0.76 at 10%) creates a mild tension with the release-frequency hypothesis (mechanism 1) that is worth noting.** If infrequent calibration feedback is the primary problem, CPI distributions should be *uniformly* worse than Jobless Claims, not just worse at mid-life. The U-shape is more consistent with mechanism 2 (signal dimensionality causing mid-life confusion when partial information arrives) than mechanism 1 (raw feedback frequency). This doesn't invalidate the frequency hypothesis — it could be that feedback helps correct mid-life overreaction faster — but a sentence noting the tension would show the paper is engaging seriously with its own evidence rather than presenting the four mechanisms as equally supported.
+2. **p-value rounding inconsistency.** The abstract says "p_adj=0.10" for Kalshi vs. random walk; the horse race table says "0.102." For a paper that prides itself on quantitative precision, consider making these match (either "p_adj≈0.10" or "p_adj=0.102" consistently).
 
-3. **The Section 2→3 transition remains abrupt.** The researcher identified this in their response: "Having established *how well* Kalshi prices distributions, we now ask *where the information comes from*" or similar. One sentence connecting distributional calibration to information flow would help the reader follow the logical arc.
+3. **Worked examples are illustrative extremes, not representative events.** The Jobless Claims success (ratio=0.043) is the best event in the dataset; the CPI failure (ratio=1.82) is above the CPI median (1.38). A brief note — e.g., "We select these to illustrate the mechanism at its clearest; the series medians (JC=0.67, CPI=1.38) represent the typical case" — would preempt the objection that the examples cherry-pick.
 
 ### Acknowledged Limitations (inherent, not actionable)
 
-- Small sample sizes (n=14–16) remain the binding constraint on all inference. Honestly characterized throughout.
-- Two-series comparison limits generalizability. Cannot be fixed without new market series.
-- CPI "distributions" from 2–3 strikes are philosophically thin. Bounded by Monte Carlo but inherent.
-- In-sample evaluation. Correctly acknowledged; unavoidable at current n.
+- **n=14–16 per series**: The binding constraint on all inference. Honestly characterized throughout.
+- **Two-series comparison**: Cannot generalize the frequency/dimensionality hypotheses without additional market series. Testable predictions are well-stated but untestable with current data.
+- **In-sample evaluation**: No train/test split possible at current n. Correctly acknowledged.
+- **Mechanism discrimination**: Informal and qualitative. With two series, formal regression is impossible.
+- **CPI strike coarseness (2–3 strikes)**: Bounded by Monte Carlo simulation, but the "distributions" from 2 strikes are philosophically thin. Inherent to the data.
 
 ## Verdict
 
 **MINOR REVISIONS**
 
-The paper is substantively complete, methodologically sound, and nearly publication-ready. The one remaining issue is a consistency-of-standards problem: the trader box's maturity-conditional recommendation should be hedged to the same standard as the paper's other quantitative claims. The "should fix" items are individually small (2–3 sentences each) but would add intellectual depth (U-shape mechanism, hypothesis discrimination) and narrative flow (section transition). None require new analysis.
+The paper is at the quality threshold for Kalshi Research blog publication. The Section 4 structural issue is the only item that affects the reading experience materially — it's not wrong, just disconnected from the core argument. The abstract density and worked-example framing are polish items. After addressing Section 4's placement (even a brief justification for keeping it is acceptable), this paper is ready.
 
 ## Convergence Assessment
 
-The paper is at or very near its ceiling given the data. The trajectory across 7 iterations: structural fixes (1–2) → statistical honesty (3) → economic translation (4) → econometric polish (5) → internal consistency (6) → precision of hedging (7). We are firmly in diminishing returns. The Big Thing this iteration is real but small — it's a hedging sentence, not a methodological correction. The "should fix" items are intellectual enrichments that would take 10 minutes to write. **This should be the final substantive iteration.** If the researcher addresses the hedging point and any of the "should fix" items, the paper is ready for the Kalshi Research blog.
+We are deep into diminishing returns. The trajectory over 8 iterations: structural integrity (1–2) → statistical honesty (3) → economic translation (4) → econometric polish (5) → internal consistency (6) → uncertainty quantification (7) → structural tightening (8). The remaining issues are organizational (Section 4 placement) and presentational (abstract formatting, example selection), not analytical or interpretive. **The next iteration should be the last.** If the researcher addresses the Section 4 question — whether by demoting it, connecting it analytically, or providing a brief justification for keeping it as-is — the paper is publishable. The marginal return on further critique iterations is near zero.
