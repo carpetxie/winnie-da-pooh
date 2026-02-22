@@ -1,0 +1,31 @@
+Here's a summary of what I did in this iteration:
+
+## Summary of Changes
+
+### Critical Bug Fix
+- **Fixed the `tail_extension` bug** in `compute_crps()` — the "One Big Thing" the reviewer identified. Changed from a fixed `1.0` to scale-appropriate `max(strike_range * 0.5, 1.0)` plus coverage of realized values beyond strike boundaries. This was a genuine computational error that systematically biased Jobless Claims CRPS downward.
+
+### Impact of the Fix
+The correction had a **larger effect than the reviewer predicted**:
+- JC CRPS/MAE: **0.37 → 0.60** (reviewer estimated ~0.44)
+- JC vs Historical Wilcoxon: **p=0.047 → p=0.372** (completely non-significant)
+- The qualitative conclusion survives (0.60 < 1.0, distributions add value) but the effect is more modest
+
+### New Analyses Added
+1. **Jobless Claims PIT analysis**: Mean PIT=0.46, consistent with calibration (contrast with CPI PIT=0.61)
+2. **Snapshot sensitivity**: CRPS/MAE computed at 10/25/50/75/90% of market life — JC robust across all timepoints, CPI shows interesting non-monotonic pattern
+3. **Median per-event ratios**: CPI median=1.38, JC median=0.67 (consistent with means)
+
+### Other Code Fixes
+- Fixed misleading code comment in `horse_race.py` about CRPS ≤ MAE being a "mathematical identity"
+
+### Paper Updates
+- All numbers updated throughout (abstract, tables, analysis sections)
+- Two new entries added to Downgraded findings (Appendix C) for full transparency
+- Appendix A expanded from CPI-only to CPI + JC PIT comparison
+- New Snapshot Sensitivity subsection added
+- Implied mean tail probability limitation documented
+
+### Pushbacks
+- Pushed back on "iteration-3 changes not applied" — they were already in the paper
+- Declined to change trailing mean benchmark (risk of specification search)
