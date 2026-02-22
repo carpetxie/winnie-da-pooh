@@ -549,6 +549,44 @@ def main():
                       f"ratio={ratio:.2f}x, "
                       f"beats_uniform={t['beats_uniform'].mean():.0%}{crps_mae_str}")
 
+    # Per-timepoint bootstrap CIs for CRPS/MAE ratios
+    if len(temporal_df) > 0:
+        print("\n  --- Per-timepoint CRPS/MAE bootstrap CIs ---")
+        temporal_ci_results = {}
+        rng_temporal = np.random.default_rng(42)
+        for series in ["KXCPI", "KXJOBLESSCLAIMS"]:
+            s = temporal_df[temporal_df["series"] == series]
+            temporal_ci_results[series] = {}
+            for pct in ["10%", "25%", "50%", "75%", "90%"]:
+                t = s[s["lifetime_pct"] == pct]
+                valid_mae = t.dropna(subset=["point_mae"])
+                if len(valid_mae) < 3:
+                    continue
+                crps_arr = valid_mae["kalshi_crps"].values
+                mae_arr = valid_mae["point_mae"].values
+                n_tp = len(valid_mae)
+                # Bootstrap ratio-of-means
+                boot_ratios = []
+                for _ in range(10000):
+                    idx = rng_temporal.integers(0, n_tp, size=n_tp)
+                    boot_crps = crps_arr[idx].mean()
+                    boot_mae = mae_arr[idx].mean()
+                    if boot_mae > 0:
+                        boot_ratios.append(boot_crps / boot_mae)
+                if len(boot_ratios) > 100:
+                    ci_lo = float(np.percentile(boot_ratios, 2.5))
+                    ci_hi = float(np.percentile(boot_ratios, 97.5))
+                    point_est = crps_arr.mean() / mae_arr.mean() if mae_arr.mean() > 0 else None
+                    includes_one = ci_lo <= 1.0 <= ci_hi
+                    temporal_ci_results[series][pct] = {
+                        "ratio": point_est, "ci_lo": ci_lo, "ci_hi": ci_hi,
+                        "n": n_tp, "includes_one": includes_one,
+                    }
+                    inc_str = "  [includes 1.0]" if includes_one else "  [EXCLUDES 1.0]"
+                    print(f"    {series} {pct} (n={n_tp}): CRPS/MAE={point_est:.3f} "
+                          f"[{ci_lo:.2f}, {ci_hi:.2f}]{inc_str}")
+        test_results["temporal_crps_mae_cis"] = temporal_ci_results
+
     # ================================================================
     # PHASE 6: CPI HORSE RACE (POINT FORECASTS)
     # ================================================================
