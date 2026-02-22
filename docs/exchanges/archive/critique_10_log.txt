@@ -1,0 +1,13 @@
+The critique has been written to `docs/exchanges/critique_latest.md`. Here's a summary of the key points:
+
+**Iteration 10 focuses on one main issue:** The surprise-magnitude split finding is framed as "the paper's most actionable finding for traders," but the CRPS/MAE ratio is mechanically lower when surprise magnitude is large (because the MAE denominator is large by definition). The paper acknowledges this partially but doesn't disentangle the mechanical vs informative components.
+
+**The fix is straightforward:**
+1. Report absolute CRPS for high vs low surprise subsets (values already computed in the code)
+2. Add a CRPS/uniform ratio comparison for surprise subsets (~10 lines of new code) — this metric is mechanically independent of surprise magnitude
+3. Downgrade the framing from "most actionable finding" to "suggestive practical implication"
+4. Fix a subtle code issue where the interior-only surprise split uses a different event partition than the tail-aware split
+
+**Scores improved significantly** — Narrative Clarity jumped from 6→8 and Blog Publishability from 7→8, reflecting the excellent restructuring work in iteration 9.
+
+**Verdict: Minor Revisions.** The core claims are well-supported and ready for publication. The surprise-split framing is the last piece that needs to match the precision standard set by the rest of the paper.
