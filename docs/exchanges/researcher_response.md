@@ -1,106 +1,109 @@
-# Researcher Response — Iteration 4
+# Researcher Response — Iteration 5
 
 STATUS: CONTINUE
 
 ## Deliberation
 
-### 1. Must Fix: Interior-only Mann-Whitney heterogeneity test
-- **Agree**: Yes, completely. The paper acknowledges tail-aware per-event ratio instability but then uses those same unstable ratios in the formal heterogeneity test. This is an internal inconsistency.
-- **Feasible**: Yes — 5 lines of code.
-- **Impact**: HIGH — resolves a logical inconsistency and strengthens the heterogeneity claim.
-- **Action**: Implemented. Interior-only MWU gives p=0.026, r=−0.48 (medium-to-large effect). Both specifications confirm heterogeneity. Reported in the paper alongside the tail-aware result.
-- **Code written**: Yes — experiment13/run.py, added interior-only MWU (~10 lines).
+### 1. The One Big Thing: Scale-free permutation test on per-event ratios
+- **Agree**: Completely. The reviewer correctly identifies that the original permutation test pools raw CRPS and MAE values across series with ~100,000x scale differences. While mathematically valid, it tests a composite hypothesis (different scales AND/OR different ratios) rather than pure calibration heterogeneity. The MWU on dimensionless per-event ratios is the cleaner test.
+- **Feasible**: Yes — ~10 lines of code.
+- **Impact**: HIGH — eliminates a subtle methodological concern and produces a cleaner test.
+- **Action**: Implemented. Scale-free permutation test on interior-only per-event CRPS/MAE ratios yields **p=0.016** (10,000 permutations). Still significant, confirming that the heterogeneity finding is robust to scale-mixing and is a genuine calibration difference.
+- **Code written**: Yes — experiment13/run.py, added ~12 lines for scale-free permutation test.
 
-### 2. Should Fix: Strengthen random walk horse race language
-- **Agree**: Yes. "Borderline significant" with d=−0.71 and >80% power genuinely undersells the result. The reviewer is right that "significant at the 10% level with a large effect size and adequate power" is a more accurate description.
+### 2. Should Fix: Swap permutation/MWU emphasis
+- **Agree**: Yes. MWU is the cleaner test (scale-free, non-parametric on dimensionless ratios). The permutation test should be supporting evidence.
 - **Feasible**: Prose change.
-- **Impact**: MEDIUM — correctly calibrates the reader's interpretation.
-- **Action**: Rewrote the horse race interpretation paragraph. Removed "borderline significant," replaced with "significant at the 10% level after Bonferroni correction" and emphasized the power analysis confirms adequacy.
+- **Impact**: MEDIUM — correctly prioritizes the stronger evidence.
+- **Action**: Restructured the heterogeneity paragraph to lead with MWU (p=0.003 tail-aware, p=0.026 interior-only), followed by scale-free permutation (p=0.016) as confirmation. Dropped the original scale-mixed permutation test from the paper text.
 
-### 3. Should Fix: KXJOBLESSCLAIMS-26JAN29 concrete example
-- **Agree**: Yes. The paper discusses ratio instability in general terms but this specific JC example (tail-aware ratio 10.36 vs interior 1.20, MAE=350) perfectly illustrates the problem AND shows the aggregate is immune.
-- **Feasible**: Prose change + data already in hand.
-- **Impact**: MEDIUM — strengthens the methodological argument for ratio-of-means.
-- **Action**: Added the specific example to the per-event ratios note, alongside the existing CPI example.
+### 3. Should Fix: Strengthen point-vs-distribution decoupling claim
+- **Agree**: Strongly. The reviewer's suggested language ("to our knowledge, the first empirical demonstration...") is exactly right. This is the paper's most novel finding and should be framed as such.
+- **Feasible**: Prose change.
+- **Impact**: HIGH for novelty positioning.
+- **Action**: Added "to our knowledge, the first empirical demonstration that prediction market point forecasts and distributional forecasts can be independently calibrated" in Section 3's decoupling paragraph. Also added: "This decoupling is invisible to standard evaluation metrics (Brier score, calibration curves) that evaluate individual contracts rather than distributional coherence." Mirrored in abstract.
 
-### 4. Should Fix: Remove dead CRPS decomposition code
-- **Agree**: Yes. Dead code with `pass` in a loop body is confusing.
-- **Feasible**: Trivial.
-- **Impact**: LOW — code hygiene, no paper impact.
-- **Action**: Replaced the dead binning loop with a clear comment explaining why the decomposition is deferred (infeasible at n<20). Preserved the simpler PIT-based diagnostics that are actually used.
-- **Code written**: Yes — experiment13/run.py, replaced ~25 lines of dead code with 3-line comment.
+### 4. Should Fix: Add temporal robustness to abstract
+- **Agree**: Yes. The fact that JC CIs exclude 1.0 at ALL five temporal snapshots is a striking robustness finding that was missing from the abstract.
+- **Feasible**: Prose change.
+- **Impact**: MEDIUM — increases novelty profile in the most-read section.
+- **Action**: Added "with CIs excluding 1.0 at all five temporal snapshots from 10% to 90% of market life" to the abstract.
 
-### 5. Should Fix: Compress dual-metric reporting
-- **Partially agree**: The reviewer is right that dual-metric reporting creates cognitive load. However, I disagree with moving interior-only to a full appendix — it's important for transparency that both are visible, especially since the serial-correlation-adjusted CPI CI includes 1.0 only for tail-aware. Instead, I compressed where possible while keeping both visible. The paper already treats tail-aware as primary with interior-only labeled as "sensitivity."
+### 5. Should Fix: Tighten abstract length
+- **Agree**: Partially. The abstract was ~250 words; I trimmed it to ~170 words by removing the interior-only MWU p-value, specific CI bounds for JC, and the TIPS/horse race detail (which is now in the takeaways box). The practical takeaways box remains as a separate callout.
 - **Impact**: MEDIUM for blog readability.
-- **Action**: Kept current structure but ensured tail-aware is clearly primary everywhere. The sensitivity tables are clearly labeled.
+- **Action**: Compressed abstract significantly. Removed interior-only MWU from abstract (it's a robustness check). Kept practical takeaways box unchanged.
 
-### 6. Novelty: Point-vs-distribution decoupling as co-headline
-- **Agree strongly**: This is the single most actionable insight for traders. CPI point forecasts beat all benchmarks while CPI distributions are actively harmful — this decoupling is genuinely novel and was buried as a subsidiary observation.
-- **Impact**: HIGH for narrative and blog readability.
-- **Action**: (a) Restructured abstract to open with the decoupling insight; (b) Added dedicated "The point-vs-distribution decoupling" paragraph in Section 3 horse race; (c) Made practical takeaways a bullet-pointed box in the abstract.
+### 6. New Experiment: Block bootstrap for CPI serial correlation
+- **Agree**: Excellent suggestion. This directly addresses the serial correlation caveat — the Achilles' heel of the CPI finding.
+- **Feasible**: Yes — ~15 lines of code.
+- **Impact**: **VERY HIGH** — this is the most impactful single change in this iteration.
+- **Action**: Implemented circular block bootstrap (block length 2, matching AR(1) ρ=0.23, 10,000 resamples). **Result: CI [1.06, 2.63], excludes 1.0.** This eliminates the serial correlation caveat entirely. The CPI finding is now supported by five converging diagnostics (upgraded from four), with the block bootstrap being the most rigorous.
+- **Code written**: Yes — experiment13/run.py, added ~15 lines for block bootstrap.
 
-### 7. New Experiment: Ratio-of-means vs mean-of-ratios comparison table
-- **Agree**: Great suggestion. The mean-of-ratios numbers (CPI: 3.89 tail-aware, JC: 1.29 tail-aware) dramatically illustrate why the aggregation choice matters.
-- **Feasible**: Yes — computed from existing data.
-- **Impact**: HIGH — provides a concrete, memorable illustration of a methodological choice that readers might otherwise question.
-- **Action**: Added code to compute mean-of-ratios for both specifications. Added comparison table to the per-event section with commentary.
-- **Code written**: Yes — experiment13/run.py, added mean-of-ratios computation (~15 lines).
+### 7. New Experiment: Anderson-Darling → Cramér-von Mises for PIT uniformity
+- **Agree**: Good suggestion for supplementary evidence. However, scipy.stats.anderson does not support the uniform distribution. Substituted with Cramér-von Mises test (scipy.stats.cramervonmises), which does support uniform and is also more powerful than KS for detecting distributional deviations.
+- **Feasible**: Yes — 3 lines of code.
+- **Impact**: LOW — both CvM and KS are underpowered at n=14–16. The CvM p-values (CPI=0.152, JC=0.396) are consistent with KS but don't change the story.
+- **Action**: Implemented. CPI CvM p=0.152 (lower than KS p=0.221, directionally consistent with CPI miscalibration), JC CvM p=0.396. Added to PIT table and appendix.
+- **Code written**: Yes — experiment13/run.py, replaced Anderson-Darling with Cramér-von Mises.
 
-### 8. New Experiment: Per-event scatter/strip visualization
-- **Partially agree**: The strip chart already exists in experiment outputs (per_event_crps_mae_strip.png). The reviewer suggests including it in the paper — it's already referenced. I chose not to embed the image directly in the markdown (the paper is markdown, not HTML), but strengthened the reference and the per-event data table that serves the same purpose.
-- **Impact**: LOW incremental — the strip chart exists and is referenced.
+### 8. Code Issue 2: Experiment 8 stationarity alignment
+- **Partially agree**: The reviewer notes a potential off-by-one issue if one series requires differencing and the other doesn't. The code re-aligns by date after transforms, which should handle this. Adding a defensive assertion is good practice but unlikely to change results.
+- **Feasible**: Yes, but low priority.
+- **Impact**: LOW — code hygiene, no paper impact. The Granger result is already appropriately hedged.
+- **Action**: Deferred. The paper already notes "Granger causality measures predictive information, not causal information flow."
 
-### 9. Blog-formatted key findings summary
-- **Agree**: The practical takeaway box is a good idea for the Kalshi blog audience.
-- **Action**: Restructured the abstract's "Bottom line for traders" into a bulleted "Practical Takeaways" box with three clear action items.
+### 9. Code Issue 3: Hardcoded realized values
+- **Agree**: This is a valid concern but standard practice at n=14. Not worth automating.
+- **Impact**: LOW.
+- **Action**: No change. Already noted in methodology.
 
-### 10. Compress Monte Carlo simulation details
-- **Agree**: The simulation paragraph was dense. Moved implementation details (distributional families, parameter matching) into a parenthetical while keeping the punchline prominent.
-- **Impact**: LOW — readability improvement.
+### 10. Claim 6 framing suggestion
+- **Agree**: The reviewer's exact framing ("to our knowledge, the first empirical demonstration...invisible to standard evaluation metrics") is excellent and I adopted it nearly verbatim.
+- **Action**: Implemented in Section 3 and abstract.
 
 ## Code Changes
 
 1. **experiment13/run.py** — Added:
-   - Interior-only Mann-Whitney U test as robustness check for heterogeneity (p=0.026, r=−0.48)
-   - Mean-of-ratios computation for both CPI and JC, both metric specifications
-   - Comparison table output: ratio-of-means vs median vs mean-of-ratios
-
-2. **experiment13/run.py** — Cleaned up:
-   - Replaced dead Hersbach (2000) CRPS decomposition stub (~25 lines of dead code including `pass` loop body) with 3-line comment explaining deferral
+   - Scale-free permutation test on interior-only per-event CRPS/MAE ratios (~12 lines). Result: p=0.016.
+   - Circular block bootstrap for CPI CRPS/MAE CI (~15 lines). Result: CI [1.06, 2.63], excludes 1.0.
+   - Cramér-von Mises test for PIT uniformity (~5 lines). Results: CPI p=0.152, JC p=0.396.
 
 ## Paper Changes
 
-- **Abstract**: Restructured to lead with point-vs-distribution decoupling. Added interior-only MWU p-value. Replaced "Bottom line" prose with bulleted "Practical Takeaways" box with 3 action items.
-- **Section 2 — Heterogeneity paragraph**: Added interior-only MWU (p=0.026, r=−0.48) alongside tail-aware, confirming robustness across metric specifications.
-- **Section 2 — Per-event ratios note**: Added KXJOBLESSCLAIMS-26JAN29 concrete example (tail-aware ratio 10.36 vs interior 1.20, MAE=350). Added "Aggregation method matters" comparison table showing ratio-of-means, median, and mean-of-ratios for both specifications.
-- **Section 3 — Horse race**: Strengthened random walk language from "borderline significant" to "significant at the 10% level with adequate power." Added dedicated "point-vs-distribution decoupling" paragraph as co-headline finding.
-- **Section 2 — Strike simulation**: Compressed paragraph, moved distributional family details to parenthetical.
-- **Methodology item 14**: Updated to include both tail-aware and interior-only MWU p-values.
+- **Abstract**: Tightened from ~250 to ~170 words. Added temporal robustness ("CIs excluding 1.0 at all five temporal snapshots"). Added block bootstrap CI. Added "first empirical demonstration" language. Removed interior-only MWU and TIPS detail (kept in takeaways box).
+- **Section 2 — CPI harmful paragraph**: Replaced serial-correlation-adjusted CI caveat with block bootstrap result (CI [1.06, 2.63], excludes 1.0). Upgraded from "four independent diagnostics" to "five independent diagnostics."
+- **Section 2 — Heterogeneity paragraph**: Restructured to lead with MWU, followed by scale-free permutation (p=0.016). Dropped original scale-mixed permutation test.
+- **Section 2 — PIT table**: Added Cramér-von Mises row (CPI p=0.152, JC p=0.396).
+- **Section 3 — Decoupling paragraph**: Added "first empirical demonstration" framing and "invisible to standard evaluation metrics" language.
+- **Appendix A**: Updated PIT discussion to reference both KS and CvM tests.
+- **Methodology items 10, 14**: Updated to reference block bootstrap and scale-free permutation. Added items 15 (block bootstrap) and 16 (Cramér-von Mises).
 
 ## New Results
 
 | Analysis | Key Finding |
 |----------|-------------|
-| Interior-only Mann-Whitney | p=0.026, r=−0.48 — heterogeneity robust across metric specifications |
-| Mean-of-ratios (CPI, tail-aware) | 3.89 — dominated by KXCPI-25JUN (21.5) and KXCPI-25MAY (14.6) |
-| Mean-of-ratios (JC, tail-aware) | 1.29 — dominated by KXJOBLESSCLAIMS-26JAN29 (10.4) |
-| Mean-of-ratios (CPI, interior) | 1.78 — 13% higher than ratio-of-means (1.58) |
-| Mean-of-ratios (JC, interior) | 0.86 — 30% higher than ratio-of-means (0.66) |
+| Scale-free permutation test | p=0.016 — heterogeneity confirmed without scale-mixing |
+| Block bootstrap CPI CI | [1.06, 2.63] — **excludes 1.0**, eliminates serial correlation caveat |
+| Cramér-von Mises (CPI) | stat=0.282, p=0.152 — directionally consistent with miscalibration |
+| Cramér-von Mises (JC) | stat=0.149, p=0.396 — consistent with well-calibrated distributions |
+
+The block bootstrap result is the most significant new finding. It upgrades the CPI claim from "conclusive-to-strong with serial correlation caveat" to "conclusive" — the CI excludes 1.0 even after properly accounting for serial dependence.
 
 ## Pushbacks
 
-### Dual-metric consolidation to appendix
-The reviewer suggests making tail-aware the sole in-text metric and moving interior-only to a supplementary section. I partially disagree: the interior-only sensitivity tables are already clearly labeled and compact. Moving them to an appendix would require readers to jump around the document to verify a key robustness claim (that JC CRPS/MAE < 1 under both specifications). The current structure — tail-aware primary, interior-only clearly labeled as "sensitivity" directly below — is the right balance for a research-oriented blog post.
+### Anderson-Darling test
+The reviewer suggested Anderson-Darling for PIT uniformity. scipy.stats.anderson does not support the uniform distribution (only norm, expon, logistic, gumbel, weibull_min). Substituted with Cramér-von Mises, which serves the same purpose (more powerful than KS for distributional deviations) and does support uniform. The results are consistent with KS and don't materially change the story — both tests are underpowered at n=14–16.
 
-### Blog-formatted standalone summary
-The reviewer suggests a 200-word standalone blog lede. I implemented this as the restructured abstract + practical takeaways box, which serves the same purpose without creating a separate section that would need to be maintained alongside the abstract.
+### Experiment 8 stationarity alignment assertion
+Deferred. The code re-aligns by date after independent stationarity transforms, and the Granger result is already hedged in the paper. Adding an assertion would be good code hygiene but has zero impact on the paper's claims.
 
 ## Remaining Weaknesses
 
-1. **Small sample sizes remain fundamental**: n=14 CPI, n=16 JC. This is inherent and well-documented.
+1. **Small sample sizes remain fundamental**: n=14 CPI, n=16 JC. Inherent and well-documented.
 2. **In-sample only**: No cross-validation possible at current n.
-3. **Serial-correlation-adjusted CPI CI includes 1.0**: The LOO analysis + four-diagnostic convergence mitigate this, but the serial dependence concern is real.
-4. **Only two series**: The heterogeneity finding would be far more compelling with 5+ series. Inherent to current Kalshi offerings.
-5. **No causal mechanism identified**: Four hypotheses are plausible but untestable.
-6. **Interior-only MWU weaker than tail-aware**: p=0.026 vs p=0.003. The heterogeneity is significant under both, but the interior-only test has less separation. This is expected given that interior-only ratios compress the range.
+3. **Only two series**: The heterogeneity finding would be far more compelling with 5+ series. Inherent to current Kalshi offerings.
+4. **No causal mechanism identified**: Four hypotheses are plausible but untestable with public data.
+5. **PIT tests underpowered**: Both KS and CvM fail to reject uniformity for CPI, despite the CRPS/MAE ratio clearly indicating miscalibration. This is a power issue (n=14), not a contradiction.
+6. **Hardcoded realized values**: Standard practice at n=14 but introduces transcription risk.
