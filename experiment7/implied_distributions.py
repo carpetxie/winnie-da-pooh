@@ -213,14 +213,67 @@ def compute_implied_pdf(cdf_strikes: list[float], cdf_values: list[float]) -> di
     else:
         implied_mean = (bin_edges[0] + bin_edges[-1]) / 2
 
+    # Tail-aware implied mean: E[X] computed from the full piecewise-linear CDF
+    # used in CRPS, which assigns tail mass to boundary strikes.
+    # Formula: E[X] = strikes[0] + integral of [1 - F(x)] dx from strikes[0] to strikes[-1]
+    # where F(x) is the standard CDF (1 - survival), linearly interpolated between strikes.
+    tail_aware_mean = compute_tail_aware_mean(cdf_strikes, cdf_values)
+
     return {
         "bin_edges": bin_edges,
         "pdf_values": pdf_values,
         "prob_below_min_strike": prob_below_min,
         "prob_above_max_strike": prob_above_max,
         "implied_mean": implied_mean,
+        "implied_mean_tail_aware": tail_aware_mean,
         "total_interior_probability": total_interior,
     }
+
+
+def compute_tail_aware_mean(
+    cdf_strikes: list[float],
+    cdf_values: list[float],
+) -> float:
+    """Compute E[X] from the same piecewise-linear CDF used in CRPS computation.
+
+    Unlike the interior-only implied mean (which renormalizes over interior
+    probability mass), this integrates over the full CDF including implicit
+    tail mass at boundary strikes.
+
+    Uses the identity: E[X] = strikes[0] + integral of S(x) dx from strikes[0]
+    to strikes[-1], where S(x) = 1 - F(x) is the survival function. This is
+    exact for the piecewise-linear CDF that assumes F(x)=0 for x < strikes[0]
+    and F(x)=1 for x > strikes[-1].
+
+    Parameters
+    ----------
+    cdf_strikes : list[float]
+        Sorted strike thresholds (ascending).
+    cdf_values : list[float]
+        Survival function values P(X > strike) at each strike.
+
+    Returns
+    -------
+    float
+        Tail-aware implied mean E[X].
+    """
+    if len(cdf_strikes) < 2:
+        return (cdf_strikes[0] if cdf_strikes else 0.0)
+
+    strikes = np.array(cdf_strikes, dtype=float)
+    # Survival values S(x) = P(X > x) = cdf_values (in Kalshi convention)
+    survival = np.array(cdf_values, dtype=float)
+    survival = np.clip(survival, 0.0, 1.0)
+
+    # E[X] = strikes[0] + integral of S(x) dx from strikes[0] to strikes[-1]
+    # S(x) is piecewise linear between strikes, so use trapezoidal integration
+    integral = 0.0
+    for i in range(len(strikes) - 1):
+        width = strikes[i + 1] - strikes[i]
+        # Trapezoidal rule: average of S at endpoints × width
+        integral += width * (survival[i] + survival[i + 1]) / 2.0
+
+    return float(strikes[0] + integral)
 
 
 def analyze_no_arbitrage(
