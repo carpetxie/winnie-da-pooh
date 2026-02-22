@@ -1,0 +1,11 @@
+Critique written to `docs/exchanges/critique_latest.md`. Here's the summary:
+
+**Iteration 6 — Key findings:**
+
+1. **The One Big Thing: Random walk data leakage bug.** In `experiment13/horse_race.py`, the random walk forecast for the first event (KXCPI-24NOV) uses 0.3% — which is November 2024's *own realized value*. The correct value is October 2024 CPI MoM = 0.2% (BLS). This gives the random walk a perfect MAE=0.0 on the first event by data leakage. The good news: fixing this *strengthens* the paper's claims (the random walk baseline gets worse, making Kalshi look better). The fix is a 1-character code change.
+
+2. **All iteration 5 changes were well-executed** — block bootstrap, scale-free permutation, decoupling framing, CvM test.
+
+3. **Should-fix items**: trailing mean warm-up disclosure, more concrete market design recommendations (specific strike suggestions for CPI), and a brief explanation of why temporal CIs use percentile rather than BCa bootstrap.
+
+4. **Verdict: MINOR REVISIONS** — fix the data leakage bug, re-run, update numbers, and the paper is ready for final polish.
