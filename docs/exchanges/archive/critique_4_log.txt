@@ -1,9 +1,0 @@
-The critique has been written to `docs/exchanges/critique_latest.md`. Here's a summary:
-
-**Iteration 4 — MINOR REVISIONS**
-
-The paper has made strong progress across all iterations. Methodological rigor is now solid (8/10) after the CI additions. The **one big remaining gap** is economic significance (5/10): the CRPS/MAE = 0.37 finding is statistically robust but never translated into a concrete trading or market-design payoff that Kalshi's blog audience can act on. I suggest adding a brief worked example — e.g., showing how distributional information changes range-contract pricing for a specific historical Jobless Claims event.
-
-No "must fix" blockers remain. The "should fix" items are minor: clarifying the 41-event breakdown, leading with the strong Jobless Claims result in the trader callout, upgrading Section 3's title, and tightening the Breeden-Litzenberger citation. All acknowledged limitations (small n, two series, in-sample evaluation) are inherent and not actionable.
-
-I expect one more iteration to reach acceptance.

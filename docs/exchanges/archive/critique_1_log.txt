@@ -1,11 +1,15 @@
-The critique has been written to `docs/exchanges/critique_latest.md`. Here's a summary of the key findings:
+I've written the critique to `docs/exchanges/critique_latest.md`. Here's a summary of the key points:
 
-**The One Big Thing:** A scale-dependent bug in `compute_crps()` — the `tail_extension=1.0` parameter is appropriate for CPI (values ~0.1-0.5) but essentially zero for Jobless Claims (values ~200K). This truncates tail integration and biases the Jobless Claims CRPS/MAE ratio from ~0.44 down to the reported 0.37. One event (25SEP11) loses ~13,000 of CRPS from this truncation alone.
+**Overall**: The paper has a genuinely novel diagnostic (CRPS/MAE ratio) and exceptional intellectual honesty, but has one critical methodological issue.
 
-**Other critical issues:**
-1. The iteration-3 researcher response described adding CIs, hedging the CPI claim, and fixing phrasing — but none of these changes appear in the actual paper
-2. A code comment in `horse_race.py` incorrectly states "CRPS ≤ MAE is a mathematical identity" which contradicts the paper's own correct explanation
-3. The mid-life snapshot choice for CRPS computation is unjustified
-4. Missing Jobless Claims PIT analysis (only CPI has one)
+**The One Big Thing**: The implied mean computation excludes tail probability (only uses interior probability between min/max strikes). For CPI events with just 2 strikes, 40%+ of probability mass is ignored. This biases the MAE denominator of the CRPS/MAE ratio, potentially inflating the headline CPI number (1.32). The fix is straightforward — compute E[X] from the full piecewise-linear CDF used for CRPS.
 
-**Verdict:** MAJOR REVISIONS — the code bug and unapplied text changes must be addressed before publication. The fixes are straightforward but substantively affect the headline numbers.
+**Key findings from code review**:
+- 2-strike CPI events have CRPS/MAE ratio of 1.81 vs 1.69 for 3-strike events
+- The CRPS computation correctly integrates over tails, but MAE uses the biased interior-only mean — creating an apples-to-oranges comparison
+- JC finding (ratio=0.60, CI excludes 1.0) is robust and should be stated more strongly
+- Granger causality language ("information hierarchy", "downstream") overinterprets the statistical test
+
+**Scores**: Novelty 7/10, Rigor 5/10, Economic Significance 7/10, Clarity 8/10, Publishability 5/10
+
+**Verdict**: Major revisions — fix the implied mean, add CRPS decomposition, strengthen the JC claim.
