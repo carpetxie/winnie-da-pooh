@@ -1,7 +1,7 @@
 # When Do Prediction Market Distributions Add Value? A CRPS/MAE Diagnostic
 
 **Date:** 2026-02-22
-**Status:** Draft — under review (iteration 9).
+**Status:** Draft — under review (iteration 10).
 
 ## Abstract
 
@@ -9,11 +9,11 @@ Prediction market point forecasts and distributional forecasts can diverge drama
 
 Jobless Claims distributions robustly add value (CRPS/MAE=0.66, 95% CI [0.57, 0.76]), with CIs excluding 1.0 at all five temporal snapshots from 10% to 90% of market life. CPI distributions are actively harmful (CRPS/MAE=1.58, 95% CI [1.04, 2.52]; block bootstrap CI [1.06, 2.63] confirming robustness to serial correlation). This heterogeneity is statistically significant (Mann-Whitney p=0.003, scale-free permutation p=0.016). Yet CPI *point* forecasts beat all benchmarks including random walk (d=−0.85, p_adj=0.014) — to our knowledge, the first empirical demonstration *in prediction markets* that point and distributional calibration can diverge independently.
 
-A new surprise-magnitude split reveals that CPI's distributional penalty is concentrated in routine, small-surprise events (CRPS/MAE=3.08) while large-surprise events approach parity (CRPS/MAE=1.19). For the economic surprises where distributional information matters most to traders, CPI distributions are not actively harmful.
+A new surprise-magnitude split reveals that CPI's distributional penalty is concentrated in routine, small-surprise events (CRPS/MAE=3.08) while large-surprise events approach parity (CRPS/MAE=1.19). A CRPS/uniform comparison — mechanically independent of surprise magnitude — confirms this is not purely a denominator artifact: high-surprise distributions are genuinely better calibrated (CPI CRPS/uniform: 1.42 vs 2.34). We document 13 initially significant findings that were invalidated or substantially weakened by methodological corrections (Appendix C), illustrating the importance of rigorous statistical practice in prediction market research.
 
 > **Practical Takeaways:**
-> - **Jobless Claims:** Use the full distribution — it yields a 34% CRPS improvement over point forecasts alone. This finding survives every robustness check: leave-one-out, serial correlation adjustment, signed-difference test (p=0.001), and CI exclusion at all five temporal snapshots.
-> - **CPI:** Use only the implied mean; ignore the distributional spread for routine prints. The distribution adds noise, not signal (all 14 leave-one-out ratios > 1.0). The point forecast significantly beats random walk (d=−0.85, p=0.014 after Bonferroni), TIPS breakeven, and trailing mean. For large surprises, the distributions approach parity — the penalty is concentrated in small-surprise events.
+> - **Jobless Claims:** Use the full distribution — CRPS is 34% below the point-forecast MAE (CRPS/MAE=0.66), meaning the distribution captures substantially more information than the implied mean alone. This finding survives every robustness check: leave-one-out, serial correlation adjustment, signed-difference test (p=0.001), and CI exclusion at all five temporal snapshots.
+> - **CPI:** Use only the implied mean; ignore the distributional spread. The distribution adds noise, not signal (all 14 leave-one-out ratios > 1.0). The point forecast significantly beats random walk (d=−0.85, p=0.014 after Bonferroni), TIPS breakeven, and trailing mean. The distributional penalty is concentrated in small-surprise events (CRPS/MAE=3.08 vs 1.19 for large surprises), confirmed by a mechanically independent CRPS/uniform comparison (2.34 vs 1.42).
 > - **Market designers:** Adding strikes only improves distributional quality if they attract sufficient liquidity. In Jobless Claims markets, events with fewer strikes actually showed better CRPS/MAE (0.46 vs 0.84, p=0.028).
 > - **The CRPS/MAE ratio** tells you which regime you're in. Values below 1 mean the distribution adds value; values above 1 mean it's actively harmful. Monitor it per series.
 >
@@ -28,6 +28,7 @@ A new surprise-magnitude split reveals that CPI's distributional penalty is conc
 | Strongest evidence | 5/5 temporal CIs exclude 1.0 | 14/14 LOO ratios > 1.0 |
 | Point forecast quality | — | Beats random walk (d=−0.85, p=0.014) |
 | Surprise-dependent? | High-surprise 0.60 / Low 0.82 | High-surprise 1.19 / Low 3.08 |
+| CRPS/uniform (mech. independent) | High 0.69 / Low 1.07 | High 1.42 / Low 2.34 |
 
 ---
 
@@ -100,16 +101,22 @@ The CRPS/MAE ratio is strongly *inversely* correlated with surprise magnitude (|
 
 **High-surprise vs low-surprise split:** Splitting at the median surprise magnitude reveals a striking asymmetry:
 
-| Subset | n | CRPS/MAE (tail-aware) | CRPS/MAE (interior) |
-|--------|---|----------------------|---------------------|
-| CPI high-surprise | 7 | 1.19 | 0.86 |
-| CPI low-surprise | 7 | 3.08 | 2.73 |
-| JC high-surprise | 8 | 0.60 | 0.51 |
-| JC low-surprise | 8 | 0.82 | 0.93 |
+| Subset | n | CRPS/MAE (tail-aware) | CRPS/MAE (interior) | CRPS/uniform |
+|--------|---|----------------------|---------------------|-------------|
+| CPI high-surprise | 7 | 1.19 | 1.13 | **1.42** |
+| CPI low-surprise | 7 | 3.08 | 1.77 | **2.34** |
+| JC high-surprise | 8 | 0.60 | 0.52 | **0.69** |
+| JC low-surprise | 8 | 0.82 | 0.87 | **1.07** |
 
-**This is the paper's most actionable finding for traders.** CPI distributions approach parity for large surprises (interior-only CRPS/MAE=0.86, actually *below* 1.0) — exactly the events where distributional information is most valuable for risk management. The CPI penalty is concentrated in routine, small-surprise events where the MAE denominator is mechanically small and the distribution's spread becomes the dominant cost. For large CPI surprises, the distributions perform comparably to or better than point forecasts.
+*Interior-only ratios use the same event partition as the tail-aware split (events grouped by tail-aware surprise magnitude) for consistency.*
 
-The same pattern appears in Jobless Claims: high-surprise events show CRPS/MAE of 0.60 (tail-aware), outperforming low-surprise events (0.82). Even well-calibrated distributions show higher ratios on small surprises — the mechanism is that when the outcome falls near the distribution's center, the sharpness reward (½E|X−X'|) is small relative to the already-small MAE. This is a general property of CRPS/MAE as a diagnostic: it is most informative for large surprises, where the distributional shape genuinely helps or hurts.
+**This finding has practical implications, though part of the CRPS/MAE effect is mechanical.** By construction, high-surprise events have larger MAE denominators, pushing the CRPS/MAE ratio down regardless of distributional quality. To disentangle the mechanical from the informative component, we report CRPS/uniform — a metric that is independent of surprise magnitude since it compares against the uninformative uniform distribution rather than the point forecast.
+
+**The CRPS/uniform comparison confirms the pattern is genuine, not purely mechanical.** CPI high-surprise events have CRPS/uniform=1.42 vs 2.34 for low-surprise events — distributions are genuinely better calibrated for large surprises relative to the uninformative baseline. The same holds for Jobless Claims (0.69 vs 1.07). However, even the high-surprise CPI CRPS/uniform exceeds 1.0, meaning CPI distributions underperform uniform for all events — the improvement is relative, not absolute.
+
+Absolute CRPS for CPI: high-surprise mean=0.129, low-surprise mean=0.087. Absolute MAE: high-surprise mean=0.109, low-surprise mean=0.028. The absolute CRPS is *higher* for large surprises (as expected — larger errors are larger), but the ratio improvement reflects the distribution capturing more of the surprise than the point forecast alone.
+
+The Spearman ρ=−0.68 (p=0.008) provides independent support for the surprise-magnitude relationship, as it does not depend on the specific median split.
 
 **Conditional CRPS/MAE by surprise direction (CPI only):** Upside inflation surprises (n=9) show CRPS/MAE=1.34, while downside surprises (n=5) show CRPS/MAE=2.22. The worse performance on downside surprises reflects the small-MAE mechanical effect (mean MAE=0.038 vs 0.085 for upside), consistent with the Spearman finding rather than a directional asymmetry.
 
@@ -252,7 +259,7 @@ This section collects all robustness checks supporting the headline findings. Ca
 
 ### Snapshot Sensitivity: CRPS/MAE Across Market Lifetime
 
-CRPS/MAE at five timepoints across each market's life, with bootstrap 95% CIs. *(Note: Temporal analysis restricted to events with ≥6 hourly snapshots: n=13 JC, n=14 CPI.)*
+CRPS/MAE at five timepoints across each market's life, with bootstrap 95% CIs (percentile method, 10,000 resamples). *(Note: Temporal analysis restricted to events with ≥6 hourly snapshots: n=13 JC, n=14 CPI.)*
 
 *Tail-aware implied mean (primary):*
 
