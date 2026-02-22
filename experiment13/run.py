@@ -577,6 +577,66 @@ def main():
             print(f"    Drop {r['dropped']}: {r['ratio']:.3f}")
     test_results["leave_one_out_jc"] = loo_results
 
+    # --- Tail-aware Leave-one-out sensitivity for Jobless Claims ---
+    print("\n  --- Leave-one-out sensitivity (JC CRPS/MAE, tail-aware) ---")
+    jc_valid_ta = crps_df[(crps_df["series"] == "KXJOBLESSCLAIMS")].dropna(subset=["kalshi_crps", "point_crps_tail_aware"])
+    loo_results_ta = []
+    if len(jc_valid_ta) >= 4:
+        for drop_idx in range(len(jc_valid_ta)):
+            loo = jc_valid_ta.drop(jc_valid_ta.index[drop_idx])
+            loo_ratio = loo["kalshi_crps"].mean() / loo["point_crps_tail_aware"].mean() if loo["point_crps_tail_aware"].mean() > 0 else float("inf")
+            loo_results_ta.append({
+                "dropped": jc_valid_ta.iloc[drop_idx]["event_ticker"],
+                "ratio": loo_ratio,
+            })
+        loo_ratios_ta = [r["ratio"] for r in loo_results_ta]
+        all_below_1_ta = all(r < 1.0 for r in loo_ratios_ta)
+        print(f"  JC tail-aware LOO CRPS/MAE range: [{min(loo_ratios_ta):.3f}, {max(loo_ratios_ta):.3f}]")
+        print(f"  All {len(loo_ratios_ta)} tail-aware LOO ratios < 1.0: {all_below_1_ta}")
+        worst_ta = max(loo_results_ta, key=lambda r: r["ratio"])
+        best_ta = min(loo_results_ta, key=lambda r: r["ratio"])
+        print(f"  Worst case (drop {worst_ta['dropped']}): ratio={worst_ta['ratio']:.3f}")
+        print(f"  Best case (drop {best_ta['dropped']}): ratio={best_ta['ratio']:.3f}")
+        for r in sorted(loo_results_ta, key=lambda x: x["ratio"]):
+            print(f"    Drop {r['dropped']}: {r['ratio']:.3f}")
+    test_results["leave_one_out_jc_tail_aware"] = loo_results_ta
+
+    # --- CRPS minus MAE signed difference test ---
+    print("\n  --- CRPS - MAE signed difference test (complementary to ratio) ---")
+    crps_diff_results = {}
+    for series in ["KXCPI", "KXJOBLESSCLAIMS"]:
+        valid = crps_df[crps_df["series"] == series].dropna(subset=["kalshi_crps", "point_crps_tail_aware"])
+        if len(valid) < 4:
+            continue
+        diffs = valid["kalshi_crps"].values - valid["point_crps_tail_aware"].values
+        mean_diff = float(np.mean(diffs))
+        median_diff = float(np.median(diffs))
+        # One-sample Wilcoxon signed-rank test: H0: median difference = 0
+        try:
+            w_stat, w_p = stats.wilcoxon(diffs, alternative='two-sided')
+            # Direction: positive means CRPS > MAE (distribution hurts)
+            n_positive = int(np.sum(diffs > 0))
+            n_negative = int(np.sum(diffs < 0))
+        except Exception:
+            w_stat, w_p = None, None
+            n_positive, n_negative = 0, 0
+        crps_diff_results[series] = {
+            "n": len(valid),
+            "mean_diff": mean_diff,
+            "median_diff": median_diff,
+            "wilcoxon_stat": float(w_stat) if w_stat is not None else None,
+            "wilcoxon_p": float(w_p) if w_p is not None else None,
+            "n_positive": n_positive,
+            "n_negative": n_negative,
+            "interpretation": "Distribution hurts (CRPS > MAE)" if median_diff > 0 else "Distribution helps (CRPS < MAE)",
+        }
+        sign_str = "+" if mean_diff > 0 else ""
+        p_str = f", Wilcoxon p={w_p:.4f}" if w_p is not None else ""
+        print(f"  {series} (n={len(valid)}): mean(CRPS-MAE)={sign_str}{mean_diff:.4f}, "
+              f"median={sign_str}{median_diff:.4f}, "
+              f"{n_positive}+ / {n_negative}- events{p_str}")
+    test_results["crps_minus_mae"] = crps_diff_results
+
     # --- 2-strike vs 3+-strike CRPS/MAE breakdown ---
     print("\n  --- CRPS/MAE by strike count ---")
     strike_breakdown = {}
@@ -732,10 +792,13 @@ def main():
             try:
                 crps_val = compute_crps(strikes, cdf_values, realized)
                 uniform_val = compute_uniform_crps(min(strikes), max(strikes), realized)
-                # Compute implied mean at this snapshot for MAE
+                # Compute implied mean at this snapshot for MAE (both interior and tail-aware)
                 pdf = compute_implied_pdf(strikes, cdf_values)
                 implied_mean = pdf.get("implied_mean") if pdf else None
                 point_mae = abs(implied_mean - realized) if implied_mean is not None else None
+                # Tail-aware mean
+                ta_mean = compute_tail_aware_mean(strikes, cdf_values)
+                point_mae_ta = abs(ta_mean - realized) if ta_mean is not None else None
                 temporal_crps.append({
                     "event_ticker": event_ticker,
                     "series": series,
@@ -745,6 +808,7 @@ def main():
                     "kalshi_crps": crps_val,
                     "uniform_crps": uniform_val,
                     "point_mae": point_mae,
+                    "point_mae_ta": point_mae_ta,
                     "beats_uniform": crps_val < uniform_val,
                 })
             except Exception:
@@ -808,6 +872,42 @@ def main():
                     print(f"    {series} {pct} (n={n_tp}): CRPS/MAE={point_est:.3f} "
                           f"[{ci_lo:.2f}, {ci_hi:.2f}]{inc_str}")
         test_results["temporal_crps_mae_cis"] = temporal_ci_results
+
+        # --- Per-timepoint TAIL-AWARE CRPS/MAE bootstrap CIs ---
+        print("\n  --- Per-timepoint CRPS/MAE bootstrap CIs (TAIL-AWARE) ---")
+        temporal_ci_ta_results = {}
+        rng_temporal_ta = np.random.default_rng(43)
+        for series in ["KXCPI", "KXJOBLESSCLAIMS"]:
+            s = temporal_df[temporal_df["series"] == series]
+            temporal_ci_ta_results[series] = {}
+            for pct in ["10%", "25%", "50%", "75%", "90%"]:
+                t = s[s["lifetime_pct"] == pct]
+                valid_mae_ta = t.dropna(subset=["point_mae_ta"])
+                if len(valid_mae_ta) < 3:
+                    continue
+                crps_arr = valid_mae_ta["kalshi_crps"].values
+                mae_arr = valid_mae_ta["point_mae_ta"].values
+                n_tp = len(valid_mae_ta)
+                boot_ratios = []
+                for _ in range(10000):
+                    idx = rng_temporal_ta.integers(0, n_tp, size=n_tp)
+                    boot_crps = crps_arr[idx].mean()
+                    boot_mae = mae_arr[idx].mean()
+                    if boot_mae > 0:
+                        boot_ratios.append(boot_crps / boot_mae)
+                if len(boot_ratios) > 100:
+                    ci_lo = float(np.percentile(boot_ratios, 2.5))
+                    ci_hi = float(np.percentile(boot_ratios, 97.5))
+                    point_est = crps_arr.mean() / mae_arr.mean() if mae_arr.mean() > 0 else None
+                    includes_one = ci_lo <= 1.0 <= ci_hi
+                    temporal_ci_ta_results[series][pct] = {
+                        "ratio": point_est, "ci_lo": ci_lo, "ci_hi": ci_hi,
+                        "n": n_tp, "includes_one": includes_one,
+                    }
+                    inc_str = "  [includes 1.0]" if includes_one else "  [EXCLUDES 1.0]"
+                    print(f"    {series} {pct} (n={n_tp}): CRPS/MAE(tail-aware)={point_est:.3f} "
+                          f"[{ci_lo:.2f}, {ci_hi:.2f}]{inc_str}")
+        test_results["temporal_crps_mae_cis_tail_aware"] = temporal_ci_ta_results
 
     # ================================================================
     # PHASE 6: CPI HORSE RACE (POINT FORECASTS)
