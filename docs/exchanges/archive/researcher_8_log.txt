@@ -1,0 +1,26 @@
+The paper is at ~6,886 words (including markdown formatting). The net word increase is modest given the substantial analytical additions.
+
+Let me do a final summary of everything accomplished this iteration:
+
+## Summary of Iteration 8 Changes
+
+### Code Changes (experiment13/run.py)
+1. **Phase 7C: Per-event temporal CRPS/MAE trajectories** (~120 lines) — The reviewer's "one big thing." Tests whether the three-phase U-shape pattern persists at the per-event level. Results:
+   - CPI: 7/14 (50%) show U-shape — population tendency, not universal
+   - JC: 4/13 (31%) show U-shape — no dominant pattern
+   - Wilcoxon mid > early: CPI p=0.134, not significant
+   - Mid-life CDF monotonicity: **0 violations** across all 27 mid-life snapshots
+   
+2. **Phase 7D: Strike-count significance test** (~30 lines) — Elevated the JC 2-strike vs 3+-strike observation to a statistically significant finding: Mann-Whitney p=0.028, r=0.66
+
+3. **FRED date windows** — Updated from "2025-12-01" to "2026-06-01" to future-proof
+
+### Paper Changes (docs/findings.md)
+1. **CPI harmful paragraph**: Added dual CI convergence highlight + thin-margin acknowledgment
+2. **Strike-count section**: Expanded with Mann-Whitney significance result and market design tension
+3. **Market design implications**: Added liquidity caveat
+4. **Temporal hypothesis**: Complete rewrite with per-event data (50% U-shape, median trajectory, non-significant Wilcoxon tests)
+5. **Methodology corrections**: Added items 17 (mid-life CDF monotonicity) and 18 (per-event trajectories)
+
+### Key Takeaway
+The three-phase temporal hypothesis is now backed by per-event data showing it's a population-level tendency (50%) rather than a universal pattern — this is more honest and more credible than the previous framing. The JC strike-count finding (p=0.028) is a genuinely new significant result that adds important nuance for market designers. And the mid-life CDF monotonicity check (0 violations) eliminates a potential critique cleanly.
