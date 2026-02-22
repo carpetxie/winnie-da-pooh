@@ -1,0 +1,14 @@
+Critique written to `docs/exchanges/critique_latest.md`. Here's the summary:
+
+**Iteration 9 — MINOR REVISIONS**
+
+The paper is in excellent shape. All iteration 8 changes (Section 4 demotion, abstract restructuring, p-value consistency, worked-example framing) were well-executed.
+
+**The One Big Thing:** The headline CPI CRPS/MAE=1.32 comes from the worst-case (mid-life) snapshot. Averaging across all five timepoints in the paper's own sensitivity table gives ~0.99 — essentially the null. The paper should explicitly state this lifecycle perspective. It actually *strengthens* the narrative: CPI's problem is temporal (concentrated at mid-life), not absolute, making the market design recommendations more precise.
+
+**Should Fix:**
+1. Missing Gneiting & Raftery (2007) — the foundational CRPS proper scoring rule reference
+2. Serial correlation check for Jobless Claims (CPI has one; JC doesn't — asymmetric treatment)
+3. Minor units mismatch in the no-arbitrage comparison table
+
+**Verdict:** This should be the final iteration. The paper is at the Kalshi Research blog publishability threshold.

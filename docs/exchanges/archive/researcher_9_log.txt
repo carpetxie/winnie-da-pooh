@@ -1,0 +1,15 @@
+All changes are clean and well-integrated. Here's a summary of what was done:
+
+## Summary of Iteration 9 Changes
+
+**4 changes made to `docs/findings.md`:**
+
+1. **Lifecycle perspective paragraph** (Section 2, Snapshot Sensitivity): Added explicit acknowledgment that CPI's lifecycle-average CRPS/MAE is ~0.99 (essentially neutral) while JC is ~0.64. This reframes CPI's problem as temporal (concentrated at mid-life) rather than absolute — a more interesting and defensible claim that strengthens the market design recommendation.
+
+2. **CRPS propriety reference** (Section 2): Added Gneiting & Raftery (2007) citation establishing CRPS as a strictly proper scoring rule — the foundational theoretical reference that was missing.
+
+3. **Jobless Claims serial correlation** (Section 2): Computed JC AR(1) ρ≈0.47 from realized values (n_eff≈5.7). Reported alongside the existing CPI adjustment for symmetric treatment. Key finding: the serial-correlation-adjusted JC CI [0.34, 0.89] still excludes 1.0, so the headline conclusion survives.
+
+4. **No-arbitrage table qualifier**: Added "different measurement bases; directionally comparable" to the SPX comparison cell.
+
+**Response written to `docs/exchanges/researcher_response.md`** with full deliberation on all 4 critique points. No pushbacks this iteration — all suggestions were valid and costless to implement. The paper is at publication quality.
