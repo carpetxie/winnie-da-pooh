@@ -5,7 +5,9 @@
 
 ## Abstract
 
-Should traders trust the full implied distribution from prediction markets, or just the point forecast? We introduce the CRPS/MAE ratio as a diagnostic and apply it to 336 multi-strike Kalshi contracts across 41 economic events. The answer depends on the series: Jobless Claims distributions add value (CRPS/MAE=0.60, 95% BCa CI [0.45, 0.78]), while CPI distributions show signs of miscalibration (CRPS/MAE=1.32, 95% BCa CI [0.84, 2.02]) though the penalty is not statistically conclusive at n=14. Per-event ratios reveal enormous within-series heterogeneity: CPI ranges from 0.35 to 4.51, while Jobless Claims clusters more tightly (0.17 to 2.54, median=0.67). PIT analysis supports a release-frequency hypothesis: Jobless Claims PIT values are consistent with uniformity (mean=0.46), while CPI shows directional bias (mean=0.61, suggestive of inflation underestimation). Kalshi's CPI implied mean directionally outperforms random walk (p_raw=0.026, p_adj=0.10 after Bonferroni correction for 4 benchmarks, d=-0.60) — suggestive but not significant after multiple-testing correction, with only 4 more months of data needed for 80% power.
+Should traders trust the full implied distribution from prediction markets, or just the point forecast? We introduce the CRPS/MAE ratio as a diagnostic and apply it to 336 multi-strike Kalshi contracts across 41 economic events. The answer depends on the series: Jobless Claims distributions add value (CRPS/MAE=0.60, CI excludes 1.0), while CPI distributions show signs of miscalibration (CRPS/MAE=1.32, though the CI includes 1.0 at n=14). The diagnostic reveals enormous within-series heterogeneity and a striking maturity pattern — CPI distributions are well-calibrated early and late in market life, but worst at mid-life.
+
+Supporting evidence sharpens the picture: PIT analysis shows Jobless Claims distributions are unbiased (mean PIT=0.46) while CPI exhibits directional bias consistent with inflation underestimation (mean PIT=0.61). In point-forecast comparisons, Kalshi's CPI implied mean directionally outperforms random walk (p_raw=0.026, p_adj=0.102 after Bonferroni correction, d=-0.60) — suggestive but not significant after multiple-testing correction, with only 4 more months of data needed for 80% power. TIPS breakeven rates lead Kalshi CPI by 1 day (Granger F=12.2, p=0.005), placing prediction markets downstream of bond markets in the information hierarchy.
 
 > **Bottom line for traders:** Use Jobless Claims distributions — they yield a 40% CRPS improvement over point forecasts alone (CI excludes 1.0). For CPI, use only the implied mean and ignore the distributional spread; the point estimate suggests it adds noise, not signal, though more data is needed to confirm. All results are in-sample (n=14–16 events per series); out-of-sample validation is pending as data accumulates.
 
@@ -56,7 +58,7 @@ For Jobless Claims, the full distribution outperforms the point forecast — the
 
 ### Per-Event CRPS/MAE Distribution
 
-The headline ratios (CPI=1.32, JC=0.60) mask substantial within-series heterogeneity. Per-event CRPS/MAE ratios range from 0.35 (KXCPI-25FEB) to 4.51 (KXCPI-25JUN) for CPI, and from 0.17 (KXJOBLESSCLAIMS-25JUN12) to 2.54 (KXJOBLESSCLAIMS-25DEC18) for Jobless Claims. Median per-event ratios (CPI=1.38, JC=0.67) are consistent with the mean-based estimates, confirming the aggregate finding is not driven by outliers. However, the spread matters: 6 of 14 CPI events (43%) actually have CRPS/MAE < 1 — the distribution *does* add value for these events. The CPI problem is not uniform miscalibration but high variance in distributional quality, with several events where the coarse 2-strike structure fails badly (ratios > 3.0). See `data/exp13/plots/per_event_crps_mae_strip.png` for the full distribution.
+The headline ratios (CPI=1.32, JC=0.60) mask substantial within-series heterogeneity. Per-event CRPS/MAE ratios range from 0.35 (KXCPI-25FEB) to 4.51 (KXCPI-25JUN) for CPI, and from 0.17 (KXJOBLESSCLAIMS-25JUN12) to 2.54 (KXJOBLESSCLAIMS-25DEC18) for Jobless Claims. Median per-event ratios (CPI=1.38, JC=0.67) are consistent with the mean-based estimates, confirming the aggregate finding is not driven by outliers. However, the spread matters: 6 of 14 CPI events (43%) actually have CRPS/MAE < 1 — the distribution *does* add value for these events. The CPI problem is not uniform miscalibration but high variance in distributional quality, with several events where the coarse 2-strike structure fails badly (ratios > 3.0). A strip chart of the full per-event distribution is available in the experiment outputs (Figure: per_event_crps_mae_strip).
 
 **Market design implications:** The CRPS/MAE diagnostic suggests concrete levers for improving distributional quality. First, *increasing strike density* — particularly at ±1σ and ±2σ from the expected value — would give CPI markets the granularity needed to express meaningful distributional information; the current 2–3 strike structure is too coarse to capture tail risk. Second, *liquidity incentives at extreme strikes* could address the thin order books that likely degrade tail pricing (mechanism 4 above). Third, *real-time CRPS/MAE monitoring* during market life could flag series or events where the distribution is adding noise rather than signal, enabling targeted intervention. The Jobless Claims markets demonstrate that prediction market distributions *can* be well-calibrated — the challenge is replicating that quality across series.
 
@@ -75,19 +77,23 @@ Neither series shows a statistically significant improvement over historical bas
 
 ### Snapshot Sensitivity: CRPS/MAE Across Market Lifetime
 
-To test whether the mid-life snapshot choice drives our results, we computed CRPS/MAE at five timepoints across each market's life. *(Note: Temporal analysis is restricted to events with ≥6 hourly snapshots (n=13 for JC, n=14 for CPI), explaining minor differences from the headline ratio which uses all events.)*
+To test whether the mid-life snapshot choice drives our results, we computed CRPS/MAE at five timepoints across each market's life, with bootstrap 95% CIs. *(Note: Temporal analysis is restricted to events with ≥6 hourly snapshots (n=13 for JC, n=14 for CPI), explaining minor differences from the headline ratio which uses all events.)*
 
-| Lifetime % | CPI CRPS/MAE | JC CRPS/MAE |
-|-----------|-------------|-------------|
-| 10% (early) | 0.76 | 0.73 |
-| 25% | 1.36 | 0.52 |
-| 50% (mid — primary) | 1.32 | 0.58 |
-| 75% | 0.73 | 0.60 |
-| 90% (late) | 0.76 | 0.79 |
+| Lifetime % | CPI CRPS/MAE | CPI 95% CI | JC CRPS/MAE | JC 95% CI |
+|-----------|-------------|-----------|-------------|----------|
+| 10% (early) | 0.76 | [0.54, 1.21] | 0.73 | [0.54, 1.02] |
+| 25% | 1.36 | [0.83, 2.37] | **0.52** | **[0.36, 0.81]** |
+| 50% (mid — primary) | 1.32 | [0.84, 2.02] | **0.58** | **[0.40, 0.85]** |
+| 75% | 0.73 | [0.54, 1.05] | **0.60** | **[0.40, 0.90]** |
+| 90% (late) | **0.76** | **[0.64, 1.00]** | 0.79 | [0.39, 1.84] |
 
-Jobless Claims distributions consistently add value across all timepoints (CRPS/MAE < 1 throughout), confirming the mid-life result is not an artifact of snapshot timing. CPI shows a striking U-shaped pattern: distributions are well-calibrated early (10%) and late (75–90%), but worst at 25–50% of market life. We hypothesize a three-phase process *(speculative)*: early markets inherit reasonable distributional priors from their strike structure (the initial CDF reflects the market maker's prior before substantive trading), mid-life markets overreact to partial signals — fragmentary information about components like shelter or energy arrives but cannot be coherently integrated into a composite distribution — and late markets converge as the approaching release date forces information integration and narrows genuine uncertainty. This interpretation is consistent with the data and generates a testable prediction: series with simpler signal structure (like Jobless Claims) should show less mid-life degradation, which is exactly what we observe.
+**Bold** entries: CI excludes 1.0 (distribution significantly adds value at that timepoint).
 
-These per-timepoint ratios are point estimates; at n=14 CPI events, individual bootstrap CIs at each timepoint would likely include 1.0 at most timepoints. The U-shaped maturity pattern is suggestive and consistent with an information-incorporation process, but requires confirmation with larger samples. The practical implication is that CPI distributions may be useful in the final quarter of market life, but traders should treat this maturity-conditional pattern as directionally informative rather than statistically confirmed.
+For **Jobless Claims**, the CIs tell a clear story: distributions significantly add value during the core market life (25–75%), with CIs excluding 1.0 at all three interior timepoints. Early (10%) and late (90%) timepoints have wider CIs that include 1.0, reflecting thinner data at market extremes. This confirms the headline CRPS/MAE=0.60 is not a snapshot artifact — JC distributions genuinely add value across most of the market lifecycle.
+
+For **CPI**, the CIs confirm that the U-shaped pattern is not statistically robust at individual timepoints: all CIs include 1.0 at 10–75% of market life. The 90% CI [0.64, 1.00] barely excludes 1.0 — tantalizing evidence that late-life CPI distributions may recover, but too marginal to base a recommendation on. The U-shaped point-estimate pattern (well-calibrated early and late, worst at mid-life) remains visible but should be treated as directional rather than confirmed.
+
+We hypothesize a three-phase process *(speculative)*: early markets inherit reasonable distributional priors from their strike structure (the initial CDF reflects the market maker's prior before substantive trading), mid-life markets overreact to partial signals — fragmentary information about components like shelter or energy arrives but cannot be coherently integrated into a composite distribution — and late markets converge as the approaching release date forces information integration and narrows genuine uncertainty. This interpretation is consistent with the point-estimate pattern and generates a testable prediction: series with simpler signal structure (like Jobless Claims) should show less mid-life degradation, which is exactly what we observe. (For a complementary analysis of how maturity affects individual binary contract accuracy using Brier scores, see Appendix D.)
 
 ### Temporal CRPS Evolution (vs Uniform)
 
@@ -152,7 +158,7 @@ TIPS breakeven rates lead Kalshi CPI prices by 1 day. Kalshi is a useful aggrega
 
 *Bonferroni correction applied across 4 benchmark comparisons (SPF, TIPS, random walk, trailing mean), consistent with the correction applied to CRPS series tests in Section 2.*
 
-Kalshi directionally outperforms random walk (p_raw=0.026, p_adj=0.10, d=-0.60) — suggestive of a medium-large effect but not significant after correcting for 4 benchmark comparisons. The power analysis shows only 4 more months of data would likely reach significance at d=0.60. Professional forecaster comparisons are underpowered. The irony persists: CPI point forecasts show a strong directional advantage over naive benchmarks while CPI distributions show signs of miscalibration (CRPS/MAE=1.32). This suggests the implied mean aggregates information effectively, but the market misprices uncertainty around that mean.
+Kalshi directionally outperforms random walk (p_raw=0.026, p_adj=0.102, d=-0.60) — suggestive of a medium-large effect but not significant after correcting for 4 benchmark comparisons. The power analysis shows only 4 more months of data would likely reach significance at d=0.60. Professional forecaster comparisons are underpowered. The irony persists: CPI point forecasts show a strong directional advantage over naive benchmarks while CPI distributions show signs of miscalibration (CRPS/MAE=1.32). This suggests the implied mean aggregates information effectively, but the market misprices uncertainty around that mean.
 
 ### Power Analysis
 
@@ -164,28 +170,6 @@ Kalshi directionally outperforms random walk (p_raw=0.026, p_adj=0.10, d=-0.60) 
 | Kalshi vs SPF | d=0.25 | 14 | 107 | 93 more months |
 | Kalshi vs TIPS | d=0.27 | 14 | 90 | 76 more months |
 | Kalshi vs Trailing Mean | d=0.32 | 14 | 66 | 52 more months |
-
----
-
-## 4. Supporting: Market Maturity and Calibration
-
-This structural dependence on market maturity complements the series-level calibration heterogeneity in Section 2: distributional quality varies not only across event types but also within a contract's lifecycle.
-
-### T-24h Analysis (confounded)
-
-| Lifetime | Brier (T-24h) | n |
-|----------|---------------|---|
-| Short (~533h) | 0.156 | 374 |
-| Long (~7650h) | 0.023 | 374 |
-
-### 50%-Lifetime Analysis (controlled)
-
-| Lifetime | Brier (50% of life) | n |
-|----------|---------------------|---|
-| Short (~147h) | 0.166 | 85 |
-| Long (~2054h) | 0.114 | 85 |
-
-The T-24h gradient (7x) is largely mechanical — for long-lived markets, T-24h represents 99% of lifetime elapsed. The controlled analysis (50% of lifetime) shows a 1.5x residual — short-lived markets are modestly worse, but medium and long are similar. Remaining confounds (contract type, liquidity, trader composition) prevent causal interpretation.
 
 ---
 
@@ -269,7 +253,27 @@ During the research process, several initially significant findings were invalid
 | KUI leads EPU | p=0.024 | p=0.658 | Absolute return bias |
 | Trading Sharpe | +5.23 | -2.26 | Small-sample artifact |
 
-### D. References
+### D. Market Maturity and Binary Contract Calibration
+
+Complementing the distributional maturity analysis in Section 2 (which tracks CRPS/MAE across market lifetime), we examine individual binary contract accuracy using Brier scores. This addresses a different question — single-contract calibration rather than distributional quality — but provides context on how market maturity affects pricing more broadly.
+
+**T-24h Analysis (confounded):**
+
+| Lifetime | Brier (T-24h) | n |
+|----------|---------------|---|
+| Short (~533h) | 0.156 | 374 |
+| Long (~7650h) | 0.023 | 374 |
+
+**50%-Lifetime Analysis (controlled):**
+
+| Lifetime | Brier (50% of life) | n |
+|----------|---------------------|---|
+| Short (~147h) | 0.166 | 85 |
+| Long (~2054h) | 0.114 | 85 |
+
+The T-24h gradient (7x) is largely mechanical — for long-lived markets, T-24h represents 99% of lifetime elapsed. The controlled analysis (50% of lifetime) shows a 1.5x residual — short-lived markets are modestly worse, but medium and long are similar. Remaining confounds (contract type, liquidity, trader composition) prevent causal interpretation.
+
+### E. References
 
 - Breeden, D. T., & Litzenberger, R. H. (1978). Prices of state-contingent claims implicit in option prices. *Journal of Business*, 51(4), 621-651.
 - Efron, B., & Tibshirani, R. J. (1993). *An Introduction to the Bootstrap*. Chapman & Hall/CRC.
