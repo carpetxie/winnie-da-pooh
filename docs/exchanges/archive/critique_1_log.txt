@@ -1,0 +1,13 @@
+The critique for Iteration 11 has been written to `docs/exchanges/critique_latest.md`. Here's a summary of the key points:
+
+**Overall**: The paper has comprehensively addressed all iteration 10 suggestions. It's now blog-publishable — no statistical blockers remain. Scores improved modestly (Economic Significance 8→8.5, Narrative Clarity 8→8.5, Blog Publishability 8→8.5).
+
+**The One Big Thing**: Add a **volume/liquidity correlation analysis** to empirically test one of the four proposed mechanisms for CPI-JC divergence. The `volume` field is available in the data but unused. ~15 lines of code would transform the "Why Do They Diverge?" section from four untested hypotheses to three hypotheses plus one empirical finding.
+
+**Key "Should Fix" items**:
+1. Sharpen the CPI CRPS/uniform > 1.0 implication — CPI distributions are worse than *random guessing*, not just worse than point forecasts
+2. Preempt specification-sensitivity objection (interior-only CI includes 1.0; tail-aware excludes it)
+3. Add chronological stability check (first 7 vs last 7 CPI events)
+4. Abstract may be long for blog format
+
+**Verdict**: Minor Revisions — publishable today, but these changes would make it distinctly stronger.
