@@ -1,0 +1,24 @@
+## Summary of Iteration 6 Changes
+
+### Code Changes
+1. **Bug fix** (`experiment13/horse_race.py`): Fixed random walk data leakage — first event forecast changed from 0.3 (the realized value, i.e., data leakage) to 0.2 (October 2024 CPI MoM, the correct prior-month value).
+2. **New sensitivity check** (`experiment13/horse_race.py`): Added first-event exclusion analysis running all 4 benchmark comparisons at n=13, with Cohen's d and Bonferroni p-values.
+3. **Output** (`experiment13/run.py`): Added printing of sensitivity results.
+
+### Key Results
+The data leakage fix was the most impactful single change across all 6 iterations:
+
+| Metric | Before (buggy) | After (corrected) |
+|--------|----------------|-------------------|
+| Random walk MAE | 0.143 | 0.150 |
+| Cohen's d | −0.71 | **−0.85** |
+| p (raw) | 0.015 | **0.003** |
+| p (Bonferroni) | 0.059 | **0.014** ✓ |
+
+The horse race headline is now **significant at 5% after Bonferroni correction** — a major upgrade. The first-event exclusion sensitivity confirms robustness (n=13: d=−0.89, p_bonf=0.016).
+
+### Paper Changes
+- Updated all horse race numbers throughout (abstract, takeaways, Section 3 table, narrative, power analysis, downgraded findings table)
+- Made market design recommendations concrete (specific CPI strike placements, distributional quality dashboard)
+- Added trailing mean warm-up note and temporal CI bootstrap explanation
+- Full deliberation written to `docs/exchanges/researcher_response.md`
