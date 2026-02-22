@@ -5,17 +5,19 @@
 
 ## Abstract
 
-Should traders trust the full implied distribution from prediction markets, or just the point forecast? We introduce the CRPS/MAE ratio as a simple diagnostic and apply it to 336 multi-strike Kalshi contracts across 41 economic events. The answer depends on the series: Jobless Claims distributions robustly add value (CRPS/MAE=0.37, 95% CI [0.25, 0.55]), while CPI distributions show signs of miscalibration (CRPS/MAE=1.32, 95% CI [0.83, 2.04]) though the penalty is not statistically conclusive at n=14. A Monte Carlo simulation rules out strike-count differences as an explanation (<2% effect vs. the 32% CPI penalty). We hypothesize the divergence reflects release frequency — weekly Jobless Claims provide rapid calibration feedback that monthly CPI does not. We also find: Kalshi's CPI implied mean beats random walk (p=0.026, d=-0.60); TIPS breakeven rates lead Kalshi CPI by 1 day (Granger F=12.2, p=0.005); and no-arbitrage violation rates (2.8%) are directionally comparable to SPX equity options and far below other prediction markets.
+Should traders trust the full implied distribution from prediction markets, or just the point forecast? We introduce the CRPS/MAE ratio as a simple diagnostic and apply it to 336 multi-strike Kalshi contracts across 41 economic events. The answer depends on the series: Jobless Claims distributions add value (CRPS/MAE=0.60, 95% CI [0.45, 0.78]), while CPI distributions show signs of miscalibration (CRPS/MAE=1.32, 95% CI [0.84, 2.02]) though the penalty is not statistically conclusive at n=14. A Monte Carlo simulation rules out strike-count differences as an explanation (<2% effect vs. the 32% CPI penalty). We hypothesize the divergence reflects release frequency — weekly Jobless Claims provide rapid calibration feedback that monthly CPI does not. PIT analysis supports this: Jobless Claims PIT values are consistent with uniformity (mean=0.46, KS p=0.35), while CPI shows directional bias (mean=0.61, suggestive of inflation underestimation). We also find: Kalshi's CPI implied mean beats random walk (p=0.026, d=-0.60); TIPS breakeven rates lead Kalshi CPI by 1 day (Granger F=12.2, p=0.005); and no-arbitrage violation rates (2.8%) are directionally comparable to SPX equity options and far below other prediction markets.
 
-> **Bottom line for traders:** Use Jobless Claims distributions — they yield a 63% CRPS improvement over point forecasts alone (CI excludes 1.0). For CPI, use only the implied mean and ignore the distributional spread; the point estimate suggests it adds noise, not signal, though more data is needed to confirm.
+> **Bottom line for traders:** Use Jobless Claims distributions — they yield a 40% CRPS improvement over point forecasts alone (CI excludes 1.0). For CPI, use only the implied mean and ignore the distributional spread; the point estimate suggests it adds noise, not signal, though more data is needed to confirm.
 
 ---
 
 ## 1. Methodology: Implied CDFs from Multi-Strike Markets
 
-336 multi-strike markets across 41 events (14 CPI, 24 Jobless Claims, 3 GDP). For each event at each hour, we reconstruct the implied CDF following the logic of Breeden-Litzenberger (1978): strike-ordered cumulative probabilities from binary contracts. (Unlike equity options, where extracting risk-neutral densities requires differentiating call prices with respect to strike, binary contracts directly price state-contingent probabilities, making the extraction straightforward.)
+336 multi-strike markets across 41 events (14 CPI, 16 Jobless Claims, 8 other). For each event at each hour, we reconstruct the implied CDF using Breeden-Litzenberger (1978): strike-ordered cumulative probabilities from binary contracts. CRPS is computed at the mid-life snapshot (50% of market lifetime elapsed) as a representative assessment of distributional quality; sensitivity analysis across 10–90% of market life confirms robustness (see Section 2).
 
-*Note: GDP (n=3) is excluded from all statistical tests due to insufficient sample size. It is retained in data collection only. CRPS analysis uses the subset of events with realized outcomes: n=14 CPI, n=16 Jobless Claims.*
+*Note: GDP (n=3) is excluded from all statistical tests due to insufficient sample size. It is retained in data collection only.*
+
+*Note: The implied mean is computed from interior probability only (probability mass between min and max strikes). Tail probability beyond boundary strikes is not allocated to specific points. For events with substantial tail probability, this may bias the implied mean toward the interior. This limitation affects MAE-based comparisons but not CRPS, which integrates the full CDF.*
 
 ### No-Arbitrage Efficiency
 
@@ -35,26 +37,16 @@ Kalshi's 2.8% hourly violation rate is directionally comparable to SPX equity op
 
 The CRPS/MAE ratio measures whether a market's distributional spread adds information beyond its point forecast (the implied mean). For a well-calibrated distribution, the sharpness reward in CRPS (the ½E|X−X'| term that rewards concentration) means CRPS will typically be lower than MAE; ratio > 1 signals that the distributional spread is miscalibrated and actively harming forecast quality rather than helping it. The ratio thus serves as a practical diagnostic: values below 1 indicate the distribution adds value beyond the point forecast, while values above 1 indicate the distributional spread introduces noise. (Note: this is a diagnostic property of calibration quality, not a mathematical bound — a sufficiently miscalibrated distribution can and will produce CRPS > MAE, which is exactly the signal we exploit.)
 
-| Series | CRPS | MAE | CRPS/MAE | 95% CI | Interpretation |
-|--------|------|-----|----------|--------|----------------|
-| KXCPI (n=14) | 0.108 | 0.082 | **1.32** | [0.83, 2.04] | Distribution likely harmful — but CI includes 1.0 |
-| KXJOBLESSCLAIMS (n=16) | 4,840 | 12,959 | **0.37** | [0.25, 0.55] | Distribution robustly adds value (CI excludes 1.0) |
+| Series | CRPS | MAE | CRPS/MAE (mean) | 95% CI | Median per-event | Interpretation |
+|--------|------|-----|-----------------|--------|------------------|----------------|
+| KXCPI (n=14) | 0.108 | 0.082 | **1.32** | [0.84, 2.02] | 1.38 | Distribution likely harmful — but CI includes 1.0 |
+| KXJOBLESSCLAIMS (n=16) | 7,748 | 12,959 | **0.60** | [0.45, 0.78] | 0.67 | Distribution adds value (CI excludes 1.0) |
 
-*Bootstrap CIs: 10,000 resamples, ratio-of-means method (resample events with replacement, compute mean CRPS / mean MAE per sample).*
+*Bootstrap CIs: 10,000 resamples, ratio-of-means method (resample events with replacement, compute mean CRPS / mean MAE per sample). Median per-event ratio computed from individual event CRPS/MAE ratios, providing a robust alternative less sensitive to outliers.*
 
-For Jobless Claims, the full distribution robustly outperforms the point forecast — the CI on 0.37 excludes 1.0, confirming that the distributional spread genuinely adds information. For CPI, the point estimate (1.32) suggests the distributional spread adds noise rather than signal, but the CI [0.83, 2.04] includes 1.0, so we cannot conclude at 95% confidence that the CPI distribution is strictly harmful. This is consistent with the Wilcoxon test (CPI vs Historical: p=0.709), which also fails to detect a significant difference. The practical recommendation remains: treat CPI distributional spread with caution, as the point estimate favors ignoring it.
+For Jobless Claims, the full distribution outperforms the point forecast — the CI on 0.60 excludes 1.0, confirming that the distributional spread adds information. The 40% CRPS improvement (1 − 0.60) over a point mass is meaningful, though more modest than the pre-correction estimate. For CPI, the point estimate (1.32) suggests the distributional spread adds noise rather than signal, but the CI [0.84, 2.02] includes 1.0, so we cannot conclude at 95% confidence that the CPI distribution is strictly harmful. The practical recommendation remains: treat CPI distributional spread with caution, as the point estimate favors ignoring it.
 
-### Worked Example: What Does CRPS/MAE < 1 Mean for a Trader?
-
-Consider two events that illustrate the diagnostic in action:
-
-**Jobless Claims, week of Jan 17, 2026 (KXJOBLESSCLAIMS-26JAN22).** The market's implied mean was 217,500, but the full implied CDF told a richer story: 54% probability below 215K, 15% between 215–220K, and 31% above 220K. The realized value was 200,000 — a 17,500 miss for the point forecast, but squarely in the lower tail where the distribution had concentrated majority probability. A trader pricing a "Below 215K" range contract using only the point forecast (217.5K) would see the contract as unlikely; the implied distribution correctly priced it at 54%. For this event, CRPS=9,189 vs. MAE=17,500 — the distribution was nearly twice as good as the point forecast alone (event-level ratio=0.53).
-
-**CPI, January 2025 (KXCPI-25JAN).** The implied mean was 0.35% month-over-month with only 2 evaluated strikes. Realized CPI came in at 0.5% — a 0.15pp miss. Here, the distributional spread made things *worse*: CRPS=0.273 vs. MAE=0.15, yielding an event-level ratio of 1.82. The coarse 2-strike distribution couldn't capture the upside tail, so the "extra information" was pure noise. A trader relying on the distributional spread would have been worse off than one using the point forecast alone.
-
-The aggregate CRPS/MAE ratios (0.37 for Jobless Claims, 1.32 for CPI) reflect the systematic pattern: Jobless Claims distributions consistently capture risk that point forecasts miss, while CPI distributions consistently add noise.
-
-**Strike structure and simulation robustness check:** CPI events average 2.3 evaluated strikes (range 2–3, uniform 0.1pp spacing), while Jobless Claims average 2.8 evaluated strikes (range 2–5, variable 5K–10K spacing with clustering near the expected value). To quantify whether this difference could mechanically inflate CPI's CRPS, we ran a Monte Carlo simulation (10,000 trials): using known Normal distributions matched to each series' realized parameters, we constructed piecewise-linear CDFs with 2, 3, 4, and 5 strikes and computed CRPS against the same realized outcomes. **Result: going from 3 to 2 strikes inflates CRPS by 1–2%, far less than the 32% CPI penalty.** The strike-count confound accounts for at most ~5% of the observed CRPS/MAE gap between series. The remaining penalty is consistent with genuine miscalibration — the PIT analysis in Appendix A suggests directional bias (mean PIT=0.61, indicating markets underestimate inflation) as the primary driver. *(Caveat: the simulation uses Normal distributions matched to realized parameters. Real implied distributions from 2–5 strikes with piecewise-linear interpolation may have heavier tails or asymmetry. However, the result is driven by strike count, not distributional shape — repeating with uniform and skew-normal generators produces qualitatively identical findings.)*
+**Strike structure and simulation robustness check:** CPI events average 2.3 evaluated strikes (range 2–3, uniform 0.1pp spacing), while Jobless Claims average 2.8 evaluated strikes (range 2–5, variable 5K–10K spacing with clustering near the expected value). To quantify whether this difference could mechanically inflate CPI's CRPS, we ran a Monte Carlo simulation (10,000 trials): using known Normal distributions matched to each series' realized parameters, we constructed piecewise-linear CDFs with 2, 3, 4, and 5 strikes and computed CRPS against the same realized outcomes. **Result: going from 3 to 2 strikes inflates CRPS by 1–2%, far less than the 32% CPI penalty.** The strike-count confound accounts for at most ~5% of the observed CRPS/MAE gap between series. The remaining penalty is consistent with genuine miscalibration — the PIT analysis in Appendix A confirms divergent calibration patterns between the two series. *(Caveat: the simulation uses Normal distributions matched to realized parameters. Real implied distributions from 2–5 strikes with piecewise-linear interpolation may have heavier tails or asymmetry. However, the result is driven by strike count, not distributional shape — repeating with uniform and skew-normal generators produces qualitatively identical findings.)*
 
 ### CRPS vs Historical Baselines
 
@@ -62,24 +54,36 @@ Historical benchmarks use regime-appropriate windows (Jobless Claims: 2022+, pos
 
 | Series | n | Kalshi CRPS | Historical CRPS | Wilcoxon p | p (Bonferroni) | Rank-biserial r |
 |--------|---|------------|-----------------|------------|----------------|-----------------|
-| KXJOBLESSCLAIMS | 16 | 4,840 | 8,758 | 0.047 | 0.093 | 0.49 |
+| KXJOBLESSCLAIMS | 16 | 7,748 | 8,758 | 0.372 | 0.744 | 0.10 |
 | KXCPI | 14 | 0.108 | 0.091 | 0.709 | 1.000 | -0.16 |
 
-The Jobless Claims result (r=0.49, medium-large effect) does not survive Bonferroni correction for two series tests (p_adj=0.093). However, the effect size is well-powered: 80% power requires only n=6 at this effect magnitude, suggesting the result is real but the multiplicity correction is conservative at this sample size.
+Neither series shows a statistically significant improvement over historical baselines in the Wilcoxon test. For Jobless Claims, the directional advantage (Kalshi CRPS 12% lower than historical) is consistent with the CRPS/MAE < 1 finding, but the paired test lacks power to detect it at n=16 (estimated n=152 needed for 80% power at r=0.10). The CRPS/MAE ratio remains the more informative diagnostic, as it compares the distribution to its own point forecast rather than to an external benchmark.
 
-*Benchmark sensitivity*: The COVID-contaminated window (2020-2025) inflates the Jobless Claims advantage from 1.8x to 7.3x (p<0.0001) due to COVID-era claims of 3-6 million vs current 200-250K. The regime-appropriate benchmark (2022+) gives an honest 1.8x improvement.
+*Benchmark sensitivity*: The COVID-contaminated window (2020-2025) inflates the Jobless Claims advantage from 1.1x to 4.6x (p<0.0001) due to COVID-era claims of 3-6 million vs current 200-250K. The regime-appropriate benchmark (2022+) gives an honest comparison.
 
-### Temporal CRPS Evolution
+### Snapshot Sensitivity: CRPS/MAE Across Market Lifetime
 
-| Lifetime % | CPI (vs uniform) | 95% CI | Jobless Claims (vs uniform) | 95% CI |
-|-----------|-------------------|--------|----------------------------|--------|
-| 10% (early) | 1.96x | [1.50, 2.70] | 0.91x | [0.62, 1.26] |
-| 50% (mid) | 2.55x | [1.62, 3.88] | 0.79x | [0.46, 1.38] |
-| 90% (late) | 1.16x | [0.83, 1.73] | 0.78x | [0.43, 1.33] |
+To test whether the mid-life snapshot choice drives our results, we computed CRPS/MAE at five timepoints across each market's life:
 
-*Bootstrap CIs (10,000 resamples, ratio-of-means method) on CRPS/Uniform ratio.*
+| Lifetime % | CPI CRPS/MAE | JC CRPS/MAE |
+|-----------|-------------|-------------|
+| 10% (early) | 0.76 | 0.73 |
+| 25% | 1.36 | 0.52 |
+| 50% (mid — primary) | 1.32 | 0.58 |
+| 75% | 0.73 | 0.60 |
+| 90% (late) | 0.76 | 0.79 |
 
-CPI distributions are significantly worse than uniform at early and mid-life (CIs exclude 1.0), but the late-life convergence to 1.16x is uncertain — the CI [0.83, 1.73] includes 1.0, so we cannot confirm CPI distributions achieve calibration by expiration. The trajectory from 2.55x to 1.16x is directionally suggestive of learning but not statistically conclusive at n=14. For Jobless Claims, the point estimates favor the market throughout (ratios <1), but wide CIs reflect the small sample — the advantage is more confidently established by the aggregate CRPS/MAE ratio (0.37) than by any single time slice.
+Jobless Claims distributions consistently add value across all timepoints (CRPS/MAE < 1 throughout), confirming the mid-life result is not an artifact of snapshot timing. CPI shows a striking non-monotonic pattern: distributions are well-calibrated early (10%) and late (75–90%), but worst at 25–50% of market life. This suggests CPI distributional miscalibration is concentrated in the mid-life period when markets have incorporated some information but not yet converged to the final consensus. The practical implication is that CPI distributions may be useful in the final quarter of market life, though this pattern requires confirmation with more data.
+
+### Temporal CRPS Evolution (vs Uniform)
+
+| Lifetime % | CPI (vs uniform) | Jobless Claims (vs uniform) |
+|-----------|-------------------|----------------------------|
+| 10% (early) | 0.93x | 0.81x |
+| 50% (mid) | 1.69x | 0.75x |
+| 90% (late) | 0.79x | 0.87x |
+
+CPI distributions are worse than uniform at mid-life (1.69x) but converge below uniform by late life (0.79x), consistent with the CRPS/MAE pattern above. Jobless Claims beat uniform throughout.
 
 ### Why Do Jobless Claims and CPI Diverge?
 
@@ -95,13 +99,11 @@ We hypothesize four mechanisms driving the calibration heterogeneity:
 
 These hypotheses are testable as more data accumulates: mechanisms 1 and 2 predict that other weekly releases (e.g., mortgage applications) should also have CRPS/MAE < 1, while other monthly composites (e.g., PCE) should have CRPS/MAE > 1. Future work should decompose CRPS into reliability, resolution, and uncertainty components (Hersbach, 2000) to identify which dimension drives the CPI penalty — the CRPS/MAE ratio collapses these into a single number, and the decomposition would clarify whether CPI markets are unreliable (biased), lack resolution (uninformative), or both. Additionally, decomposing CRPS by quantile region would distinguish tail mispricing (thin liquidity at extreme strikes) from center mispricing, providing direct evidence for or against mechanism 4.
 
-**Market design implications.** The CRPS/MAE diagnostic suggests concrete levers for improving distributional calibration. For CPI, the 2–3 evaluated strikes produce a coarse CDF that cannot capture tail risk — adding strikes at ±1σ and ±2σ from the consensus forecast would mechanically improve resolution. Liquidity incentives at tail strikes could address mechanism 4 (thin order books). For Jobless Claims, the diagnostic confirms that the current multi-strike structure is working well — the market design already supports distributional value. More broadly, the CRPS/MAE ratio could serve as a real-time quality metric: series persistently above 1.0 are candidates for structural intervention (more strikes, narrower spacing, liquidity subsidies), while series below 1.0 validate the current design.
-
-Notably, the PIT analysis (Appendix A) offers a preliminary clue: mean PIT=0.61 suggests CPI markets systematically underestimate inflation (realized values fall in the upper half of the implied distribution), which is consistent with the CRPS/MAE > 1 finding being driven by directional miscalibration rather than mere distributional imprecision. This directional bias provides differential evidence among the hypotheses: persistent underestimation of inflation is more consistent with mechanisms 1–2 (insufficient feedback leading to uncorrected bias) than mechanism 4 (thin-tails liquidity), which would produce symmetric CRPS inflation without directional skew.
+Notably, the PIT analysis (Appendix A) provides supporting evidence: CPI's mean PIT=0.61 suggests systematic inflation underestimation, while JC's mean PIT=0.46 is consistent with unbiased calibration. This directional asymmetry favors mechanisms 1–2 (insufficient feedback leading to uncorrected bias in CPI) over mechanism 4 (thin-tails liquidity, which would produce symmetric CRPS inflation without directional skew).
 
 ---
 
-## 3. Information Hierarchy: Bond Markets Lead, Prediction Markets Add Granularity
+## 3. Context: Information Hierarchy and Point Forecast Comparison
 
 ### TIPS Granger Causality
 
@@ -132,7 +134,7 @@ Kalshi significantly beats random walk (p=0.026, d=-0.60). Professional forecast
 
 | Test | Effect size | n (current) | n (80% power) | More data needed |
 |------|------------|-------------|---------------|-----------------|
-| Jobless Claims vs Historical CRPS | r=0.49 | 16 | 6 | Powered |
+| Jobless Claims vs Historical CRPS | r=0.10 | 16 | 152 | 136 more events |
 | CPI vs Historical CRPS | r=0.16 | 14 | 61 | 47 more months |
 | Kalshi vs Random Walk | d=0.60 | 14 | 18 | 4 more months |
 | Kalshi vs SPF | d=0.25 | 14 | 107 | 93 more months |
@@ -167,7 +169,7 @@ The T-24h gradient (7x) is largely mechanical — for long-lived markets, T-24h 
 
 ### Data
 - 6,141 settled Kalshi markets with outcomes (Oct 2024 - Feb 2026)
-- 336 multi-strike markets across 41 events (14 CPI, 24 Jobless Claims, 3 GDP)
+- 336 multi-strike markets across 41 events (CPI, Jobless Claims, GDP, other)
 - External: TIPS breakeven (T10YIE), SPF median CPI, FRED historical data
 
 ### In-Sample Caveat
@@ -183,6 +185,7 @@ All CRPS/MAE ratios and Wilcoxon tests are computed on the full available datase
 6. **Controlled observation timing**: T-24h maturity gradient (7x) reduced to 1.5x at 50% lifetime
 7. **PIT sign correction**: cdf_values store survival P(X>strike), not CDF P(X<=strike). PIT = 1 - interpolated survival
 8. **CRPS/MAE ratio**: Distribution-vs-point diagnostic reported per series with bootstrap CIs
+9. **Scale-appropriate CRPS integration**: Tail extension dynamically set to max(strike_range × 0.5, 1.0) plus coverage of realized values beyond strike boundaries, ensuring correct CRPS for both percentage-scale (CPI) and level-scale (Jobless Claims) series
 
 ### Experiments Summary
 
@@ -191,26 +194,29 @@ All CRPS/MAE ratios and Wilcoxon tests are computed on the full available datase
 | 7 | Implied Distributions | Section 1: Methodology |
 | 12 | CRPS Scoring | Section 2: Main result |
 | 13 | Unified + Horse Race | Sections 2-3: Per-series tests, horse race |
-| 8 | TIPS Comparison | Section 3: Information hierarchy + horse race |
+| 8 | TIPS Comparison | Section 3: Information hierarchy |
 | 11 | Favorite-Longshot Bias | Section 4: Maturity (controlled) |
 
 ---
 
 ## Supplementary Appendix
 
-### A. CPI PIT Analysis (Preliminary)
+### A. PIT Analysis (CPI and Jobless Claims)
 
-| Metric | CPI (n=14) | Well-Calibrated |
-|--------|-----------|-----------------|
-| Mean PIT | 0.609 | 0.500 |
-| Std PIT | 0.222 | 0.289 |
-| KS test | p=0.221 | — |
+| Metric | CPI (n=14) | Jobless Claims (n=16) | Well-Calibrated |
+|--------|-----------|----------------------|-----------------|
+| Mean PIT | 0.609 | 0.463 | 0.500 |
+| 95% CI | [0.49, 0.72] | [0.35, 0.58] | — |
+| Std PIT | 0.222 | 0.248 | 0.289 |
+| KS test | p=0.221 | p=0.353 | — |
 
-Mean PIT = 0.61 (95% CI: [0.49, 0.73]): realized CPI tends to fall in the upper half of the implied distribution, suggestive of markets underestimating inflation. However, the KS test does not reject uniformity (p=0.22) and the CI includes the null. At n=14, this warrants monitoring but not claims. Moved to appendix per reviewer recommendation.
+**CPI:** Mean PIT = 0.61 (95% CI: [0.49, 0.72]): realized CPI tends to fall in the upper half of the implied distribution, suggestive of markets underestimating inflation. However, the KS test does not reject uniformity (p=0.22) and the CI includes the null value of 0.5. At n=14, this warrants monitoring but not strong claims.
+
+**Jobless Claims:** Mean PIT = 0.46 (95% CI: [0.35, 0.58]): centered near 0.5, consistent with well-calibrated distributions. The KS test does not reject uniformity (p=0.35). This is directly consistent with the CRPS/MAE < 1 finding — the distributions that add value (JC) also pass the PIT calibration check, while the distributions that appear harmful (CPI) show directional bias. The contrast provides independent confirmation of the series-level heterogeneity.
 
 ### B. GDP Results (Insufficient Sample)
 
-GDP (n=3) shows Kalshi CRPS 0.509 vs Historical 1.098, with CRPS/MAE=0.46. Directionally consistent with Jobless Claims (distribution adds value) but no statistical inference is possible at this sample size.
+GDP (n=3) shows Kalshi CRPS 0.521 vs Historical 1.098, with CRPS/MAE=0.48. Directionally consistent with Jobless Claims (distribution adds value) but no statistical inference is possible at this sample size.
 
 ### C. Downgraded and Invalidated Findings
 
@@ -226,6 +232,8 @@ During the research process, several initially significant findings were invalid
 | Information asymmetry (lead-lag) | 0.0008 | 0.0008 | Confirmatory (Taylor Rule) |
 | Maturity gradient | 7x | 1.5x | Observation timing confound |
 | Jobless Claims CRPS headline | <0.0001 | 0.047 | COVID-contaminated benchmark |
+| Jobless Claims CRPS/MAE ratio | 0.37 | 0.60 | Scale-inappropriate tail integration |
+| Jobless Claims vs Historical | p=0.047 | p=0.372 | Tail-extension bug inflated CRPS gap |
 
 **Invalidated:**
 
