@@ -181,23 +181,30 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
 
 $HISTORY_CONTEXT
 
-Read docs/findings.md carefully. Write your critique to docs/exchanges/critique_latest.md. Use iteration number $i in your header.
+Read docs/findings.md carefully. Also review the actual experiment code — read the Python files in experiment7/, experiment8/, experiment11/, experiment12/, experiment13/ and check that the methodology described in the paper matches what the code actually does. Look at data files, check statistical tests, verify numbers. You can use Bash to run read-only commands like 'ls', 'wc', etc. to inspect outputs, but do NOT modify any files except your critique.
 
-IMPORTANT: Do NOT set STATUS: ACCEPT. Always find concrete improvements — no matter how good the paper is, there are always ways to strengthen the argument, tighten prose, improve figures, or add nuance. Be constructive but relentless. Do not manufacture fake issues, but do dig deep for real ones."
+Write your critique to docs/exchanges/critique_latest.md. Use iteration number $i in your header.
+
+Your critique should cover BOTH the paper AND the code:
+- Paper: argument structure, statistical claims, prose quality, missing analyses
+- Code: correctness, methodology gaps, untested edge cases, analyses that could be added or improved
+- Suggest specific new experiments or code changes the researcher should make
+
+IMPORTANT: Do NOT set STATUS: ACCEPT. Always find concrete improvements — no matter how good the paper is, there are always ways to strengthen the argument, tighten prose, improve figures, add new analyses, or fix code issues. Be constructive but relentless. Do not manufacture fake issues, but do dig deep for real ones."
 
     PROMPT_LEN=${#CRITIQUE_PROMPT}
     log "  Prompt length: ${PROMPT_LEN} chars"
-    log "  Allowed tools: Read, Write, Glob, Grep"
-    log "  Max turns: 15"
+    log "  Allowed tools: Read, Write, Glob, Grep, Bash"
+    log "  Max turns: 20"
     log "  ${MAGENTA}Invoking claude (critiquer)...${NC}"
 
     cd "$REPO_ROOT"
     CLAUDE_START=$(date +%s)
     claude -p \
         --model "$MODEL" \
-        --system-prompt "You are the critiquer agent. Follow the instructions exactly. Always write output to docs/exchanges/critique_latest.md. Be intellectually honest — if the paper is good, say so. Do not invent problems." \
-        --allowed-tools "Read,Write,Glob,Grep" \
-        --max-turns 15 \
+        --system-prompt "You are the critiquer agent. Follow the instructions exactly. Always write output to docs/exchanges/critique_latest.md. Be intellectually honest — if the paper is good, say so. Do not invent problems. You may READ any file in the codebase (experiments, data, scripts) to inform your critique, but you may ONLY write to docs/exchanges/critique_latest.md. Do NOT modify any code, data, or other files." \
+        --allowed-tools "Read,Write,Glob,Grep,Bash" \
+        --max-turns 20 \
         --no-session-persistence \
         "$CRITIQUE_PROMPT" \
         > "$ARCHIVE/critique_${i}_log.txt" 2>&1
@@ -226,6 +233,9 @@ IMPORTANT: Do NOT set STATUS: ACCEPT. Always find concrete improvements — no m
         PHASE_ELAPSED=$(( $(date +%s) - PHASE_START ))
         log "  Phase 1 total: ${PHASE_ELAPSED}s"
         log_separator
+
+        # ── Git commit after critiquer ──────────────────────────────────
+        git_commit_push "Iteration $i/$MAX_ITERATIONS: critiquer critique"
 
     else
         log "${RED}  FAILURE: No critique file produced!${NC}"
@@ -257,9 +267,16 @@ This is iteration $i of a maximum $MAX_ITERATIONS. Read the critique at docs/exc
 
 BEFORE making any changes, deliberate on each point. Ask yourself: Do I agree? Is this feasible? Would this actually make the paper better?
 
+You have FULL access to the codebase. If the critique calls for new analyses, stronger evidence, or different visualizations:
+1. Modify experiment code (experiment7/, experiment8/, experiment11/, experiment12/, experiment13/) as needed
+2. Re-run experiments with 'uv run python -m experimentN.run' (use --skip-fetch flags to avoid unnecessary API calls)
+3. Update docs/findings.md with the new results, figures, and numbers
+
+Do NOT just edit prose — if the critique points to a real analytical gap, write or modify code to fill it. Code changes are first-class outputs.
+
 Then revise docs/findings.md — but ONLY make changes you believe in. Push back on bad suggestions. Write your full deliberation and changelog to docs/exchanges/researcher_response.md.
 
-Do NOT set STATUS: CONVERGED. You must always attempt meaningful improvements. Even small wins — tighter prose, better transitions, stronger framing — compound across iterations."
+Do NOT set STATUS: CONVERGED. You must always attempt meaningful improvements. Even small wins — tighter prose, better transitions, stronger framing, new analyses — compound across iterations."
 
     PROMPT_LEN=${#RESEARCHER_PROMPT}
     log "  Prompt length: ${PROMPT_LEN} chars"
@@ -271,9 +288,9 @@ Do NOT set STATUS: CONVERGED. You must always attempt meaningful improvements. E
     CLAUDE_START=$(date +%s)
     claude -p \
         --model "$MODEL" \
-        --system-prompt "You are the researcher agent. Follow the instructions exactly. Deliberate carefully before making changes. Push back on suggestions you disagree with. Revise docs/findings.md and write deliberation to docs/exchanges/researcher_response.md." \
-        --allowed-tools "Read,Write,Edit,Glob,Grep,Bash" \
-        --max-turns 25 \
+        --system-prompt "You are the researcher agent. You have FULL access to the entire codebase. You can and should: create new experiment files, modify existing experiments, run analyses (uv run python -m experimentN.run), generate new plots, update the paper, and do whatever it takes to improve the work. Write code, run it, check results, iterate. Deliberate carefully on critique points but push back on bad suggestions. Always write deliberation to docs/exchanges/researcher_response.md and update docs/findings.md with any new results." \
+        --allowed-tools "Read,Write,Edit,Glob,Grep,Bash,NotebookEdit" \
+        --max-turns 50 \
         --no-session-persistence \
         "$RESEARCHER_PROMPT" \
         > "$ARCHIVE/researcher_${i}_log.txt" 2>&1
@@ -343,8 +360,29 @@ Do NOT set STATUS: CONVERGED. You must always attempt meaningful improvements. E
         log_separator
     fi
 
-    # ── Git commit and push after each iteration ─────────────────────
-    git_commit_push "Research loop iteration $i/$MAX_ITERATIONS"
+    # ── Git: commit each changed file individually, then push once ─────
+    cd "$REPO_ROOT"
+    CHANGED_FILES=$(git status --short 2>/dev/null | awk '{print $2}')
+    if [ -n "$CHANGED_FILES" ]; then
+        FILE_COUNT=0
+        echo "$CHANGED_FILES" | while read -r filepath; do
+            git add "$filepath"
+            git commit -m "Iteration $i/$MAX_ITERATIONS [researcher]: $filepath" > /dev/null 2>&1 || true
+        done
+        FILE_COUNT=$(echo "$CHANGED_FILES" | wc -l | tr -d ' ')
+        log "${GREEN}[Git] Committed ${FILE_COUNT} file(s) individually:${NC}"
+        echo "$CHANGED_FILES" | while read -r filepath; do
+            log "  ${DIM}$filepath${NC}"
+        done
+        log "${CYAN}[Git] Pushing all researcher commits...${NC}"
+        if git push 2>&1 | tail -2 | while read -r line; do log "  ${DIM}$line${NC}"; done; then
+            log "${GREEN}[Git] Push successful.${NC}"
+        else
+            log "${RED}[Git] Push failed!${NC}"
+        fi
+    else
+        log "${DIM}[Git] No researcher changes to commit.${NC}"
+    fi
 
     ITER_ELAPSED=$(( $(date +%s) - ITER_START ))
     echo ""
