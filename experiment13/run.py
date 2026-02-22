@@ -1048,6 +1048,14 @@ def main():
             if "wilcoxon_p" in test:
                 sig = "*" if test["significant"] else ""
                 print(f"    {test_name}: p={test['wilcoxon_p']:.4f}{sig} (n={test['n']})")
+        # Sensitivity: excluding first event
+        if "sensitivity_excl_first_event" in horse_race_results:
+            print("\n  Sensitivity: excluding first event (KXCPI-24NOV):")
+            for test_name, test in horse_race_results["sensitivity_excl_first_event"].items():
+                sig = "*" if test["wilcoxon_p"] < 0.05 else ""
+                print(f"    {test_name}: d={test['cohen_d']:.3f}, "
+                      f"p={test['wilcoxon_p']:.4f}{sig}, "
+                      f"p_bonf={test['wilcoxon_p_bonferroni']:.4f}, n={test['n']}")
     else:
         print("  Insufficient CPI events for horse race")
 
