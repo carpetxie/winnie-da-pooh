@@ -1,0 +1,11 @@
+The critique has been written to `docs/exchanges/critique_latest.md`. Here's a summary of the key findings:
+
+**The One Big Thing:** A scale-dependent bug in `compute_crps()` — the `tail_extension=1.0` parameter is appropriate for CPI (values ~0.1-0.5) but essentially zero for Jobless Claims (values ~200K). This truncates tail integration and biases the Jobless Claims CRPS/MAE ratio from ~0.44 down to the reported 0.37. One event (25SEP11) loses ~13,000 of CRPS from this truncation alone.
+
+**Other critical issues:**
+1. The iteration-3 researcher response described adding CIs, hedging the CPI claim, and fixing phrasing — but none of these changes appear in the actual paper
+2. A code comment in `horse_race.py` incorrectly states "CRPS ≤ MAE is a mathematical identity" which contradicts the paper's own correct explanation
+3. The mid-life snapshot choice for CRPS computation is unjustified
+4. Missing Jobless Claims PIT analysis (only CPI has one)
+
+**Verdict:** MAJOR REVISIONS — the code bug and unapplied text changes must be addressed before publication. The fixes are straightforward but substantively affect the headline numbers.
