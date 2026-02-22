@@ -700,6 +700,23 @@ def main():
         heterogeneity_results["rank_biserial_r_interior"] = float(r_rb_int)
         print(f"  Mann-Whitney U (interior-only) p = {p_int:.4f}, rank-biserial r = {r_rb_int:.3f}")
 
+        # --- Scale-free permutation test on per-event CRPS/MAE ratios ---
+        # Uses interior-only ratios (stable, dimensionless) to avoid scale-mixing
+        all_ratios_int = np.concatenate([cpi_per_event_int, jc_per_event_int])
+        observed_ratio_diff = float(np.mean(cpi_per_event_int) - np.mean(jc_per_event_int))
+        rng_sf = np.random.RandomState(42)
+        n_perm_sf = 10000
+        perm_ratio_diffs = np.zeros(n_perm_sf)
+        n_cpi_sf = len(cpi_per_event_int)
+        for i in range(n_perm_sf):
+            idx_sf = rng_sf.permutation(len(all_ratios_int))
+            perm_ratio_diffs[i] = np.mean(all_ratios_int[idx_sf[:n_cpi_sf]]) - np.mean(all_ratios_int[idx_sf[n_cpi_sf:]])
+        perm_p_scalefree = float(np.mean(np.abs(perm_ratio_diffs) >= abs(observed_ratio_diff)))
+        heterogeneity_results["permutation_p_scalefree"] = perm_p_scalefree
+        heterogeneity_results["permutation_observed_ratio_diff"] = observed_ratio_diff
+        print(f"  Scale-free permutation test (interior-only ratios) p = {perm_p_scalefree:.4f} ({n_perm_sf} permutations)")
+        print(f"    Observed mean ratio diff (CPI - JC): {observed_ratio_diff:.3f}")
+
         # --- Mean-of-ratios comparison (illustrates ratio instability) ---
         cpi_mean_of_ratios_ta = float(np.mean(cpi_per_event))
         jc_mean_of_ratios_ta = float(np.mean(jc_per_event))
@@ -1144,6 +1161,11 @@ def main():
 
             ks_stat, ks_p = stats.kstest(pit_df["pit"], "uniform")
 
+            # Cramér-von Mises test — more powerful than KS for detecting tail deviations
+            cvm_result = stats.cramervonmises(pit_df["pit"].values, "uniform")
+            cvm_stat = float(cvm_result.statistic)
+            cvm_p = float(cvm_result.pvalue)
+
             pit_results[pit_series] = {
                 "n_events": len(pit_df),
                 "mean_pit": float(pit_df["pit"].mean()),
@@ -1154,6 +1176,8 @@ def main():
                 "pct_in_tails": float(n_in_tails / len(pit_df)),
                 "ks_stat": float(ks_stat),
                 "ks_p": float(ks_p),
+                "cvm_stat": cvm_stat,
+                "cvm_p": cvm_p,
                 "pit_values": pit_df["pit"].tolist(),
             }
 
@@ -1163,6 +1187,7 @@ def main():
             print(f"    In IQR (0.25-0.75): {n_in_iqr}/{len(pit_df)} = {n_in_iqr/len(pit_df):.0%} (ideal: 50%)")
             print(f"    In tails (<0.1 or >0.9): {n_in_tails}/{len(pit_df)} = {n_in_tails/len(pit_df):.0%} (ideal: 20%)")
             print(f"    KS test for uniformity: stat={ks_stat:.3f}, p={ks_p:.4f}")
+            print(f"    Cramér-von Mises test: stat={cvm_stat:.4f}, p={cvm_p:.4f}")
 
     # Keep backward compatibility
     cpi_overconfidence = pit_results.get("KXCPI", {})
@@ -1201,6 +1226,33 @@ def main():
         ar1_rho = None
         n_eff = None
 
+    # --- Block bootstrap for CPI CRPS/MAE ratio CI ---
+    # Circular block bootstrap (block length 2, matching AR(1)) for serial-correlation-adjusted CI
+    cpi_crps_vals = crps_df[crps_df["series"] == "KXCPI"].dropna(subset=["kalshi_crps", "point_crps_tail_aware"])
+    if len(cpi_crps_vals) >= 4:
+        cpi_crps_arr = cpi_crps_vals["kalshi_crps"].values
+        cpi_mae_arr = cpi_crps_vals["point_crps_tail_aware"].values
+        n_cpi_bb = len(cpi_crps_arr)
+        block_len = 2
+        n_blocks = (n_cpi_bb + block_len - 1) // block_len
+        rng_bb = np.random.RandomState(42)
+        boot_ratios_block = []
+        for _ in range(10000):
+            starts = rng_bb.randint(0, n_cpi_bb, size=n_blocks)
+            boot_idx = np.concatenate([np.arange(s, s + block_len) % n_cpi_bb for s in starts])[:n_cpi_bb]
+            boot_crps = cpi_crps_arr[boot_idx].mean()
+            boot_mae = cpi_mae_arr[boot_idx].mean()
+            if boot_mae > 0:
+                boot_ratios_block.append(boot_crps / boot_mae)
+        block_ci_lo = float(np.percentile(boot_ratios_block, 2.5))
+        block_ci_hi = float(np.percentile(boot_ratios_block, 97.5))
+        block_ci_excludes_1 = block_ci_lo > 1.0
+        print(f"\n  Block bootstrap CPI CRPS/MAE CI (block_len=2, 10000 resamples):")
+        print(f"    CI: [{block_ci_lo:.2f}, {block_ci_hi:.2f}]")
+        print(f"    Excludes 1.0: {block_ci_excludes_1}")
+    else:
+        block_ci_lo, block_ci_hi, block_ci_excludes_1 = None, None, None
+
     serial_corr_note = {
         "cpi_serial_correlation": (
             "Sequential monthly CPI releases are serially correlated "
@@ -1211,6 +1263,9 @@ def main():
         "ar1_rho": float(ar1_rho) if ar1_rho is not None else None,
         "n_nominal": len(cpi_series_arr) if len(cpi_series_arr) >= 4 else None,
         "n_effective": float(n_eff) if n_eff is not None else None,
+        "block_bootstrap_ci_lo": block_ci_lo,
+        "block_bootstrap_ci_hi": block_ci_hi,
+        "block_bootstrap_excludes_1": block_ci_excludes_1,
         "pooled_scale_mixing": (
             "The pooled Wilcoxon (n=33) mixes series with different CRPS scales: "
             "KXJOBLESSCLAIMS CRPS is in thousands while KXCPI is in percentage points. "
