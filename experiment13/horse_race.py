@@ -359,6 +359,20 @@ def run_cpi_horse_race(
                 "note": f"Kalshi implied mean vs {naive_label.replace('_', ' ')} forecast",
             }
 
+    # --- Bonferroni correction across horse race benchmarks ---
+    benchmark_tests = [
+        "kalshi_point_vs_spf", "kalshi_point_vs_tips",
+        "kalshi_vs_random_walk", "kalshi_vs_trailing_mean",
+    ]
+    raw_pvals = {k: test_results[k]["wilcoxon_p"] for k in benchmark_tests if k in test_results and "wilcoxon_p" in test_results[k]}
+    n_benchmarks = len(raw_pvals)
+    if n_benchmarks > 0:
+        for k, raw_p in raw_pvals.items():
+            adj_p = min(raw_p * n_benchmarks, 1.0)
+            test_results[k]["wilcoxon_p_bonferroni"] = float(adj_p)
+            test_results[k]["n_benchmarks_corrected"] = n_benchmarks
+            test_results[k]["significant_bonferroni"] = adj_p < 0.05
+
     return {
         "per_event": results_df.to_dict("records"),
         "n_events": len(results_df),

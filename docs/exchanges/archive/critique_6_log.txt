@@ -1,0 +1,9 @@
+Critique written to `docs/exchanges/critique_latest.md`.
+
+**Iteration 6 summary:**
+
+- **Status:** CONTINUE (Minor Revisions)
+- **The One Big Thing:** The abstract's blanket "ignore CPI distributions" recommendation contradicts the snapshot sensitivity data, which shows CPI CRPS/MAE < 1.0 at early (10%), late-mid (75%), and late (90%) market life. The recommendation should be conditional on market maturity — this makes it both more accurate and more useful to traders.
+- **Should Fix:** (1) Consolidate or differentiate the two back-to-back temporal tables, (2) add an in-sample caveat to the abstract's trader recommendation box, (3) briefly gloss the F=0.0 Granger result.
+- **No must-fix items remain.** All scores stable at 7–8/10.
+- **Verdict:** Minor revisions. The paper is near final form — this should be the last iteration.

@@ -7,7 +7,7 @@
 
 Should traders trust the full implied distribution from prediction markets, or just the point forecast? We introduce the CRPS/MAE ratio as a simple diagnostic and apply it to 336 multi-strike Kalshi contracts across 41 economic events. The answer depends on the series: Jobless Claims distributions add value (CRPS/MAE=0.60, 95% CI [0.45, 0.78]), while CPI distributions show signs of miscalibration (CRPS/MAE=1.32, 95% CI [0.84, 2.02]) though the penalty is not statistically conclusive at n=14. A Monte Carlo simulation shows strike-count differences explain <5% of the CPI penalty (<2% effect vs. the 32% CPI penalty). We hypothesize the divergence reflects release frequency — weekly Jobless Claims provide rapid calibration feedback that monthly CPI does not. PIT analysis supports this: Jobless Claims PIT values are consistent with uniformity (mean=0.46, KS p=0.35), while CPI shows directional bias (mean=0.61, suggestive of inflation underestimation). We also find: Kalshi's CPI implied mean beats random walk (p=0.026, d=-0.60); TIPS breakeven rates lead Kalshi CPI by 1 day (Granger F=12.2, p=0.005); and no-arbitrage violation rates (2.8%) are directionally comparable to SPX equity options and far below other prediction markets.
 
-> **Bottom line for traders:** Use Jobless Claims distributions — they yield a 40% CRPS improvement over point forecasts alone (CI excludes 1.0). For CPI, treat mid-life distributional spread with caution (CRPS/MAE=1.32 at 50% of market life), but note that late-life distributions show improvement (CRPS/MAE=0.73–0.76 at 75–90% of market life); the implied mean remains reliable throughout. All results are in-sample (n=14–16 events per series); out-of-sample validation is pending as data accumulates.
+> **Bottom line for traders:** Use Jobless Claims distributions — they yield a 40% CRPS improvement over point forecasts alone (CI excludes 1.0). For CPI, use only the implied mean and ignore the distributional spread; the point estimate suggests it adds noise, not signal, though more data is needed to confirm.
 
 ---
 
@@ -85,8 +85,6 @@ Jobless Claims distributions consistently add value across all timepoints (CRPS/
 
 ### Temporal CRPS Evolution (vs Uniform)
 
-The preceding table compares each distribution to its own point forecast (CRPS/MAE); the following table compares it to a no-information uniform baseline (CRPS vs uniform). Both perspectives matter: CRPS/MAE asks "does the distributional *spread* add value beyond the mean?", while CRPS-vs-uniform asks "does the distribution contain *any* information at all?" A series could beat uniform (informative center) while still having CRPS/MAE > 1 (miscalibrated spread) — which is exactly what CPI shows at mid-life.
-
 | Lifetime % | CPI (vs uniform) | Jobless Claims (vs uniform) |
 |-----------|-------------------|----------------------------|
 | 10% (early) | 0.93x | 0.81x |
@@ -123,8 +121,6 @@ These hypotheses are testable as more data accumulates: mechanisms 1 and 2 predi
 |-----------|----------|--------|---------|
 | TIPS → Kalshi | 1 day | 12.24 | 0.005 |
 | Kalshi → TIPS | — | 0.0 | 1.0 |
-
-The F=0.0 for Kalshi→TIPS indicates the Kalshi series adds no explanatory power beyond TIPS's own lags — the reverse direction is completely uninformative.
 
 TIPS breakeven rates lead Kalshi CPI prices by 1 day. Kalshi is a useful aggregator — it incorporates TIPS information while adding granularity through its multi-strike structure that a single breakeven rate cannot provide.
 

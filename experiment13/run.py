@@ -274,13 +274,15 @@ def main():
                   f"Benchmark={valid[col_b].mean():.4f}, "
                   f"p={p:.4f}{sig}")
 
-    # Note: CRPS vs Point MAE test removed — CRPS <= MAE is a mathematical
-    # identity for any proper distribution, so this comparison is tautological.
-    # The honest comparison is point-vs-point (Phase 6 horse race).
+    # Note: CRPS vs Point MAE test removed — CRPS <= MAE holds for well-calibrated
+    # distributions (not for all proper scoring rules in general). When a distribution
+    # is miscalibrated, CRPS can exceed MAE — which is the diagnostic signal we use.
+    # The honest point-vs-point comparison is in Phase 6 horse race.
     test_results["crps_vs_point_note"] = {
         "note": (
-            "CRPS <= MAE is a mathematical property of proper scoring rules. "
-            "The CRPS-vs-point test is omitted as it is tautological. "
+            "CRPS <= MAE holds for well-calibrated distributions. "
+            "For miscalibrated distributions, CRPS can exceed MAE — this is "
+            "the diagnostic signal exploited by the CRPS/MAE ratio. "
             "See Phase 6 horse race for honest point-vs-point comparison."
         ),
     }
@@ -412,20 +414,49 @@ def main():
             per_event_ratios = (valid["kalshi_crps"] / valid["point_crps"]).replace([np.inf, -np.inf], np.nan).dropna()
             median_per_event_ratio = float(per_event_ratios.median()) if len(per_event_ratios) > 0 else None
 
-            # Bootstrap CI on ratio-of-means
-            n_boot = 10000
-            boot_ratios = []
+            # BCa Bootstrap CI on ratio-of-means (bias-corrected and accelerated)
             crps_arr = valid["kalshi_crps"].values
             mae_arr = valid["point_crps"].values
-            rng = np.random.default_rng(42)
-            for _ in range(n_boot):
-                idx = rng.integers(0, len(valid), size=len(valid))
-                boot_crps = crps_arr[idx].mean()
-                boot_mae = mae_arr[idx].mean()
-                if boot_mae > 0:
-                    boot_ratios.append(boot_crps / boot_mae)
-            ci_lo = float(np.percentile(boot_ratios, 2.5))
-            ci_hi = float(np.percentile(boot_ratios, 97.5))
+            paired_data = np.column_stack([crps_arr, mae_arr])
+
+            def _ratio_of_means(data, axis=None):
+                """Compute ratio of means for BCa bootstrap."""
+                if axis is not None:
+                    # scipy.stats.bootstrap passes (data,) where data has shape (n_resamples, n)
+                    crps_means = np.mean(data[0], axis=axis)
+                    mae_means = np.mean(data[1], axis=axis)
+                    # Avoid division by zero
+                    with np.errstate(divide='ignore', invalid='ignore'):
+                        result = crps_means / mae_means
+                    return result
+                return np.mean(data[:, 0]) / np.mean(data[:, 1])
+
+            try:
+                bca_result = stats.bootstrap(
+                    (crps_arr, mae_arr),
+                    statistic=_ratio_of_means,
+                    n_resamples=10000,
+                    method='BCa',
+                    confidence_level=0.95,
+                    random_state=np.random.default_rng(42),
+                )
+                ci_lo = float(bca_result.confidence_interval.low)
+                ci_hi = float(bca_result.confidence_interval.high)
+                bootstrap_method = "BCa"
+            except Exception:
+                # Fallback to percentile bootstrap if BCa fails
+                n_boot = 10000
+                boot_ratios = []
+                rng = np.random.default_rng(42)
+                for _ in range(n_boot):
+                    idx = rng.integers(0, len(valid), size=len(valid))
+                    boot_crps = crps_arr[idx].mean()
+                    boot_mae = mae_arr[idx].mean()
+                    if boot_mae > 0:
+                        boot_ratios.append(boot_crps / boot_mae)
+                ci_lo = float(np.percentile(boot_ratios, 2.5))
+                ci_hi = float(np.percentile(boot_ratios, 97.5))
+                bootstrap_method = "percentile"
 
             crps_mae_results[series] = {
                 "n": len(valid),
@@ -435,6 +466,7 @@ def main():
                 "median_per_event_ratio": median_per_event_ratio,
                 "ci_95_lo": ci_lo,
                 "ci_95_hi": ci_hi,
+                "bootstrap_method": bootstrap_method,
                 "interpretation": (
                     "ratio < 1: distribution adds value beyond point forecast. "
                     "ratio > 1: distributional spread is miscalibrated."
@@ -689,8 +721,39 @@ def main():
     cpi_overconfidence = pit_results.get("KXCPI", {})
 
     # ================================================================
-    # PHASE 7: SERIAL CORRELATION ACKNOWLEDGMENT
+    # PHASE 7: SERIAL CORRELATION QUANTIFICATION
     # ================================================================
+    print("\n" + "=" * 70)
+    print("PHASE 7: SERIAL CORRELATION QUANTIFICATION")
+    print("=" * 70)
+
+    # Compute AR(1) on realized CPI MoM values to estimate effective DoF
+    from experiment13.horse_race import REALIZED_MOM_CPI, _TICKER_ORDER
+    cpi_realized_ordered = [REALIZED_MOM_CPI[t] for t in _TICKER_ORDER if t in REALIZED_MOM_CPI]
+    cpi_series_arr = np.array(cpi_realized_ordered)
+
+    if len(cpi_series_arr) >= 4:
+        # AR(1) coefficient: correlation of x(t) with x(t-1)
+        ar1_rho = float(np.corrcoef(cpi_series_arr[:-1], cpi_series_arr[1:])[0, 1])
+        n_cpi = len(cpi_series_arr)
+        # Effective n: Bartlett's formula for serially correlated data
+        n_eff = n_cpi * (1 - ar1_rho) / (1 + ar1_rho) if (1 + ar1_rho) > 0 else n_cpi
+        n_eff = max(2, n_eff)  # floor at 2
+
+        print(f"  CPI MoM realized values (n={n_cpi}): {cpi_realized_ordered}")
+        print(f"  AR(1) coefficient (rho): {ar1_rho:.3f}")
+        print(f"  Effective n (Bartlett): {n_eff:.1f} (nominal n={n_cpi})")
+        print(f"  DoF reduction: {(1 - n_eff/n_cpi)*100:.0f}%")
+
+        # Recompute CPI CRPS/MAE CI width implication
+        ci_width_nominal = crps_mae_results.get("KXCPI", {}).get("ci_95_hi", 0) - crps_mae_results.get("KXCPI", {}).get("ci_95_lo", 0)
+        ci_width_effective = ci_width_nominal * np.sqrt(n_cpi / n_eff) if n_eff > 0 else ci_width_nominal
+        print(f"  Nominal CPI CRPS/MAE CI width: {ci_width_nominal:.2f}")
+        print(f"  Effective CI width (serial-corr adjusted): {ci_width_effective:.2f}")
+    else:
+        ar1_rho = None
+        n_eff = None
+
     serial_corr_note = {
         "cpi_serial_correlation": (
             "Sequential monthly CPI releases are serially correlated "
@@ -698,6 +761,9 @@ def main():
             "effective degrees of freedom for CPI-specific tests are lower than 14. "
             "This is a fundamental limitation of the available data."
         ),
+        "ar1_rho": float(ar1_rho) if ar1_rho is not None else None,
+        "n_nominal": len(cpi_series_arr) if len(cpi_series_arr) >= 4 else None,
+        "n_effective": float(n_eff) if n_eff is not None else None,
         "pooled_scale_mixing": (
             "The pooled Wilcoxon (n=33) mixes series with different CRPS scales: "
             "KXJOBLESSCLAIMS CRPS is in thousands while KXCPI is in percentage points. "
@@ -861,6 +927,62 @@ def _plot_unified(crps_df, temporal_df, horse_race_results, output_dir):
     plt.savefig(os.path.join(output_dir, "unified_calibration.png"), dpi=150)
     plt.close()
     print(f"  Saved {output_dir}/unified_calibration.png")
+
+    # --- Per-event CRPS/MAE ratio strip chart ---
+    valid_ratio = crps_df.dropna(subset=["kalshi_crps", "point_crps"]).copy()
+    valid_ratio = valid_ratio[valid_ratio["point_crps"] > 0]
+    valid_ratio["crps_mae_ratio"] = valid_ratio["kalshi_crps"] / valid_ratio["point_crps"]
+    # Exclude GDP (n=3)
+    valid_ratio = valid_ratio[valid_ratio["series"] != "KXGDP"]
+
+    if len(valid_ratio) > 0:
+        fig, ax = plt.subplots(figsize=(10, 5))
+        colors_strip = {"KXCPI": "#e74c3c", "KXJOBLESSCLAIMS": "#2ecc71"}
+        series_labels = {"KXCPI": "CPI", "KXJOBLESSCLAIMS": "Jobless Claims"}
+
+        for i, series in enumerate(["KXCPI", "KXJOBLESSCLAIMS"]):
+            s = valid_ratio[valid_ratio["series"] == series]
+            if len(s) == 0:
+                continue
+            # Jitter for visibility
+            jitter = np.random.default_rng(42).uniform(-0.15, 0.15, len(s))
+            ax.scatter(
+                s["crps_mae_ratio"], [i] * len(s) + jitter,
+                c=colors_strip.get(series, "gray"),
+                s=80, edgecolors="black", linewidths=0.5, alpha=0.8,
+                label=series_labels.get(series, series),
+                zorder=3,
+            )
+            # Add mean marker
+            mean_ratio = s["crps_mae_ratio"].mean()
+            ax.scatter([mean_ratio], [i], marker="D", c="black", s=120, zorder=4)
+            ax.annotate(f"mean={mean_ratio:.2f}", (mean_ratio, i + 0.25),
+                       fontsize=9, ha="center")
+
+        ax.axvline(x=1.0, color="black", linestyle="--", alpha=0.7, linewidth=1.5,
+                  label="Ratio = 1 (breakeven)")
+        ax.set_yticks([0, 1])
+        ax.set_yticklabels(["CPI", "Jobless Claims"])
+        ax.set_xlabel("Per-Event CRPS/MAE Ratio (< 1 = distribution adds value)")
+        ax.set_title("Per-Event CRPS/MAE Ratios: Within-Series Heterogeneity")
+        ax.legend(loc="upper right")
+        ax.grid(True, alpha=0.3, axis="x")
+        ax.set_xlim(left=0)
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_dir, "per_event_crps_mae_strip.png"), dpi=150)
+        plt.close()
+        print(f"  Saved {output_dir}/per_event_crps_mae_strip.png")
+
+        # Print per-event ratios for paper
+        print("\n  Per-event CRPS/MAE ratios:")
+        for series in ["KXCPI", "KXJOBLESSCLAIMS"]:
+            s = valid_ratio[valid_ratio["series"] == series].sort_values("crps_mae_ratio")
+            ratios = s["crps_mae_ratio"].values
+            tickers = s["event_ticker"].values
+            print(f"    {series} (n={len(s)}): range [{ratios.min():.2f}, {ratios.max():.2f}], "
+                  f"median={np.median(ratios):.2f}")
+            for t, r in zip(tickers, ratios):
+                print(f"      {t}: {r:.3f}")
 
 
 if __name__ == "__main__":
