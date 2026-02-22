@@ -375,7 +375,9 @@ def run_cpi_horse_race(
                 "before CPI release. Includes risk premium and term structure effects."
             ),
             "crps_vs_mae": (
-                "CRPS <= MAE is a mathematical identity for any proper distribution. "
+                "For a well-calibrated distribution, CRPS is typically lower than MAE "
+                "(the sharpness reward means a good distribution outperforms a point mass). "
+                "However, CRPS > MAE is possible and indicates distributional miscalibration. "
                 "Comparing Kalshi CRPS to point forecast MAE conflates distributional "
                 "advantage with forecasting accuracy. This horse race compares "
                 "point-vs-point (MAE vs MAE) for an honest comparison."

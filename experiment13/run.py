@@ -393,8 +393,8 @@ def main():
         print(f"    Wilcoxon p={p:.4f}{'*' if p < 0.05 else ''}, r={r:.3f}")
 
     # CRPS/MAE ratio: measures how much distributional info adds beyond point forecast
-    # CRPS <= MAE always. Ratio near 1 = distribution adds little. Ratio << 1 = distribution helps.
-    # If CRPS > MAE, something is wrong (distributional spread is harmful).
+    # For well-calibrated distributions, CRPS < MAE (sharpness reward).
+    # CRPS > MAE signals distributional miscalibration.
     print("\n  --- CRPS / MAE ratio (distributional value-add) ---")
     crps_mae_results = {}
     for series in sorted(crps_df["series"].unique()):
@@ -403,20 +403,47 @@ def main():
         if len(valid) >= 3:
             mean_crps = float(valid["kalshi_crps"].mean())
             mean_mae = float(valid["point_crps"].mean())
+            median_crps = float(valid["kalshi_crps"].median())
+            median_mae = float(valid["point_crps"].median())
             ratio = mean_crps / mean_mae if mean_mae > 0 else float("inf")
+            median_ratio = median_crps / median_mae if median_mae > 0 else float("inf")
+
+            # Per-event ratios for reporting
+            per_event_ratios = (valid["kalshi_crps"] / valid["point_crps"]).replace([np.inf, -np.inf], np.nan).dropna()
+            median_per_event_ratio = float(per_event_ratios.median()) if len(per_event_ratios) > 0 else None
+
+            # Bootstrap CI on ratio-of-means
+            n_boot = 10000
+            boot_ratios = []
+            crps_arr = valid["kalshi_crps"].values
+            mae_arr = valid["point_crps"].values
+            rng = np.random.default_rng(42)
+            for _ in range(n_boot):
+                idx = rng.integers(0, len(valid), size=len(valid))
+                boot_crps = crps_arr[idx].mean()
+                boot_mae = mae_arr[idx].mean()
+                if boot_mae > 0:
+                    boot_ratios.append(boot_crps / boot_mae)
+            ci_lo = float(np.percentile(boot_ratios, 2.5))
+            ci_hi = float(np.percentile(boot_ratios, 97.5))
+
             crps_mae_results[series] = {
                 "n": len(valid),
                 "mean_crps": mean_crps,
                 "mean_mae": mean_mae,
                 "ratio": ratio,
+                "median_per_event_ratio": median_per_event_ratio,
+                "ci_95_lo": ci_lo,
+                "ci_95_hi": ci_hi,
                 "interpretation": (
                     "ratio < 1: distribution adds value beyond point forecast. "
-                    "ratio > 1: distributional spread is harmful (overconfidence)."
+                    "ratio > 1: distributional spread is miscalibrated."
                 ),
             }
             flag = " *** DISTRIBUTION HARMFUL" if ratio > 1.0 else ""
             print(f"  {series} (n={len(valid)}): CRPS={mean_crps:.4f}, MAE={mean_mae:.4f}, "
-                  f"CRPS/MAE={ratio:.3f}{flag}")
+                  f"CRPS/MAE={ratio:.3f} [{ci_lo:.2f}, {ci_hi:.2f}], "
+                  f"median per-event={median_per_event_ratio:.3f}{flag}")
     test_results["crps_mae_ratio"] = crps_mae_results
 
     # ================================================================
@@ -451,6 +478,10 @@ def main():
             try:
                 crps_val = compute_crps(strikes, cdf_values, realized)
                 uniform_val = compute_uniform_crps(min(strikes), max(strikes), realized)
+                # Compute implied mean at this snapshot for MAE
+                pdf = compute_implied_pdf(strikes, cdf_values)
+                implied_mean = pdf.get("implied_mean") if pdf else None
+                point_mae = abs(implied_mean - realized) if implied_mean is not None else None
                 temporal_crps.append({
                     "event_ticker": event_ticker,
                     "series": series,
@@ -459,6 +490,7 @@ def main():
                     "n_snapshots": n,
                     "kalshi_crps": crps_val,
                     "uniform_crps": uniform_val,
+                    "point_mae": point_mae,
                     "beats_uniform": crps_val < uniform_val,
                 })
             except Exception:
@@ -476,10 +508,14 @@ def main():
                 if len(t) == 0:
                     continue
                 ratio = t['kalshi_crps'].mean() / t['uniform_crps'].mean() if t['uniform_crps'].mean() > 0 else float('inf')
+                # CRPS/MAE at this snapshot
+                valid_mae = t.dropna(subset=["point_mae"])
+                crps_mae = valid_mae["kalshi_crps"].mean() / valid_mae["point_mae"].mean() if len(valid_mae) > 0 and valid_mae["point_mae"].mean() > 0 else None
+                crps_mae_str = f", CRPS/MAE={crps_mae:.3f}" if crps_mae is not None else ""
                 print(f"    {pct}: CRPS={t['kalshi_crps'].mean():.4f}, "
                       f"uniform={t['uniform_crps'].mean():.4f}, "
                       f"ratio={ratio:.2f}x, "
-                      f"beats_uniform={t['beats_uniform'].mean():.0%}")
+                      f"beats_uniform={t['beats_uniform'].mean():.0%}{crps_mae_str}")
 
     # ================================================================
     # PHASE 6: CPI HORSE RACE (POINT FORECASTS)
@@ -579,18 +615,20 @@ def main():
                       f"({max(0, n_needed - test['n'])} more months)")
 
     # ================================================================
-    # PHASE 6c: CPI OVERCONFIDENCE DIAGNOSTIC
+    # PHASE 6c: PIT DIAGNOSTIC (CPI AND JOBLESS CLAIMS)
     # ================================================================
     print("\n" + "=" * 70)
-    print("PHASE 6c: CPI OVERCONFIDENCE DIAGNOSTIC")
+    print("PHASE 6c: PIT DIAGNOSTIC (CPI AND JOBLESS CLAIMS)")
     print("=" * 70)
 
-    cpi_overconfidence = {}
-    cpi_data = crps_df[crps_df["series"] == "KXCPI"].copy()
-    if len(cpi_data) > 0:
-        # For each CPI event, check where realized falls in the implied distribution
-        pit_values = []  # Probability Integral Transform
-        for _, row in cpi_data.iterrows():
+    pit_results = {}
+    for pit_series in ["KXCPI", "KXJOBLESSCLAIMS"]:
+        series_data = crps_df[crps_df["series"] == pit_series].copy()
+        if len(series_data) == 0:
+            continue
+
+        pit_values = []
+        for _, row in series_data.iterrows():
             event_ticker = row["event_ticker"]
             realized = row["realized"]
             event_markets = event_groups.get(event_ticker)
@@ -605,8 +643,6 @@ def main():
             strikes = mid_snap["strikes"]
             cdf_vals = mid_snap["cdf_values"]
 
-            # Find where realized falls in the CDF (PIT value)
-            # cdf_vals are SURVIVAL probabilities P(X > strike), not CDF values.
             # PIT = P(X <= realized) = 1 - P(X > realized) = 1 - interp(survival)
             survival = np.interp(realized, strikes, cdf_vals)
             pit = 1.0 - survival
@@ -614,41 +650,43 @@ def main():
 
         if pit_values:
             pit_df = pd.DataFrame(pit_values)
-            # If well-calibrated, PIT values should be ~ Uniform(0,1)
-            # Overconfidence → PIT values cluster at 0 and 1 (tails)
             n_in_iqr = ((pit_df["pit"] >= 0.25) & (pit_df["pit"] <= 0.75)).sum()
             n_in_tails = ((pit_df["pit"] < 0.1) | (pit_df["pit"] > 0.9)).sum()
 
-            cpi_overconfidence = {
+            # Bootstrap CI on mean PIT
+            rng = np.random.default_rng(42)
+            boot_means = []
+            pit_arr = pit_df["pit"].values
+            for _ in range(10000):
+                boot_idx = rng.integers(0, len(pit_arr), size=len(pit_arr))
+                boot_means.append(pit_arr[boot_idx].mean())
+            pit_ci_lo = float(np.percentile(boot_means, 2.5))
+            pit_ci_hi = float(np.percentile(boot_means, 97.5))
+
+            ks_stat, ks_p = stats.kstest(pit_df["pit"], "uniform")
+
+            pit_results[pit_series] = {
                 "n_events": len(pit_df),
                 "mean_pit": float(pit_df["pit"].mean()),
                 "std_pit": float(pit_df["pit"].std()),
+                "mean_pit_ci_lo": pit_ci_lo,
+                "mean_pit_ci_hi": pit_ci_hi,
                 "pct_in_iqr": float(n_in_iqr / len(pit_df)),
                 "pct_in_tails": float(n_in_tails / len(pit_df)),
-                "expected_in_iqr": 0.50,
-                "expected_in_tails": 0.20,
-                "interpretation": (
-                    "PIT = P(X <= realized) from the implied CDF. "
-                    "If well-calibrated, PIT ~ Uniform(0,1): mean=0.5, std=0.289, "
-                    "50% in IQR, 20% in tails. Mean PIT > 0.5 means markets "
-                    "underestimate the variable (realized tends to be high)."
-                ),
+                "ks_stat": float(ks_stat),
+                "ks_p": float(ks_p),
+                "pit_values": pit_df["pit"].tolist(),
             }
 
-            print(f"  CPI PIT analysis (n={len(pit_df)}):")
-            print(f"    Mean PIT: {pit_df['pit'].mean():.3f} (ideal: 0.500)")
+            print(f"\n  {pit_series} PIT analysis (n={len(pit_df)}):")
+            print(f"    Mean PIT: {pit_df['pit'].mean():.3f} (95% CI: [{pit_ci_lo:.2f}, {pit_ci_hi:.2f}], ideal: 0.500)")
             print(f"    Std PIT:  {pit_df['pit'].std():.3f} (ideal: 0.289)")
             print(f"    In IQR (0.25-0.75): {n_in_iqr}/{len(pit_df)} = {n_in_iqr/len(pit_df):.0%} (ideal: 50%)")
             print(f"    In tails (<0.1 or >0.9): {n_in_tails}/{len(pit_df)} = {n_in_tails/len(pit_df):.0%} (ideal: 20%)")
-
-            # KS test for uniformity
-            ks_stat, ks_p = stats.kstest(pit_df["pit"], "uniform")
-            cpi_overconfidence["ks_test"] = {
-                "statistic": float(ks_stat),
-                "p_value": float(ks_p),
-                "reject_uniform": ks_p < 0.05,
-            }
             print(f"    KS test for uniformity: stat={ks_stat:.3f}, p={ks_p:.4f}")
+
+    # Keep backward compatibility
+    cpi_overconfidence = pit_results.get("KXCPI", {})
 
     # ================================================================
     # PHASE 7: SERIAL CORRELATION ACKNOWLEDGMENT
@@ -688,6 +726,7 @@ def main():
         "horse_race": horse_race_results,
         "power_analysis": power_analysis,
         "cpi_overconfidence_diagnostic": cpi_overconfidence,
+        "pit_diagnostics": pit_results,
         "serial_correlation_notes": serial_corr_note,
         "per_series_summary": {},
     }

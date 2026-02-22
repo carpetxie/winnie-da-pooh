@@ -13,9 +13,9 @@ Should traders trust the full implied distribution from prediction markets, or j
 
 ## 1. Methodology: Implied CDFs from Multi-Strike Markets
 
-336 multi-strike markets across 41 events (14 CPI, 24 Jobless Claims, 3 GDP). For each event at each hour, we reconstruct the implied CDF following the logic of Breeden-Litzenberger (1978): strike-ordered cumulative probabilities from binary contracts. (Unlike equity options, where extracting risk-neutral densities requires differentiating call prices with respect to strike, binary contracts directly price state-contingent probabilities, making the extraction straightforward.)
+336 multi-strike markets across 41 events (14 CPI, 16 Jobless Claims, 8 other). For each event at each hour, we reconstruct the implied CDF using Breeden-Litzenberger (1978): strike-ordered cumulative probabilities from binary contracts.
 
-*Note: GDP (n=3) is excluded from all statistical tests due to insufficient sample size. It is retained in data collection only. CRPS analysis uses the subset of events with realized outcomes: n=14 CPI, n=16 Jobless Claims.*
+*Note: GDP (n=3) is excluded from all statistical tests due to insufficient sample size. It is retained in data collection only.*
 
 ### No-Arbitrage Efficiency
 
@@ -43,16 +43,6 @@ The CRPS/MAE ratio measures whether a market's distributional spread adds inform
 *Bootstrap CIs: 10,000 resamples, ratio-of-means method (resample events with replacement, compute mean CRPS / mean MAE per sample).*
 
 For Jobless Claims, the full distribution robustly outperforms the point forecast — the CI on 0.37 excludes 1.0, confirming that the distributional spread genuinely adds information. For CPI, the point estimate (1.32) suggests the distributional spread adds noise rather than signal, but the CI [0.83, 2.04] includes 1.0, so we cannot conclude at 95% confidence that the CPI distribution is strictly harmful. This is consistent with the Wilcoxon test (CPI vs Historical: p=0.709), which also fails to detect a significant difference. The practical recommendation remains: treat CPI distributional spread with caution, as the point estimate favors ignoring it.
-
-### Worked Example: What Does CRPS/MAE < 1 Mean for a Trader?
-
-Consider two events that illustrate the diagnostic in action:
-
-**Jobless Claims, week of Jan 17, 2026 (KXJOBLESSCLAIMS-26JAN22).** The market's implied mean was 217,500, but the full implied CDF told a richer story: 54% probability below 215K, 15% between 215–220K, and 31% above 220K. The realized value was 200,000 — a 17,500 miss for the point forecast, but squarely in the lower tail where the distribution had concentrated majority probability. A trader pricing a "Below 215K" range contract using only the point forecast (217.5K) would see the contract as unlikely; the implied distribution correctly priced it at 54%. For this event, CRPS=9,189 vs. MAE=17,500 — the distribution was nearly twice as good as the point forecast alone (event-level ratio=0.53).
-
-**CPI, January 2025 (KXCPI-25JAN).** The implied mean was 0.35% month-over-month with only 2 evaluated strikes. Realized CPI came in at 0.5% — a 0.15pp miss. Here, the distributional spread made things *worse*: CRPS=0.273 vs. MAE=0.15, yielding an event-level ratio of 1.82. The coarse 2-strike distribution couldn't capture the upside tail, so the "extra information" was pure noise. A trader relying on the distributional spread would have been worse off than one using the point forecast alone.
-
-The aggregate CRPS/MAE ratios (0.37 for Jobless Claims, 1.32 for CPI) reflect the systematic pattern: Jobless Claims distributions consistently capture risk that point forecasts miss, while CPI distributions consistently add noise.
 
 **Strike structure and simulation robustness check:** CPI events average 2.3 evaluated strikes (range 2–3, uniform 0.1pp spacing), while Jobless Claims average 2.8 evaluated strikes (range 2–5, variable 5K–10K spacing with clustering near the expected value). To quantify whether this difference could mechanically inflate CPI's CRPS, we ran a Monte Carlo simulation (10,000 trials): using known Normal distributions matched to each series' realized parameters, we constructed piecewise-linear CDFs with 2, 3, 4, and 5 strikes and computed CRPS against the same realized outcomes. **Result: going from 3 to 2 strikes inflates CRPS by 1–2%, far less than the 32% CPI penalty.** The strike-count confound accounts for at most ~5% of the observed CRPS/MAE gap between series. The remaining penalty is consistent with genuine miscalibration — the PIT analysis in Appendix A suggests directional bias (mean PIT=0.61, indicating markets underestimate inflation) as the primary driver. *(Caveat: the simulation uses Normal distributions matched to realized parameters. Real implied distributions from 2–5 strikes with piecewise-linear interpolation may have heavier tails or asymmetry. However, the result is driven by strike count, not distributional shape — repeating with uniform and skew-normal generators produces qualitatively identical findings.)*
 
@@ -95,13 +85,11 @@ We hypothesize four mechanisms driving the calibration heterogeneity:
 
 These hypotheses are testable as more data accumulates: mechanisms 1 and 2 predict that other weekly releases (e.g., mortgage applications) should also have CRPS/MAE < 1, while other monthly composites (e.g., PCE) should have CRPS/MAE > 1. Future work should decompose CRPS into reliability, resolution, and uncertainty components (Hersbach, 2000) to identify which dimension drives the CPI penalty — the CRPS/MAE ratio collapses these into a single number, and the decomposition would clarify whether CPI markets are unreliable (biased), lack resolution (uninformative), or both. Additionally, decomposing CRPS by quantile region would distinguish tail mispricing (thin liquidity at extreme strikes) from center mispricing, providing direct evidence for or against mechanism 4.
 
-**Market design implications.** The CRPS/MAE diagnostic suggests concrete levers for improving distributional calibration. For CPI, the 2–3 evaluated strikes produce a coarse CDF that cannot capture tail risk — adding strikes at ±1σ and ±2σ from the consensus forecast would mechanically improve resolution. Liquidity incentives at tail strikes could address mechanism 4 (thin order books). For Jobless Claims, the diagnostic confirms that the current multi-strike structure is working well — the market design already supports distributional value. More broadly, the CRPS/MAE ratio could serve as a real-time quality metric: series persistently above 1.0 are candidates for structural intervention (more strikes, narrower spacing, liquidity subsidies), while series below 1.0 validate the current design.
-
 Notably, the PIT analysis (Appendix A) offers a preliminary clue: mean PIT=0.61 suggests CPI markets systematically underestimate inflation (realized values fall in the upper half of the implied distribution), which is consistent with the CRPS/MAE > 1 finding being driven by directional miscalibration rather than mere distributional imprecision. This directional bias provides differential evidence among the hypotheses: persistent underestimation of inflation is more consistent with mechanisms 1–2 (insufficient feedback leading to uncorrected bias) than mechanism 4 (thin-tails liquidity), which would produce symmetric CRPS inflation without directional skew.
 
 ---
 
-## 3. Information Hierarchy: Bond Markets Lead, Prediction Markets Add Granularity
+## 3. Context: Information Hierarchy and Point Forecast Comparison
 
 ### TIPS Granger Causality
 
@@ -167,7 +155,7 @@ The T-24h gradient (7x) is largely mechanical — for long-lived markets, T-24h 
 
 ### Data
 - 6,141 settled Kalshi markets with outcomes (Oct 2024 - Feb 2026)
-- 336 multi-strike markets across 41 events (14 CPI, 24 Jobless Claims, 3 GDP)
+- 336 multi-strike markets across 41 events (CPI, Jobless Claims, GDP, other)
 - External: TIPS breakeven (T10YIE), SPF median CPI, FRED historical data
 
 ### In-Sample Caveat
@@ -191,7 +179,7 @@ All CRPS/MAE ratios and Wilcoxon tests are computed on the full available datase
 | 7 | Implied Distributions | Section 1: Methodology |
 | 12 | CRPS Scoring | Section 2: Main result |
 | 13 | Unified + Horse Race | Sections 2-3: Per-series tests, horse race |
-| 8 | TIPS Comparison | Section 3: Information hierarchy + horse race |
+| 8 | TIPS Comparison | Section 3: Information hierarchy |
 | 11 | Favorite-Longshot Bias | Section 4: Maturity (controlled) |
 
 ---

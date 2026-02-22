@@ -37,7 +37,7 @@ def compute_crps(
     cdf_strikes: list[float],
     cdf_values: list[float],
     realized_value: float,
-    tail_extension: float = 1.0,
+    tail_extension: float | None = None,
 ) -> float:
     """Compute CRPS for a Kalshi implied distribution vs a realized value.
 
@@ -55,9 +55,12 @@ def compute_crps(
         Must be same length as cdf_strikes.
     realized_value : float
         The actual observed outcome.
-    tail_extension : float
+    tail_extension : float or None
         How far beyond min/max strikes to extend the integration domain.
         CDF is assumed flat (0 below min, 1 above max) in the tails.
+        If None (default), uses scale-appropriate extension:
+        max(strike_range * 0.5, 1.0) to handle both percentage-scale
+        (CPI ~0.1pp spacing) and level-scale (Jobless Claims ~10K spacing).
 
     Returns
     -------
@@ -76,9 +79,18 @@ def compute_crps(
     # Clip CDF to [0, 1] for robustness against slight arbitrage violations
     f_values = np.clip(f_values, 0.0, 1.0)
 
-    # Define integration domain
-    x_min = strikes[0] - tail_extension
-    x_max = strikes[-1] + tail_extension
+    # Scale-appropriate tail extension: ensures integration domain covers
+    # realized values that fall outside the strike range.
+    # Previously used a fixed tail_extension=1.0, which was appropriate for
+    # CPI (percentage scale) but covered effectively zero tail for Jobless
+    # Claims (200K+ scale), truncating CRPS for out-of-range realizations.
+    if tail_extension is None:
+        strike_range = strikes[-1] - strikes[0]
+        tail_extension = max(strike_range * 0.5, 1.0)
+
+    # Also ensure integration domain covers the realized value
+    x_min = min(strikes[0] - tail_extension, realized_value - tail_extension)
+    x_max = max(strikes[-1] + tail_extension, realized_value + tail_extension)
 
     # Build piecewise linear CDF function:
     #   F(x) = 0          for x < strikes[0]
