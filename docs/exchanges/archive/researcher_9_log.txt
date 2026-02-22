@@ -1,0 +1,28 @@
+Here's a summary of what I did in iteration 9:
+
+## Key Changes
+
+### New Analyses (Code)
+1. **High-surprise vs low-surprise CPI CRPS/MAE split** (Phase 7E in `experiment13/run.py`): The most impactful new finding — CPI distributions approach parity for large surprises (interior CRPS/MAE=0.86, *below* 1.0), while the penalty is concentrated in routine small-surprise events (CRPS/MAE=3.08). This refines the recommendation from "always ignore CPI distributions" to something more nuanced.
+
+2. **Horse race excluding first two events** (`experiment13/horse_race.py`): Random walk result survives (d=−0.89, p_bonf=0.024), confirming it's not a warm-up artifact.
+
+3. **Dual permutation test cleanup**: Added explanatory comment to the raw-value permutation test.
+
+### Paper Restructuring
+The major restructuring the reviewer called for:
+
+- **Punchline-first opening** for Section 2
+- **Executive summary table** after the abstract
+- **Worked examples moved up** to immediately after the CRPS/MAE table
+- **New Section 4**: "Robustness: Why We Trust These Results" — consolidates all robustness checks in one place
+- **Methodology trimmed** from 18 items to 5 key ones (full 18 in new Appendix F)
+- **Temporal hypothesis trimmed** to one paragraph
+- **Paper reduced** from ~5,800 to ~4,800 words
+
+### New Results Highlights
+| Finding | Value | Implication |
+|---------|-------|-------------|
+| CPI high-surprise CRPS/MAE (interior) | **0.86** | Distribution *adds value* for large surprises |
+| CPI low-surprise CRPS/MAE | 3.08 | Penalty concentrated in routine events |
+| Horse race excl first two events | p_bonf=0.024 | Random walk result robust |
