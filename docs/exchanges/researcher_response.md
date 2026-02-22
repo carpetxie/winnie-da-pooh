@@ -1,68 +1,119 @@
-# Researcher Response — Iteration 4
+# Researcher Response — Iteration 1
 
 STATUS: CONTINUE
 
 ## Deliberation
 
-### 1. The One Big Thing: Economic Translation / Worked Example
-   - **Agree**: This is the right call. The paper had a gap between "CRPS/MAE = 0.37" and "what should I do?" The statistical finding was rigorous but lacked a concrete anchor for non-specialist readers.
-   - **Feasible**: Yes — the per-event data in exp13 provides CRPS, MAE, implied mean, and realized values for every event. Experiment 7 provides the full implied CDF (strike probabilities). All the ingredients exist.
-   - **Impact**: High. This is the single highest-value change for the blog audience.
-   - **Action**: Added a "Worked Example" subsection in Section 2 with two contrasting events:
-     - KXJOBLESSCLAIMS-26JAN22: implied mean 217.5K, distribution assigned 54% below 215K, realized 200K. CRPS=9,189 vs MAE=17,500 (ratio=0.53). Shows how the distribution captures downside risk the point forecast misses, with a concrete range-contract framing.
-     - KXCPI-25JAN: implied mean 0.35%, realized 0.5%, only 2 strikes. CRPS=0.273 vs MAE=0.15 (ratio=1.82). Shows how a coarse distribution actively hurts.
-   - Also added a "Market design implications" paragraph connecting CRPS/MAE to actionable levers (more strikes, liquidity incentives, real-time quality monitoring). This addresses the reviewer's suggestion #3 and adds value for Kalshi as an organization.
+### 1. The One Big Thing: CRPS tail_extension bug
+- **Agree**: Fully agree. The reviewer correctly identified that `tail_extension=1.0` is scale-inappropriate for Jobless Claims (200K+ scale). The integration domain was effectively `[199999, 250001]`, truncating CRPS for realized values outside this range.
+- **Feasible**: Yes, straightforward fix.
+- **Impact**: HIGH. This was the most consequential change. The fix changed the headline number more than the reviewer predicted:
+  - JC CRPS: 4,840 → **7,748**
+  - JC CRPS/MAE: 0.37 → **0.60** (reviewer estimated ~0.44)
+  - JC vs Historical Wilcoxon: p=0.047 → **p=0.372** (no longer significant at any level!)
+- **Action**: Fixed `compute_crps()` to use scale-appropriate tail extension: `max(strike_range * 0.5, 1.0)`. Also added coverage of realized values beyond strike boundaries (`x_min = min(strikes[0] - ext, realized - ext)`). Updated all numbers throughout the paper. Added this correction to the Downgraded findings table in Appendix C.
 
-### 2. Should Fix #1: Clarify "41 events" breakdown
-   - **Agree**: The parenthetical "(14 CPI, 16 Jobless Claims, 8 other)" sums to 38, not 41, and is misleading. The actual breakdown from the data is 14 CPI + 24 Jobless Claims + 3 GDP = 41.
-   - **Feasible**: Yes, trivial fix.
-   - **Impact**: Medium — an attentive reader would stumble on this.
-   - **Action**: Changed to "(14 CPI, 24 Jobless Claims, 3 GDP)" in both Section 1 and the Methodology section. Added clarification that CRPS analysis uses the subset with realized outcomes (n=14 CPI, n=16 Jobless Claims) to explain why n=16 appears in the CRPS table despite 24 total Jobless Claims events.
+The qualitative conclusion survives (0.60 < 1.0, distributions add value) but the effect is substantially more modest. The Wilcoxon vs Historical test is now thoroughly non-significant, which required rewriting the CRPS vs Historical section. This is a healthy correction.
 
-### 3. Should Fix #2: Lead with strong result in trader callout
-   - **Partial disagree**: Re-reading the callout, it already leads with the strong result: "Use Jobless Claims distributions — they yield a 63% CRPS improvement over point forecasts alone (CI excludes 1.0)." The CPI caveat comes second. The current structure is fine.
-   - **Feasible**: Yes, but unnecessary.
-   - **Impact**: Low — the current structure already does what the reviewer asks.
-   - **Action**: No change. The callout already leads with the punchline.
+### 2. Apply iteration-3 changes to the paper
+- **Partially disagree**: The reviewer states "the abstract still says 'actively harmful' for CPI without hedging, the CRPS/MAE table lacks a CI column, and the trader callout still says '63% more information.'" However, examining the paper as it stood:
+  - The abstract says "CPI distributions show signs of miscalibration... though the penalty is not statistically conclusive at n=14" — this IS hedged.
+  - The CRPS/MAE table DOES have a CI column with [0.83, 2.04] and [0.25, 0.55].
+  - The trader callout says "63% CRPS improvement" — NOT "63% more information."
+  - The paper correctly states "CI includes 1.0" for CPI.
+- **Impact**: LOW. The iteration-3 changes were already applied. The reviewer appears to have been comparing against a stale version.
+- **Action**: No additional changes needed for this point. The hedging language, CIs, and corrected phrasing were already present. (The numbers have now changed due to the tail-extension fix, so I updated 63% → 40% and all CI values.)
 
-### 4. Should Fix #3: Section 3 title undersells results
-   - **Agree**: "Context: Information Hierarchy and Point Forecast Comparison" buries the TIPS Granger result, which is genuinely novel.
-   - **Feasible**: Trivial.
-   - **Impact**: Medium — better framing for a real contribution.
-   - **Action**: Changed to "Information Hierarchy: Bond Markets Lead, Prediction Markets Add Granularity." This is assertive without overclaiming — the TIPS result is a lead finding, and Kalshi's multi-strike structure adds granularity that a single breakeven rate cannot.
+### 3. Code comment contradiction in horse_race.py line 378
+- **Agree**: The comment says "CRPS <= MAE is a mathematical identity for any proper distribution" which is false. CRPS <= MAE holds for well-calibrated distributions, not all distributions.
+- **Feasible**: Yes, one-line fix.
+- **Impact**: LOW (code comment only, doesn't affect results).
+- **Action**: Fixed. Updated comment to correctly state this is a property of well-calibrated distributions, not a universal identity.
 
-### 5. Should Fix #4: Breeden-Litzenberger citation precision
-   - **Agree**: The reviewer is right that B-L's original method involves differentiating call prices, while binary contracts directly price state-contingent probabilities. The extraction is conceptually related but mechanically trivial.
-   - **Feasible**: Trivial.
-   - **Impact**: Low-medium — demonstrates methodological awareness.
-   - **Action**: Changed to "following the logic of Breeden-Litzenberger (1978)" and added a parenthetical: "(Unlike equity options, where extracting risk-neutral densities requires differentiating call prices with respect to strike, binary contracts directly price state-contingent probabilities, making the extraction straightforward.)"
+### 4. Justify mid-life snapshot choice
+- **Agree**: Valid critique. The mid-life choice was unexplained.
+- **Feasible**: Yes — addressed both by adding a justification sentence AND by running the snapshot sensitivity analysis (critique point #4 under "Should Fix").
+- **Impact**: MEDIUM. The sensitivity analysis turned out to be very informative — it revealed a non-monotonic CPI pattern.
+- **Action**: Added justification in Section 1 methodology, and added new "Snapshot Sensitivity" subsection in Section 2 with CRPS/MAE at 10/25/50/75/90% of market life. Key finding: JC CRPS/MAE < 1 at all timepoints (robust), CPI shows non-monotonic pattern (worst at 25-50%, better at 10% and 75-90%).
+
+### 5. Add Jobless Claims PIT analysis
+- **Agree**: Excellent suggestion. JC is the stronger finding, and PIT analysis provides independent confirmation.
+- **Feasible**: Yes, straightforward extension of existing CPI PIT code.
+- **Impact**: MEDIUM-HIGH. The JC PIT result (mean=0.46, KS p=0.35) is directly consistent with CRPS/MAE < 1 and provides a clean contrast with CPI PIT (mean=0.61). This strengthens the heterogeneity narrative.
+- **Action**: Extended Phase 6c to compute PIT for both CPI and JC. Updated Appendix A from "CPI PIT Analysis" to "PIT Analysis (CPI and Jobless Claims)" with side-by-side comparison.
+
+### 6. implied_mean tail probability limitation
+- **Agree**: Valid concern. The code normalizes to interior probability only.
+- **Feasible**: Fixing the code would require choosing a point for tail mass allocation (e.g., min_strike - half_spacing), which introduces its own assumptions.
+- **Impact**: LOW. This affects MAE calculations but not CRPS (which integrates the full CDF). The practical impact is small since most events have modest tail probability.
+- **Action**: Added a note in Section 1 documenting this limitation rather than changing the code, which would introduce new assumptions.
+
+### 7. Sensitivity test: CRPS at different snapshot times
+- **Agree**: Valuable robustness check, directly addresses the mid-life concern.
+- **Feasible**: Yes, Phase 5 already computed temporal CRPS.
+- **Impact**: HIGH. Extended Phase 5 to also compute CRPS/MAE (not just CRPS/Uniform) at each timepoint. Results are very informative — see Snapshot Sensitivity section above.
+- **Action**: Modified experiment13/run.py Phase 5 to compute point MAE at each snapshot. Added new Snapshot Sensitivity table to paper.
+
+### 8. Trailing mean benchmark weakness for early events
+- **Partially agree**: The hardcoded fallback (0.25 for first event) is inelegant but reasonable — 0.25% was approximately the 2024 average MoM CPI. Using FRED historical CPI would be cleaner but the impact on results is negligible (affects 1-2 of 14 events).
+- **Impact**: LOW. The random walk benchmark (which IS significant) doesn't have this issue.
+- **Action**: Declined. The 0.25% fallback is documented and defensible. Changing the benchmark mid-analysis risks looking like p-hacking.
+
+### 9. Report median CRPS/MAE alongside mean
+- **Agree**: Easy and useful, especially with skewed distributions.
+- **Feasible**: Yes, trivial computation.
+- **Impact**: LOW-MEDIUM. Added median per-event ratios. CPI median=1.38 (close to mean 1.32), JC median=0.67 (close to mean 0.60). The means and medians tell the same story, which is reassuring.
+- **Action**: Added median per-event ratio column to CRPS/MAE table and modified experiment13 to compute and report it.
 
 ## Changes Made
 
-1. **Section 2, new subsection "Worked Example: What Does CRPS/MAE < 1 Mean for a Trader?"** — Two contrasting event-level examples (Jobless Claims success, CPI failure) with concrete CRPS vs MAE numbers and range-contract pricing framing.
-2. **Section 2, new paragraph "Market design implications"** — Connects CRPS/MAE diagnostic to actionable market design levers (strike count, liquidity incentives, real-time quality monitoring).
-3. **Section 1, event breakdown** — Fixed from "(14 CPI, 16 Jobless Claims, 8 other)" to "(14 CPI, 24 Jobless Claims, 3 GDP)" with note clarifying CRPS subset sizes.
-4. **Section 1, B-L citation** — Softened to "following the logic of" with parenthetical explaining why binary contracts make extraction trivial.
-5. **Section 3 title** — Changed from "Context: Information Hierarchy and Point Forecast Comparison" to "Information Hierarchy: Bond Markets Lead, Prediction Markets Add Granularity."
-6. **Methodology, Data section** — Updated event breakdown to match.
+### Code changes:
+1. **`experiment12/distributional_calibration.py`**: Fixed `compute_crps()` tail_extension from fixed `1.0` to scale-appropriate `max(strike_range * 0.5, 1.0)`. Also added coverage of realized values beyond strike boundaries. This is the critical bug fix.
+2. **`experiment13/horse_race.py`**: Fixed misleading code comment about CRPS <= MAE being a "mathematical identity."
+3. **`experiment13/run.py`**:
+   - Phase 4: Added median per-event CRPS/MAE ratio and bootstrap CIs to CRPS/MAE computation.
+   - Phase 5: Added point MAE computation at each temporal snapshot for CRPS/MAE sensitivity.
+   - Phase 6c: Expanded PIT analysis from CPI-only to both CPI and Jobless Claims, with bootstrap CIs on mean PIT.
+
+### Paper changes (`docs/findings.md`):
+1. **Abstract**: Updated JC CRPS/MAE from 0.37 to 0.60, CI from [0.25, 0.55] to [0.45, 0.78]. Added JC PIT finding. Changed "63% CRPS improvement" to "40%."
+2. **Trader callout**: Updated from 63% to 40% CRPS improvement.
+3. **Section 1**: Added justification for mid-life snapshot choice. Added note about implied_mean tail probability limitation.
+4. **Section 2 CRPS/MAE table**: Updated all JC numbers. Added median per-event column.
+5. **Section 2 CRPS vs Historical**: Completely rewritten. JC Wilcoxon now p=0.372 (was 0.047). Removed claim about effect size being "well-powered" since effect size itself changed.
+6. **New: Snapshot Sensitivity subsection**: CRPS/MAE at 10/25/50/75/90% of market life. Shows JC robust across all timepoints, CPI non-monotonic.
+7. **Temporal CRPS Evolution**: Updated with corrected numbers.
+8. **Power Analysis table**: Updated JC effect size from r=0.49 to r=0.10 (much weaker after correction).
+9. **Appendix A**: Expanded from CPI PIT to CPI + JC PIT with side-by-side comparison table.
+10. **Appendix B**: Updated GDP CRPS number.
+11. **Appendix C**: Added two new entries to Downgraded findings: JC CRPS/MAE (0.37→0.60) and JC vs Historical (p=0.047→p=0.372).
+12. **Methodology**: Added item 9 (scale-appropriate CRPS integration) to Statistical Corrections.
 
 ## Pushbacks
 
-- **Trader callout restructuring (Should Fix #2)**: The reviewer suggests restructuring the bottom-line box to lead with the strong result. It already does. "Use Jobless Claims distributions — they yield a 63% CRPS improvement" is the opening sentence. The CPI caveat follows naturally. No change needed.
+1. **"Apply iteration-3 changes" (Must Fix #1)**: The reviewer claims these changes were not applied. They were. The abstract was already hedged, the table already had CIs, and the trader callout already said "CRPS improvement" not "information." I suspect the reviewer was comparing against a cached or older version. No additional action needed on this point.
+
+2. **Trailing mean benchmark (Should Fix #5)**: The reviewer suggests using FRED historical CPI instead of the internal REALIZED_MOM_CPI dict. While technically cleaner, changing the benchmark after seeing results would look like specification search. The 0.25% fallback for the first event is documented and reasonable. Declined.
 
 ## Remaining Weaknesses
 
-- **Small sample sizes**: n=14–16 remains the fundamental constraint. No revision can fix this.
-- **Two-series comparison**: The frequency hypothesis is suggestive but untestable with only CPI and Jobless Claims. Need PCE, mortgage applications, etc.
-- **In-sample evaluation**: All results are in-sample. Acknowledged but unfixable at current n.
-- **CPI strike coarseness**: 2–3 strikes is barely a "distribution." The Monte Carlo addresses mechanical inflation, but the philosophical question of what distributional information means with 2 strikes remains.
-- **Worked example is illustrative, not systematic**: The two events chosen are representative but hand-picked. A systematic analysis of event-level CRPS/MAE distributions would be stronger but risks overcomplicating the presentation.
+1. **The JC Wilcoxon result is now non-significant.** The tail-extension fix turned the p=0.047 result into p=0.372. The CRPS/MAE ratio (0.60, CI [0.45, 0.78]) remains the primary evidence, but the paper now relies on a single metric rather than two corroborating tests. This is honest but weaker.
+
+2. **Power for the JC vs Historical test is now very poor.** The effect size shrank from r=0.49 to r=0.10, requiring n=152 instead of n=6. This test is essentially useless at current sample sizes.
+
+3. **The CPI snapshot sensitivity pattern (non-monotonic) is unexplained.** Why would CPI distributions be well-calibrated early and late but worst at mid-life? This is interesting but I don't have a compelling mechanism. It could be noise at n=14.
+
+4. **Serial correlation in CPI.** The paper acknowledges this in the methodology but doesn't quantify the effective degrees of freedom reduction. At n=14, even a modest AR(1) coefficient could halve effective n.
+
+5. **Two-series limitation.** Still can't test the release-frequency hypothesis with only CPI and JC. Need PCE, mortgage applications, or other series.
 
 ## Convergence Assessment
 
-This iteration addressed the main presentational gap identified by the reviewer (economic translation). The paper now has:
-- Rigorous methodology with appropriate caveats (iterations 1–3)
-- Honest confidence intervals and hedged claims (iteration 3)
-- Concrete worked examples and market design implications (iteration 4)
+This iteration made the largest changes so far — a critical bug fix that materially altered the headline numbers, plus three new analyses (JC PIT, snapshot sensitivity, median ratios). The paper is significantly more honest and robust. The core insight survives (heterogeneous distributional value-add) but the evidence is more nuanced.
 
-The remaining weaknesses are all inherent (sample size, series count, in-sample evaluation). Further iterations could polish prose and transitions, but the marginal value is declining. I expect one more round of minor polish could bring this to final form.
+The next iteration should focus on:
+- Whether the snapshot sensitivity pattern for CPI is robust or noise
+- Whether the paper's framing needs to shift given the weaker JC effect
+- Any remaining overclaims that need hedging
+
+Not yet converged — the framing adjustments to accommodate the corrected numbers may need refinement.
