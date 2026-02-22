@@ -179,8 +179,10 @@ def get_random_walk_forecast(event_ticker: str) -> Optional[float]:
     except ValueError:
         return None
     if idx == 0:
-        # For the first event, use Nov 2024 CPI MoM (0.3%) from BLS data
-        return 0.3
+        # For the first event (KXCPI-24NOV = Nov 2024 CPI), use Oct 2024
+        # realized CPI MoM (0.2%) as the random walk forecast.
+        # BLS CPI-U SA Oct 2024 MoM = 0.2%.
+        return 0.2
     prev_ticker = _TICKER_ORDER[idx - 1]
     return REALIZED_MOM_CPI.get(prev_ticker)
 
@@ -379,10 +381,36 @@ def run_cpi_horse_race(
             test_results[k]["n_benchmarks_corrected"] = n_benchmarks
             test_results[k]["significant_bonferroni"] = adj_p < 0.05
 
+    # --- Sensitivity: exclude first event (hardcoded benchmarks) ---
+    sensitivity_excl_first = {}
+    results_excl = results_df[results_df["event_ticker"] != _TICKER_ORDER[0]]
+    for naive_col, naive_label in [
+        ("random_walk_mae", "random_walk"),
+        ("trailing_mean_mae", "trailing_mean"),
+        ("spf_mae", "spf"),
+        ("tips_mae", "tips"),
+    ]:
+        valid = results_excl.dropna(subset=["kalshi_point_mae", naive_col])
+        if len(valid) >= 5:
+            stat, p = stats.wilcoxon(
+                valid["kalshi_point_mae"], valid[naive_col],
+                alternative="less",
+            )
+            d = _paired_effect_size(valid["kalshi_point_mae"].values, valid[naive_col].values)
+            sensitivity_excl_first[f"kalshi_vs_{naive_label}"] = {
+                "n": len(valid),
+                "kalshi_mean_mae": float(valid["kalshi_point_mae"].mean()),
+                f"{naive_label}_mean_mae": float(valid[naive_col].mean()),
+                "cohen_d": d,
+                "wilcoxon_p": float(p),
+                "wilcoxon_p_bonferroni": float(min(p * 4, 1.0)),
+            }
+
     return {
         "per_event": results_df.to_dict("records"),
         "n_events": len(results_df),
         "statistical_tests": test_results,
+        "sensitivity_excl_first_event": sensitivity_excl_first,
         "methodology_notes": {
             "spf_conversion": (
                 "SPF forecasts annual CPI (Q4/Q4 %). Converted to MoM via "
