@@ -240,13 +240,19 @@ def run_cpi_horse_race(
     for _, event in cpi_events.iterrows():
         event_ticker = event["event_ticker"]
         realized = event["realized"]
-        kalshi_mean = event.get("implied_mean")
+        # Use tail-aware mean if available, fall back to interior-only
+        kalshi_mean_ta = event.get("implied_mean_tail_aware")
+        kalshi_mean_interior = event.get("implied_mean")
+        kalshi_mean = kalshi_mean_ta if kalshi_mean_ta is not None and not (isinstance(kalshi_mean_ta, float) and np.isnan(kalshi_mean_ta)) else kalshi_mean_interior
 
         row = {
             "event_ticker": event_ticker,
             "realized": realized,
             "kalshi_implied_mean": kalshi_mean,
+            "kalshi_implied_mean_interior": kalshi_mean_interior,
+            "kalshi_implied_mean_tail_aware": kalshi_mean_ta,
             "kalshi_point_mae": abs(kalshi_mean - realized) if kalshi_mean is not None else None,
+            "kalshi_point_mae_interior": abs(kalshi_mean_interior - realized) if kalshi_mean_interior is not None else None,
             "kalshi_crps": event.get("kalshi_crps"),
         }
 
