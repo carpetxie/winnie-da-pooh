@@ -1579,14 +1579,20 @@ def main():
         high_ratio = float(high_events["kalshi_crps"].mean() / high_events["point_crps_tail_aware"].mean()) if high_events["point_crps_tail_aware"].mean() > 0 else None
         low_ratio = float(low_events["kalshi_crps"].mean() / low_events["point_crps_tail_aware"].mean()) if low_events["point_crps_tail_aware"].mean() > 0 else None
 
-        # Also compute interior-only split
+        # Interior-only split using SAME partition as tail-aware (consistent events)
+        # This ensures high/low groups contain the same events for both specifications
         s_int = crps_df[crps_df["series"] == series].dropna(subset=["kalshi_crps", "point_crps"])
-        surprises_int = s_int["point_crps"].values
-        median_surprise_int = float(np.median(surprises_int))
-        high_int = s_int[surprises_int >= median_surprise_int]
-        low_int = s_int[surprises_int < median_surprise_int]
-        high_ratio_int = float(high_int["kalshi_crps"].mean() / high_int["point_crps"].mean()) if high_int["point_crps"].mean() > 0 else None
-        low_ratio_int = float(low_int["kalshi_crps"].mean() / low_int["point_crps"].mean()) if low_int["point_crps"].mean() > 0 else None
+        high_int = s_int.loc[s_int.index.isin(high_events.index)]
+        low_int = s_int.loc[s_int.index.isin(low_events.index)]
+        high_ratio_int = float(high_int["kalshi_crps"].mean() / high_int["point_crps"].mean()) if len(high_int) > 0 and high_int["point_crps"].mean() > 0 else None
+        low_ratio_int = float(low_int["kalshi_crps"].mean() / low_int["point_crps"].mean()) if len(low_int) > 0 and low_int["point_crps"].mean() > 0 else None
+
+        # CRPS/uniform ratio for surprise subsets (mechanically independent of MAE)
+        s_unif = crps_df[crps_df["series"] == series].dropna(subset=["kalshi_crps", "uniform_crps", "point_crps_tail_aware"])
+        high_unif = s_unif.loc[s_unif.index.isin(high_events.index)]
+        low_unif = s_unif.loc[s_unif.index.isin(low_events.index)]
+        high_crps_uniform = float(high_unif["kalshi_crps"].mean() / high_unif["uniform_crps"].mean()) if len(high_unif) > 0 and high_unif["uniform_crps"].mean() > 0 else None
+        low_crps_uniform = float(low_unif["kalshi_crps"].mean() / low_unif["uniform_crps"].mean()) if len(low_unif) > 0 and low_unif["uniform_crps"].mean() > 0 else None
 
         surprise_split_results[series] = {
             "n_high": int(high_mask.sum()),
@@ -1600,10 +1606,19 @@ def main():
             "low_surprise_mean_crps": float(low_events["kalshi_crps"].mean()),
             "high_surprise_mean_mae": float(high_events["point_crps_tail_aware"].mean()),
             "low_surprise_mean_mae": float(low_events["point_crps_tail_aware"].mean()),
+            "high_crps_uniform_ratio": high_crps_uniform,
+            "low_crps_uniform_ratio": low_crps_uniform,
+            "high_surprise_mean_uniform_crps": float(high_unif["uniform_crps"].mean()) if len(high_unif) > 0 else None,
+            "low_surprise_mean_uniform_crps": float(low_unif["uniform_crps"].mean()) if len(low_unif) > 0 else None,
         }
         print(f"\n  {series} (median surprise = {median_surprise:.4f}):")
         print(f"    High surprise (n={high_mask.sum()}): CRPS/MAE(TA)={high_ratio:.3f}" + (f", CRPS/MAE(int)={high_ratio_int:.3f}" if high_ratio_int else ""))
         print(f"    Low surprise  (n={low_mask.sum()}): CRPS/MAE(TA)={low_ratio:.3f}" + (f", CRPS/MAE(int)={low_ratio_int:.3f}" if low_ratio_int else ""))
+        print(f"    Absolute CRPS: high={high_events['kalshi_crps'].mean():.4f}, low={low_events['kalshi_crps'].mean():.4f}")
+        print(f"    Absolute MAE:  high={high_events['point_crps_tail_aware'].mean():.4f}, low={low_events['point_crps_tail_aware'].mean():.4f}")
+        if high_crps_uniform is not None and low_crps_uniform is not None:
+            print(f"    CRPS/uniform:  high={high_crps_uniform:.3f}, low={low_crps_uniform:.3f}")
+            print(f"      (CRPS/uniform is independent of surprise magnitude — tests genuine distributional quality)")
 
     test_results["surprise_split"] = surprise_split_results
 
@@ -1822,6 +1837,51 @@ def _plot_unified(crps_df, temporal_df, horse_race_results, output_dir):
                   f"median={np.median(ratios):.2f}")
             for t, r in zip(tickers, ratios):
                 print(f"      {t}: {r:.3f}")
+
+    # --- Surprise magnitude vs CRPS/MAE scatter (two-panel) ---
+    valid_surprise = crps_df.dropna(subset=["kalshi_crps", "point_crps_tail_aware"]).copy()
+    valid_surprise = valid_surprise[valid_surprise["point_crps_tail_aware"] > 0]
+    valid_surprise["crps_mae_ta"] = valid_surprise["kalshi_crps"] / valid_surprise["point_crps_tail_aware"]
+    valid_surprise = valid_surprise[valid_surprise["series"].isin(["KXCPI", "KXJOBLESSCLAIMS"])]
+
+    if len(valid_surprise) > 0:
+        from scipy import stats as sp_stats
+        fig, axes_s = plt.subplots(1, 2, figsize=(14, 5))
+        series_configs = [
+            ("KXCPI", "CPI", "#e74c3c", "Surprise (|realized − mean|, pp)"),
+            ("KXJOBLESSCLAIMS", "Jobless Claims", "#2ecc71", "Surprise (|realized − mean|, thousands)"),
+        ]
+        for ax_s, (series, label, color, xlabel) in zip(axes_s, series_configs):
+            s = valid_surprise[valid_surprise["series"] == series]
+            if len(s) == 0:
+                continue
+            x_vals = s["point_crps_tail_aware"].values
+            y_vals = s["crps_mae_ta"].values
+            ax_s.scatter(x_vals, y_vals, c=color, s=80, edgecolors="black",
+                        linewidths=0.5, alpha=0.8, zorder=3)
+            # Add Spearman annotation
+            if len(s) >= 4:
+                rho, pval = sp_stats.spearmanr(x_vals, y_vals)
+                ax_s.annotate(f"Spearman ρ = {rho:.2f}\np = {pval:.3f}",
+                             xy=(0.95, 0.95), xycoords="axes fraction",
+                             ha="right", va="top", fontsize=10,
+                             bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
+            # Fit line for visual
+            if len(s) >= 4:
+                from numpy.polynomial import polynomial as P
+                coefs = P.polyfit(x_vals, y_vals, 1)
+                x_line = np.linspace(x_vals.min(), x_vals.max(), 50)
+                y_line = P.polyval(x_line, coefs)
+                ax_s.plot(x_line, y_line, "--", color="gray", alpha=0.5)
+            ax_s.axhline(y=1.0, color="black", linestyle=":", alpha=0.5, linewidth=1)
+            ax_s.set_xlabel(xlabel)
+            ax_s.set_ylabel("CRPS/MAE (tail-aware)")
+            ax_s.set_title(f"{label}: Surprise Magnitude vs CRPS/MAE")
+            ax_s.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_dir, "surprise_vs_crps_mae.png"), dpi=150)
+        plt.close()
+        print(f"  Saved {output_dir}/surprise_vs_crps_mae.png")
 
 
 if __name__ == "__main__":
