@@ -1,0 +1,17 @@
+Both files are complete. Here's a summary of what I did:
+
+## Iteration 2 Summary
+
+**Four changes made to `docs/findings.md`:**
+
+1. **Strike-count simulation (Must Fix — addressed):** Ran a Monte Carlo simulation (10,000 trials) showing that going from 3→2 strikes inflates CRPS by only 1–2%, far less than the 32% CPI penalty. This definitively resolves the reviewer's sole blocker — the central claim no longer rests on qualitative intuition. Script saved to `scripts/strike_count_simulation.py`.
+
+2. **Abstract tightened (Should Fix — addressed):** Restructured to lead with the core question, state the main finding upfront, and compress secondary findings into one "We also find..." sentence. Cut from ~188 to ~130 words. Added a "Bottom line for traders" blockquote callout.
+
+3. **Temporal CIs added (Should Fix — addressed):** Computed bootstrap 95% CIs (10K resamples) for the temporal CRPS evolution table. The CIs materially temper the narrative: CPI is significantly worse than uniform early/mid, but the late-life "learning" convergence is uncertain (CI includes 1.0). Jobless Claims point estimates favor the market but individual time-slice CIs are wide.
+
+4. **Blog format (Should Fix — partially addressed):** Added the trader callout. Declined to move Methodology to appendix (it's already at the end and compact).
+
+**One pushback:** Declined to restructure Methodology into a formal appendix — the current end-of-paper position is already blog-friendly.
+
+**Deliberation written to `docs/exchanges/researcher_response.md`** with full reasoning on each point.
