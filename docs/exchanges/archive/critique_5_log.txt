@@ -1,0 +1,16 @@
+Critique written to `docs/exchanges/critique_latest.md`. Here's a summary:
+
+**Iteration 5 — MINOR REVISIONS**
+
+The paper has improved substantially across all iterations. The worked examples added in iteration 4 were the key missing piece and the researcher executed them well.
+
+**Scores:** Novelty 7, Rigor 8, Economic Significance 7 (+2), Narrative Clarity 7.5 (+0.5), Blog Publishability 8 (+1)
+
+**The One Big Thing:** The bootstrap CI methodology for the CRPS/MAE ratio deserves a brief note on finite-sample ratio estimation bias (Jensen's inequality, O(1/n) upward bias). This is a 1-2 sentence addition that proactively addresses what a quantitative reader would notice — especially important since the CPI ratio (1.32) is the more contested number.
+
+**Should Fix (all minor):**
+1. Forward-reference from the CPI worked example to the market design paragraph
+2. Abstract says "rules out" strike-count differences; body says "<5%" — tighten the abstract
+3. PIT differential diagnosis is structurally buried below the hypothesis list; integrate it
+
+**No must-fix items remain.** I recommend this be the penultimate iteration — one more researcher pass on these minor points, then accept.
