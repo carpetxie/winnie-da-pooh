@@ -131,7 +131,7 @@ def main():
     historical_covid = {}  # For sensitivity analysis with contaminated window
 
     try:
-        cpi_hist = fetch_historical_cpi_from_fred("2020-01-01", "2025-12-01")
+        cpi_hist = fetch_historical_cpi_from_fred("2020-01-01", "2026-06-01")
         historical["KXCPI"] = cpi_hist
         print(f"  CPI history: {len(cpi_hist)} monthly changes (2020-2025)")
     except Exception as e:
@@ -140,7 +140,7 @@ def main():
 
     try:
         # Post-COVID window (regime-appropriate)
-        claims_hist = fetch_historical_jobless_claims("2022-01-01", "2025-12-01")
+        claims_hist = fetch_historical_jobless_claims("2022-01-01", "2026-06-01")
         historical["KXJOBLESSCLAIMS"] = claims_hist
         print(f"  Jobless Claims history: {len(claims_hist)} weekly values (2022-2025, post-COVID)")
     except Exception as e:
@@ -149,14 +149,14 @@ def main():
 
     try:
         # COVID-contaminated window for sensitivity comparison
-        claims_hist_covid = fetch_historical_jobless_claims("2020-01-01", "2025-12-01")
+        claims_hist_covid = fetch_historical_jobless_claims("2020-01-01", "2026-06-01")
         historical_covid["KXJOBLESSCLAIMS"] = claims_hist_covid
         print(f"  Jobless Claims history (COVID window): {len(claims_hist_covid)} weekly values (2020-2025)")
     except Exception as e:
         historical_covid["KXJOBLESSCLAIMS"] = []
 
     try:
-        gdp_hist = fetch_historical_gdp("2015-01-01", "2025-12-01")
+        gdp_hist = fetch_historical_gdp("2015-01-01", "2026-06-01")
         historical["KXGDP"] = gdp_hist
         print(f"  GDP history: {len(gdp_hist)} quarterly values")
     except Exception as e:
@@ -1358,10 +1358,199 @@ def main():
             print(f"    Conditional CRPS/MAE (downside inflation, n={conditional_results['downside_n']}): {conditional_results['downside_crps_mae']:.3f}")
 
     # ================================================================
-    # PHASE 8: VISUALIZATION
+    # PHASE 7C: PER-EVENT TEMPORAL CRPS/MAE TRAJECTORIES
     # ================================================================
     print("\n" + "=" * 70)
-    print("PHASE 8: VISUALIZATION")
+    print("PHASE 7C: PER-EVENT TEMPORAL CRPS/MAE TRAJECTORIES")
+    print("=" * 70)
+
+    # Test whether the three-phase U-shape pattern persists at the per-event level
+    # or is an aggregation artifact
+    per_event_temporal = []
+    for event_ticker, event_markets in sorted(event_groups.items()):
+        series = event_markets["series_prefix"].iloc[0]
+        exp_val = event_markets["expiration_value"].iloc[0]
+        realized = _parse_expiration_value(exp_val, series)
+        if realized is None:
+            continue
+
+        snapshots = build_implied_cdf_snapshots(event_markets)
+        if len(snapshots) < 6:
+            continue
+
+        n = len(snapshots)
+        row = {"event_ticker": event_ticker, "series": series, "n_snapshots": n}
+        for pct_label, pct in [("10%", 0.1), ("50%", 0.5), ("90%", 0.9)]:
+            idx = min(int(pct * n), n - 1)
+            snap = snapshots[idx]
+            strikes = snap["strikes"]
+            cdf_values = snap["cdf_values"]
+            if len(strikes) < 2:
+                continue
+            try:
+                crps_t = compute_crps(strikes, cdf_values, realized)
+                # Check CDF monotonicity at this snapshot
+                f_vals = 1.0 - np.array(cdf_values, dtype=float)
+                f_vals_clipped = np.clip(f_vals, 0.0, 1.0)
+                is_monotone = all(f_vals_clipped[i] <= f_vals_clipped[i + 1] for i in range(len(f_vals_clipped) - 1))
+                row[f"monotone_{pct_label}"] = is_monotone
+
+                # Use tail-aware mean for consistency with headline
+                ta_mean = compute_tail_aware_mean(strikes, cdf_values)
+                mae_t = abs(ta_mean - realized) if ta_mean is not None else None
+                if mae_t is not None and mae_t > 0:
+                    row[f"crps_mae_{pct_label}"] = crps_t / mae_t
+                else:
+                    row[f"crps_mae_{pct_label}"] = None
+                row[f"crps_{pct_label}"] = crps_t
+                row[f"mae_{pct_label}"] = mae_t
+            except Exception:
+                continue
+        per_event_temporal.append(row)
+
+    per_event_temporal_df = pd.DataFrame(per_event_temporal)
+
+    # Test 1: What fraction of CPI events individually show U-shape?
+    per_event_temporal_results = {}
+    for series in ["KXCPI", "KXJOBLESSCLAIMS"]:
+        s_evt = per_event_temporal_df[per_event_temporal_df["series"] == series]
+        valid_events = s_evt.dropna(subset=["crps_mae_10%", "crps_mae_50%", "crps_mae_90%"])
+        n_total = len(valid_events)
+
+        if n_total < 3:
+            print(f"  {series}: insufficient events with all 3 timepoints ({n_total})")
+            continue
+
+        n_ushape = sum(1 for _, r in valid_events.iterrows()
+                       if r["crps_mae_10%"] < r["crps_mae_50%"] > r["crps_mae_90%"])
+        n_monotone_up = sum(1 for _, r in valid_events.iterrows()
+                           if r["crps_mae_10%"] < r["crps_mae_50%"] < r["crps_mae_90%"])
+        n_monotone_down = sum(1 for _, r in valid_events.iterrows()
+                             if r["crps_mae_10%"] > r["crps_mae_50%"] > r["crps_mae_90%"])
+        n_inv_ushape = sum(1 for _, r in valid_events.iterrows()
+                          if r["crps_mae_10%"] > r["crps_mae_50%"] < r["crps_mae_90%"])
+
+        # Test 2: Spearman correlation between 10% and 50% CRPS/MAE
+        early = valid_events["crps_mae_10%"].values
+        mid = valid_events["crps_mae_50%"].values
+        late = valid_events["crps_mae_90%"].values
+        rho_early_mid, p_early_mid = _spearmanr(early, mid) if len(early) >= 4 else (None, None)
+        rho_mid_late, p_mid_late = _spearmanr(mid, late) if len(mid) >= 4 else (None, None)
+
+        # Test 3: Wilcoxon signed-rank test: mid > early? mid > late?
+        mid_vs_early_p = None
+        mid_vs_late_p = None
+        if n_total >= 5:
+            try:
+                _, mid_vs_early_p = stats.wilcoxon(mid - early, alternative='greater')
+            except Exception:
+                pass
+            try:
+                _, mid_vs_late_p = stats.wilcoxon(mid - late, alternative='greater')
+            except Exception:
+                pass
+
+        # Mid-life CDF monotonicity check
+        n_midlife_violations = sum(1 for _, r in s_evt.iterrows()
+                                   if r.get("monotone_50%") == False)  # noqa: E712
+        n_midlife_total = sum(1 for _, r in s_evt.iterrows()
+                              if r.get("monotone_50%") is not None)
+
+        series_result = {
+            "n_events": n_total,
+            "n_ushape": n_ushape,
+            "n_monotone_up": n_monotone_up,
+            "n_monotone_down": n_monotone_down,
+            "n_inv_ushape": n_inv_ushape,
+            "ushape_fraction": n_ushape / n_total if n_total > 0 else None,
+            "early_mid_spearman_rho": float(rho_early_mid) if rho_early_mid is not None else None,
+            "early_mid_spearman_p": float(p_early_mid) if p_early_mid is not None else None,
+            "mid_late_spearman_rho": float(rho_mid_late) if rho_mid_late is not None else None,
+            "mid_late_spearman_p": float(p_mid_late) if p_mid_late is not None else None,
+            "mid_vs_early_wilcoxon_p": float(mid_vs_early_p) if mid_vs_early_p is not None else None,
+            "mid_vs_late_wilcoxon_p": float(mid_vs_late_p) if mid_vs_late_p is not None else None,
+            "midlife_cdf_violations": n_midlife_violations,
+            "midlife_cdf_total": n_midlife_total,
+            "per_event_trajectories": [],
+            "median_10pct": float(np.median(early)),
+            "median_50pct": float(np.median(mid)),
+            "median_90pct": float(np.median(late)),
+        }
+        # Store individual trajectories
+        for _, r in valid_events.iterrows():
+            series_result["per_event_trajectories"].append({
+                "event_ticker": r["event_ticker"],
+                "crps_mae_10%": float(r["crps_mae_10%"]),
+                "crps_mae_50%": float(r["crps_mae_50%"]),
+                "crps_mae_90%": float(r["crps_mae_90%"]),
+                "pattern": "U-shape" if r["crps_mae_10%"] < r["crps_mae_50%"] > r["crps_mae_90%"] else
+                          "monotone_up" if r["crps_mae_10%"] < r["crps_mae_50%"] < r["crps_mae_90%"] else
+                          "monotone_down" if r["crps_mae_10%"] > r["crps_mae_50%"] > r["crps_mae_90%"] else
+                          "inv_U-shape",
+            })
+
+        per_event_temporal_results[series] = series_result
+
+        print(f"\n  {series} (n={n_total} events with 3 timepoints):")
+        print(f"    U-shape (10% < 50% > 90%): {n_ushape}/{n_total} = {n_ushape/n_total:.0%}")
+        print(f"    Monotone up: {n_monotone_up}/{n_total}, Monotone down: {n_monotone_down}/{n_total}, Inv U-shape: {n_inv_ushape}/{n_total}")
+        print(f"    Median CRPS/MAE: 10%={np.median(early):.2f}, 50%={np.median(mid):.2f}, 90%={np.median(late):.2f}")
+        if rho_early_mid is not None:
+            print(f"    Early-mid Spearman: rho={rho_early_mid:.3f}, p={p_early_mid:.4f}")
+        if rho_mid_late is not None:
+            print(f"    Mid-late Spearman: rho={rho_mid_late:.3f}, p={p_mid_late:.4f}")
+        if mid_vs_early_p is not None:
+            print(f"    Wilcoxon mid > early: p={mid_vs_early_p:.4f}")
+        if mid_vs_late_p is not None:
+            print(f"    Wilcoxon mid > late: p={mid_vs_late_p:.4f}")
+        print(f"    Mid-life CDF violations: {n_midlife_violations}/{n_midlife_total}")
+        for t in series_result["per_event_trajectories"]:
+            print(f"      {t['event_ticker']}: 10%={t['crps_mae_10%']:.2f}, 50%={t['crps_mae_50%']:.2f}, 90%={t['crps_mae_90%']:.2f} [{t['pattern']}]")
+
+    test_results["per_event_temporal_trajectories"] = per_event_temporal_results
+
+    # ================================================================
+    # PHASE 7D: STRIKE-COUNT SIGNIFICANCE TEST
+    # ================================================================
+    print("\n" + "=" * 70)
+    print("PHASE 7D: STRIKE-COUNT SIGNIFICANCE TEST (2-strike vs 3+-strike)")
+    print("=" * 70)
+
+    strike_sig_results = {}
+    for series in ["KXCPI", "KXJOBLESSCLAIMS"]:
+        s = crps_df[crps_df["series"] == series].dropna(subset=["kalshi_crps", "point_crps"])
+        two_strike = s[s["n_strikes"] == 2]
+        three_plus = s[s["n_strikes"] >= 3]
+        if len(two_strike) >= 2 and len(three_plus) >= 2:
+            two_ratios = (two_strike["kalshi_crps"] / two_strike["point_crps"]).values
+            three_ratios = (three_plus["kalshi_crps"] / three_plus["point_crps"]).values
+            try:
+                u_stat, u_p = stats.mannwhitneyu(two_ratios, three_ratios, alternative='two-sided')
+                n1, n2 = len(two_ratios), len(three_ratios)
+                r_rb = 1 - (2 * u_stat) / (n1 * n2)
+            except Exception:
+                u_p, r_rb = None, None
+            strike_sig_results[series] = {
+                "n_2strike": len(two_strike),
+                "n_3plus": len(three_plus),
+                "mean_ratio_2strike": float(np.mean(two_ratios)),
+                "mean_ratio_3plus": float(np.mean(three_ratios)),
+                "mannwhitney_p": float(u_p) if u_p is not None else None,
+                "rank_biserial_r": float(r_rb) if r_rb is not None else None,
+            }
+            print(f"  {series}: 2-strike mean={np.mean(two_ratios):.3f} (n={len(two_strike)}), "
+                  f"3+-strike mean={np.mean(three_ratios):.3f} (n={len(three_plus)})")
+            if u_p is not None:
+                print(f"    Mann-Whitney p={u_p:.4f}, rank-biserial r={r_rb:.3f}")
+        else:
+            print(f"  {series}: insufficient data for strike-count comparison")
+    test_results["strike_count_significance"] = strike_sig_results
+
+    # ================================================================
+    # PHASE 9: VISUALIZATION
+    # ================================================================
+    print("\n" + "=" * 70)
+    print("PHASE 9: VISUALIZATION")
     print("=" * 70)
 
     _plot_unified(crps_df, temporal_df, horse_race_results, os.path.join(DATA_DIR, "plots"))
@@ -1381,6 +1570,8 @@ def main():
         "pit_diagnostics": pit_results,
         "serial_correlation_notes": serial_corr_note,
         "surprise_magnitude_diagnostics": surprise_magnitude_results,
+        "per_event_temporal_trajectories": per_event_temporal_results,
+        "strike_count_significance": strike_sig_results,
         "per_series_summary": {},
     }
 
