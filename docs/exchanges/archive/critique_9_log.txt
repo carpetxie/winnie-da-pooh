@@ -1,0 +1,13 @@
+The critique has been written to `docs/exchanges/critique_latest.md`. Here's a summary:
+
+**Iteration 9 — Key Points:**
+
+1. **The One Big Thing has shifted from statistics to narrative.** After 8 iterations of methodological improvements, the statistical architecture is now comprehensive (9/10 rigor). The bottleneck is blog readability — the paper reads like an accretion of robustness checks rather than a clean story. I've provided 5 specific restructuring recommendations.
+
+2. **Narrative Clarity dropped to 6/10** — not because the paper got worse, but because the standard has shifted. The analysis is done; the presentation needs work.
+
+3. **All iteration 8 suggestions were well-implemented.** Per-event trajectories, strike-count significance test (p=0.028), CDF monotonicity verification (0 violations) — all productive. No dead ends.
+
+4. **One new analysis suggested:** Split CPI events by surprise magnitude to test whether the "CPI distributions are harmful" finding is concentrated in small-surprise events (where it matters least) vs large-surprise events (where traders need distributional info most). This could meaningfully refine the practical recommendations.
+
+5. **Verdict: MINOR REVISIONS** — the paper is publishable as a technical report today; blog publication requires structural editing to surface the genuinely interesting findings.
