@@ -406,11 +406,38 @@ def run_cpi_horse_race(
                 "wilcoxon_p_bonferroni": float(min(p * 4, 1.0)),
             }
 
+    # --- Sensitivity: exclude first TWO events (warm-up for trailing mean) ---
+    sensitivity_excl_first_two = {}
+    excl_tickers = set(_TICKER_ORDER[:2])
+    results_excl2 = results_df[~results_df["event_ticker"].isin(excl_tickers)]
+    for naive_col, naive_label in [
+        ("random_walk_mae", "random_walk"),
+        ("trailing_mean_mae", "trailing_mean"),
+        ("spf_mae", "spf"),
+        ("tips_mae", "tips"),
+    ]:
+        valid = results_excl2.dropna(subset=["kalshi_point_mae", naive_col])
+        if len(valid) >= 5:
+            stat, p = stats.wilcoxon(
+                valid["kalshi_point_mae"], valid[naive_col],
+                alternative="less",
+            )
+            d = _paired_effect_size(valid["kalshi_point_mae"].values, valid[naive_col].values)
+            sensitivity_excl_first_two[f"kalshi_vs_{naive_label}"] = {
+                "n": len(valid),
+                "kalshi_mean_mae": float(valid["kalshi_point_mae"].mean()),
+                f"{naive_label}_mean_mae": float(valid[naive_col].mean()),
+                "cohen_d": d,
+                "wilcoxon_p": float(p),
+                "wilcoxon_p_bonferroni": float(min(p * 4, 1.0)),
+            }
+
     return {
         "per_event": results_df.to_dict("records"),
         "n_events": len(results_df),
         "statistical_tests": test_results,
         "sensitivity_excl_first_event": sensitivity_excl_first,
+        "sensitivity_excl_first_two_events": sensitivity_excl_first_two,
         "methodology_notes": {
             "spf_conversion": (
                 "SPF forecasts annual CPI (Q4/Q4 %). Converted to MoM via "
