@@ -1,49 +1,82 @@
-# Researcher Response — Iteration 7
+# Researcher Response — Iteration 2
 
 STATUS: CONTINUE
 
 ## Deliberation
 
-### 1. Big Thing: Hedge maturity-conditional CPI recommendation (snapshot CIs)
-- **Agree**: The reviewer is right that per-timepoint ratios are point estimates and at n=14, CIs would include 1.0 at most timepoints. The paper's credibility rests on honest uncertainty quantification, so the snapshot sensitivity section should be held to the same standard.
-- **Feasible**: Yes — this is a prose addition, not new analysis.
-- **Impact**: Medium-high. It's a consistency-of-standards issue. The paper correctly CIs everything else; leaving the maturity pattern unhedged is an oversight.
-- **Action**: Added a hedging paragraph after the snapshot sensitivity interpretation, explicitly noting that per-timepoint ratios are point estimates, individual CIs would likely include 1.0, and the U-shaped pattern is "suggestive and consistent with an information-incorporation process, but requires confirmation with larger samples." Also updated the practical implication sentence to say "directionally informative rather than statistically confirmed."
-- **Note on the trader box**: The critique references maturity-conditional language in the trader box ("treat mid-life distributional spread with caution... but note that late-life distributions show improvement"), but the current trader box actually gives a blanket "ignore CPI distributional spread" recommendation — it doesn't make the maturity-conditional claim. I kept the trader box as-is (blanket recommendation) since the hedged snapshot sensitivity section already provides the nuance for readers who want maturity-conditional guidance, and putting unconfirmed maturity patterns in the trader box would be the exact overreach the reviewer is warning against.
+### Context: Iteration 7 critique points are already addressed in the paper
 
-### 2. Should Fix 1: Mechanistic interpretation of U-shape
-- **Agree**: The three-phase hypothesis (prior inheritance → partial-signal overreaction → convergence) is genuinely explanatory and was missing from the paper. The current text only explained mid-life; it didn't explain why early distributions are also well-calibrated.
-- **Feasible**: Yes — prose addition, clearly labeled as speculative.
-- **Impact**: Medium-high. Transforms an unexplained pattern into an interpretable one with a testable prediction.
-- **Action**: Replaced the single-sentence interpretation with a three-phase hypothesis (labeled speculative), including the testable prediction that simpler-signal series should show less mid-life degradation — which is exactly what we observe.
+The current paper already contains all four changes requested by the Iteration 7 critique:
+1. **One Big Thing (snapshot CIs hedging)**: Present at the snapshot sensitivity section (hedging paragraph about per-timepoint point estimates)
+2. **Should Fix #1 (U-shape mechanism)**: Present as the three-phase hypothesis (prior inheritance → mid-life overreaction → convergence)
+3. **Should Fix #2 (mechanism 1 tension)**: Present as "A caveat on mechanism 1" paragraph
+4. **Should Fix #3 (Section 2→3 transition)**: Present at the top of Section 3
 
-### 3. Should Fix 2: Tension between early CPI calibration and release-frequency hypothesis
-- **Agree**: This is a sharp observation. If frequency were the whole story, CPI should be uniformly worse. The U-shape is more consistent with signal dimensionality (mechanism 2). Noting this tension shows the paper is engaging seriously with its own evidence rather than presenting the four mechanisms as equally supported.
-- **Feasible**: Yes — 3 sentences.
-- **Impact**: Medium. Demonstrates intellectual honesty and helps discriminate between mechanisms.
-- **Action**: Added a "caveat on mechanism 1" paragraph after the PIT differential diagnosis, noting the tension and arguing the temporal pattern favors mechanism 2 over mechanism 1 as the primary driver, while acknowledging frequency may still operate as a secondary factor.
+Rather than simply confirming these exist, I looked for **the most impactful remaining improvement** I could make. The paper says "individual CIs would likely include 1.0 at most timepoints" — but doesn't actually compute them. This is the kind of hedge that should be backed by data.
 
-### 4. Should Fix 3: Section 2→3 transition
-- **Agree**: The transition was abrupt. One connecting paragraph linking distributional calibration quality to information flow provides the logical bridge.
-- **Feasible**: Yes — two sentences.
-- **Impact**: Low-medium. Narrative polish, but these transitions matter for readability.
-- **Action**: Added a transition paragraph at the top of Section 3: "Having established *how well* Kalshi prices distributions (Section 2), we now ask *where the information comes from*. If CPI distributions are miscalibrated while point forecasts are competitive, understanding the information flow into these markets helps explain why — and whether the problem is correctable."
+### New analysis: Per-timepoint bootstrap CIs
+
+- **Agree with reviewer's instinct**: The snapshot sensitivity table was doing load-bearing work without CIs. Even though the hedging sentence was there, computing the actual CIs is strictly better.
+- **Feasible**: Yes — added bootstrap CI computation to Phase 5 of experiment13/run.py.
+- **Impact**: HIGH. The results are genuinely informative and change the narrative in important ways:
+
+**CPI per-timepoint CIs:**
+| Lifetime % | CRPS/MAE | 95% CI | Includes 1.0? |
+|-----------|----------|--------|---------------|
+| 10% | 0.76 | [0.54, 1.21] | Yes |
+| 25% | 1.36 | [0.83, 2.37] | Yes |
+| 50% | 1.32 | [0.84, 2.02] | Yes |
+| 75% | 0.73 | [0.54, 1.05] | Yes |
+| 90% | 0.76 | [0.64, 1.00] | No (barely) |
+
+**Jobless Claims per-timepoint CIs:**
+| Lifetime % | CRPS/MAE | 95% CI | Includes 1.0? |
+|-----------|----------|--------|---------------|
+| 10% | 0.73 | [0.54, 1.02] | Yes |
+| 25% | 0.52 | [0.36, 0.81] | **No** |
+| 50% | 0.58 | [0.40, 0.85] | **No** |
+| 75% | 0.60 | [0.40, 0.90] | **No** |
+| 90% | 0.79 | [0.39, 1.84] | Yes |
+
+Key insights:
+1. **CPI hedging confirmed**: All CPI timepoint CIs include 1.0 except 90% (barely). The U-shaped pattern is visible in point estimates but not statistically robust at any individual timepoint.
+2. **JC finding strengthened**: JC distributions **significantly** add value at 25%, 50%, and 75% of market life (CIs exclude 1.0). This is a new and strong result — the headline ratio isn't a snapshot artifact; it holds across the core market lifecycle.
+3. **CPI 90% is tantalizing**: The CI [0.64, 1.00] barely excludes 1.0. This is borderline evidence that late-life CPI distributions may recover, but too marginal for a recommendation.
+4. **JC 90% has a very wide CI** [0.39, 1.84]: thin data at late market life creates uncertainty.
+
+This transforms the paper's hedging from speculative ("CIs would likely include 1.0") to empirically grounded — and adds a genuinely new positive finding about JC distributional value across the lifecycle.
+
+### Other changes
+
+- **File path reference**: Changed `data/exp13/plots/per_event_crps_mae_strip.png` to a reader-friendly figure reference.
+- **Table formatting**: Updated snapshot sensitivity table to include CI columns with bold entries where CIs exclude 1.0.
+- **Narrative update**: Rewrote the snapshot sensitivity interpretation to discuss the CIs rather than hedging about their absence. Separated CPI and JC interpretations since they tell different stories.
 
 ## Changes Made
-1. **Section 2, Snapshot Sensitivity** (~line 88): Replaced single-sentence U-shape interpretation with (a) three-phase mechanistic hypothesis labeled *(speculative)*, (b) testable prediction about simpler-signal series showing less mid-life degradation, (c) new hedging paragraph explicitly noting per-timepoint ratios are point estimates without CIs, (d) updated practical implication to "directionally informative rather than statistically confirmed."
-2. **Section 2, Why Do JC and CPI Diverge** (after PIT differential diagnosis): Added "caveat on mechanism 1" paragraph noting the tension between early CPI calibration (CRPS/MAE=0.76 at 10%) and the release-frequency hypothesis, arguing the temporal pattern favors signal dimensionality (mechanism 2) as the primary driver.
-3. **Section 3, opening**: Added two-sentence transition paragraph connecting distributional calibration quality (Section 2) to information flow analysis (Section 3), with a forward pointer to why this matters for the CPI miscalibration story.
+
+### Code Changes
+1. **experiment13/run.py Phase 5**: Added per-timepoint bootstrap CI computation (10,000 resamples, ratio-of-means) for both CPI and JC at all 5 timepoints. Results stored in `test_results["temporal_crps_mae_cis"]`.
+
+### Paper Changes (docs/findings.md)
+1. **Section 2, Snapshot Sensitivity table**: Expanded to include 95% CI columns for both series. Bold entries mark CIs that exclude 1.0.
+2. **Section 2, Snapshot Sensitivity text**: Completely rewritten to interpret actual CIs rather than speculate about them. JC finding now highlighted as strong (3 of 5 timepoints significant). CPI discussion acknowledges the 90% borderline result but correctly characterizes it as too marginal for a recommendation.
+3. **Section 2, Per-Event subsection**: Fixed file path reference to be reader-friendly.
 
 ## Pushbacks
-- **Trader box maturity-conditional language**: The critique assumes the trader box makes a maturity-conditional recommendation, but the current trader box gives a blanket "ignore CPI distributional spread" recommendation — which is actually the more conservative and appropriate framing given that we've just established the per-timepoint ratios lack CIs. I declined to add maturity-conditional language to the trader box precisely because the snapshot sensitivity CIs would not support it. The nuance lives in the body text where readers can assess it with full context. This is a case where the reviewer's concern is valid (point estimates need hedging) but the specific fix they envision (hedging a trader-box claim) doesn't apply because the trader box doesn't make that claim.
+
+- **Trader box**: The critique (from Iteration 7) references maturity-conditional language in the trader box. The current trader box gives a blanket "ignore CPI distributional spread" recommendation. Given that the per-timepoint CIs now confirm CPI CIs include 1.0 at 4 of 5 timepoints, the blanket recommendation is the right call — the data doesn't support maturity-conditional guidance for CPI. For Jobless Claims, the trader box already says "use the distributions" and the per-timepoint CIs confirm this across the core lifecycle.
 
 ## Remaining Weaknesses
-- **n=14–16 throughout**: The binding constraint on all inference. Honestly characterized but fundamentally limiting.
-- **Two-series comparison**: Cannot generalize beyond CPI and Jobless Claims without new market series.
-- **In-sample evaluation**: No train/test split possible at current n. Acknowledged.
-- **PIT analysis underpowered**: KS test doesn't reject uniformity for either series; the directional PIT findings are suggestive at best.
-- **The U-shape mechanistic interpretation is speculative**: Labeled as such, but it's the kind of narrative that could be wrong. We have no direct evidence for "prior inheritance" vs other explanations for early-life calibration. The testable prediction (simpler signals → less mid-life degradation) is confirmed within our data but could be coincidental at n=2 series.
-- **Mechanism discrimination is informal**: The caveat on mechanism 1 is qualitative reasoning, not a formal test. With only two series, we can't run a regression of CRPS/MAE on release frequency controlling for signal complexity.
+
+- **n=14–16 throughout**: Fundamental constraint. The per-timepoint CIs confirm how much this limits us.
+- **Two-series comparison**: Cannot generalize beyond CPI and JC.
+- **In-sample evaluation**: No train/test split possible.
+- **CPI 90% borderline result**: The barely-significant late-life CI [0.64, 1.00] is intriguing but could flip with one more event. Not actionable yet.
+- **JC early/late timepoints**: The 10% and 90% CIs include 1.0, likely due to thin data at market extremes rather than actual calibration failure.
+- **Percentile (not BCa) bootstrap for per-timepoint CIs**: Used percentile method here for computational simplicity. At n=13-14, BCa might produce slightly different intervals. The primary CRPS/MAE CIs use BCa.
 
 ## Convergence Assessment
-The paper is very close to its ceiling given the data. This iteration's changes are meaningful but clearly in the diminishing-returns zone: hedging point estimates in the snapshot table, adding mechanistic interpretation to a temporal pattern, noting a tension between hypotheses, and a transition sentence. These are the kinds of improvements that distinguish a good paper from a polished one, but they are refinements rather than structural changes. The reviewer's convergence assessment ("this should be the final substantive iteration") aligns with my view — one more pass for any remaining rough edges, and the paper is ready for the Kalshi Research blog. The trajectory across 7 iterations (structural fixes → statistical honesty → economic translation → internal consistency → precision of hedging) shows monotonic improvement with diminishing marginal returns.
+
+This iteration made one genuinely impactful change: computing per-timepoint bootstrap CIs that the paper was previously only speculating about. The result both confirmed the hedging (CPI) and strengthened the finding (JC has significant distributional value at 25-75% of market life). This is the kind of improvement that converts a hedge into an empirical statement — exactly what a quantitative reviewer would want.
+
+The reviewer's Iteration 7 assessment was that the paper is "at or very near its ceiling given the data." With the per-timepoint CIs now computed and reported, I agree. All remaining weaknesses are inherent (sample size, series count, in-sample evaluation). The paper has been through: structural fixes → statistical honesty → economic translation → econometric polish → internal consistency → precision of hedging → **empirical verification of hedges**. Each iteration has added less marginal value. The next iteration should focus on any remaining prose issues, but the paper is substantively complete.
