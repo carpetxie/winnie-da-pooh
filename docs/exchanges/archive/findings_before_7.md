@@ -44,7 +44,7 @@ The CRPS/MAE ratio measures whether a market's distributional spread adds inform
 
 *Bootstrap CIs: 10,000 resamples, BCa (bias-corrected and accelerated) method via `scipy.stats.bootstrap`, which corrects for both bias and skewness in the bootstrap distribution — standard for ratio estimators at small n (Efron & Tibshirani, 1993). Median per-event ratio computed from individual event CRPS/MAE ratios, providing a robust alternative less sensitive to outliers.*
 
-For Jobless Claims, the full distribution outperforms the point forecast — the CI on 0.60 excludes 1.0, confirming that the distributional spread adds information. The 40% CRPS improvement (1 − 0.60) over a point mass is meaningful, though more modest than the pre-correction estimate. For CPI, the point estimate (1.32) suggests the distributional spread adds noise rather than signal, but the CI [0.84, 2.02] includes 1.0, so we cannot conclude at 95% confidence that the CPI distribution is strictly harmful. Moreover, sequential CPI releases are serially correlated (AR(1) ρ=0.23), reducing effective degrees of freedom from n=14 to n_eff≈8.8; the serial-correlation-adjusted CI would be approximately [0.73, 2.13], further widening the uncertainty. The practical recommendation remains: treat CPI distributional spread with caution, as the point estimate favors ignoring it.
+For Jobless Claims, the full distribution outperforms the point forecast — the CI on 0.60 excludes 1.0, confirming that the distributional spread adds information. The 40% CRPS improvement (1 − 0.60) over a point mass is meaningful, though more modest than the pre-correction estimate. For CPI, the point estimate (1.32) suggests the distributional spread adds noise rather than signal, but the CI [0.84, 2.02] includes 1.0, so we cannot conclude at 95% confidence that the CPI distribution is strictly harmful. The practical recommendation remains: treat CPI distributional spread with caution, as the point estimate favors ignoring it.
 
 **Strike structure and simulation robustness check:** CPI events average 2.3 evaluated strikes (range 2–3, uniform 0.1pp spacing), while Jobless Claims average 2.8 evaluated strikes (range 2–5, variable 5K–10K spacing with clustering near the expected value). To quantify whether this difference could mechanically inflate CPI's CRPS, we ran a Monte Carlo simulation (10,000 trials) across three distributional families: Normal, Uniform, and Skew-Normal (α=4). Using known distributions matched to each series' realized parameters, we constructed piecewise-linear CDFs with 2, 3, 4, and 5 strikes and computed CRPS against the same realized outcomes. **Result: for symmetric distributions (Normal, Uniform), going from 3 to 2 strikes inflates CRPS by ≤2%, far less than the 32% CPI penalty.** For strongly skewed distributions (Skew-Normal, α=4), the 2→3 strike inflation can reach ~49% — but the realized CPI MoM values show only moderate skewness (sample skewness=-0.62, Shapiro-Wilk p=0.24 does not reject normality), making the symmetric assumption appropriate for this data. The strike-count confound accounts for at most ~5% of the observed CRPS/MAE gap under the distributional assumptions consistent with our data. The remaining penalty is consistent with genuine miscalibration — the PIT analysis in Appendix A confirms divergent calibration patterns between the two series.
 
@@ -85,9 +85,7 @@ To test whether the mid-life snapshot choice drives our results, we computed CRP
 | 75% | 0.73 | 0.60 |
 | 90% (late) | 0.76 | 0.79 |
 
-Jobless Claims distributions consistently add value across all timepoints (CRPS/MAE < 1 throughout), confirming the mid-life result is not an artifact of snapshot timing. CPI shows a striking U-shaped pattern: distributions are well-calibrated early (10%) and late (75–90%), but worst at 25–50% of market life. We hypothesize a three-phase process *(speculative)*: early markets inherit reasonable distributional priors from their strike structure (the initial CDF reflects the market maker's prior before substantive trading), mid-life markets overreact to partial signals — fragmentary information about components like shelter or energy arrives but cannot be coherently integrated into a composite distribution — and late markets converge as the approaching release date forces information integration and narrows genuine uncertainty. This interpretation is consistent with the data and generates a testable prediction: series with simpler signal structure (like Jobless Claims) should show less mid-life degradation, which is exactly what we observe.
-
-These per-timepoint ratios are point estimates; at n=14 CPI events, individual bootstrap CIs at each timepoint would likely include 1.0 at most timepoints. The U-shaped maturity pattern is suggestive and consistent with an information-incorporation process, but requires confirmation with larger samples. The practical implication is that CPI distributions may be useful in the final quarter of market life, but traders should treat this maturity-conditional pattern as directionally informative rather than statistically confirmed.
+Jobless Claims distributions consistently add value across all timepoints (CRPS/MAE < 1 throughout), confirming the mid-life result is not an artifact of snapshot timing. CPI shows a striking non-monotonic pattern: distributions are well-calibrated early (10%) and late (75–90%), but worst at 25–50% of market life. This suggests CPI distributional miscalibration is concentrated in the mid-life period when markets have incorporated some information but not yet converged to the final consensus. The practical implication is that CPI distributions may be useful in the final quarter of market life, though this pattern requires confirmation with more data.
 
 ### Temporal CRPS Evolution (vs Uniform)
 
@@ -115,15 +113,11 @@ We hypothesize four mechanisms driving the calibration heterogeneity:
 
 **Differential diagnosis via PIT analysis (Appendix A):** CPI's mean PIT=0.61 suggests systematic inflation underestimation, while Jobless Claims' mean PIT=0.46 is consistent with unbiased calibration. This directional asymmetry is informative: it favors mechanisms 1–2 (insufficient feedback leading to uncorrected directional bias in CPI) over mechanism 4 (thin-tails liquidity, which would produce symmetric CRPS inflation without directional skew). If the problem were purely a liquidity artifact, we would expect PIT values scattered around 0.5 for both series; instead, the CPI PIT shift is consistent with a systematic forecasting bias that weekly feedback would help correct.
 
-**A caveat on mechanism 1:** The snapshot sensitivity U-shape creates a mild tension with the release-frequency hypothesis. If infrequent calibration feedback were the *sole* driver, CPI distributions should be uniformly worse than Jobless Claims — yet CPI is well-calibrated at 10% of market life (CRPS/MAE=0.76). This is more consistent with mechanism 2 (signal dimensionality): partial CPI signals arriving mid-life create confusion that simple-signal series avoid, while early and late markets are anchored by structural priors and convergence pressure respectively. The frequency hypothesis may still operate — rapid feedback could help correct mid-life overreaction faster — but it is not sufficient on its own to explain the temporal pattern.
-
 These hypotheses are testable as more data accumulates: mechanisms 1 and 2 predict that other weekly releases (e.g., mortgage applications) should also have CRPS/MAE < 1, while other monthly composites (e.g., PCE) should have CRPS/MAE > 1. Future work should decompose CRPS into reliability, resolution, and uncertainty components (Hersbach, 2000) to identify which dimension drives the CPI penalty — the CRPS/MAE ratio collapses these into a single number, and the decomposition would clarify whether CPI markets are unreliable (biased), lack resolution (uninformative), or both. Additionally, decomposing CRPS by quantile region would distinguish tail mispricing (thin liquidity at extreme strikes) from center mispricing, providing direct evidence for or against mechanism 4.
 
 ---
 
 ## 3. Information Hierarchy: Bond Markets Lead, Prediction Markets Add Granularity
-
-Having established *how well* Kalshi prices distributions (Section 2), we now ask *where the information comes from*. If CPI distributions are miscalibrated while point forecasts are competitive, understanding the information flow into these markets helps explain why — and whether the problem is correctable.
 
 ### TIPS Granger Causality
 
@@ -203,14 +197,13 @@ All CRPS/MAE ratios and Wilcoxon tests are computed on the full available datase
 ### Statistical Corrections Applied
 1. **Regime-appropriate benchmarks**: Jobless Claims window 2022+ (post-COVID), avoiding COVID-era data contamination
 2. **Per-series decomposition**: Pooled tests mask heterogeneity; per-series Wilcoxon tests reveal CPI vs Jobless Claims divergence
-3. **Bonferroni correction**: Raw p-values adjusted for multiple series comparisons (2 tests in CRPS, 4 benchmarks in horse race)
+3. **Bonferroni correction**: Raw p-values adjusted for multiple series comparisons (2 tests)
 4. **Rank-biserial effect sizes**: Reported for all Wilcoxon tests (r = 1 - 2T/n(n+1)/2)
 5. **Power analysis**: Sample sizes for 80% power computed for all tests
 6. **Controlled observation timing**: T-24h maturity gradient (7x) reduced to 1.5x at 50% lifetime
 7. **PIT sign correction**: cdf_values store survival P(X>strike), not CDF P(X<=strike). PIT = 1 - interpolated survival
-8. **CRPS/MAE ratio**: Distribution-vs-point diagnostic reported per series with BCa bootstrap CIs
+8. **CRPS/MAE ratio**: Distribution-vs-point diagnostic reported per series with bootstrap CIs
 9. **Scale-appropriate CRPS integration**: Tail extension dynamically set to max(strike_range × 0.5, 1.0) plus coverage of realized values beyond strike boundaries, ensuring correct CRPS for both percentage-scale (CPI) and level-scale (Jobless Claims) series
-10. **Serial correlation adjustment**: CPI MoM values have AR(1) ρ=0.23, reducing effective degrees of freedom from n=14 to n_eff≈8.8 (Bartlett's formula). This widens the effective CPI CRPS/MAE CI by ~27%, reinforcing the tentative nature of CPI conclusions
 
 ### Experiments Summary
 
@@ -259,7 +252,6 @@ During the research process, several initially significant findings were invalid
 | Jobless Claims CRPS headline | <0.0001 | 0.047 | COVID-contaminated benchmark |
 | Jobless Claims CRPS/MAE ratio | 0.37 | 0.60 | Scale-inappropriate tail integration |
 | Jobless Claims vs Historical | p=0.047 | p=0.372 | Tail-extension bug inflated CRPS gap |
-| Kalshi vs Random Walk | p=0.026 | p=0.102 | Bonferroni correction for 4 benchmarks |
 
 **Invalidated:**
 
