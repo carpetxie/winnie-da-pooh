@@ -1,0 +1,26 @@
+## Summary of Iteration 10
+
+Here's what I did:
+
+### Code Changes
+1. **`scripts/crps_null_simulation.py`** (NEW) — Monte Carlo verification that CRPS/MAE = 1.0 exactly under the step-function null hypothesis. 100K simulations confirm ratio = 1.000000. Also shows a well-calibrated N(0,1) distribution achieves ratio ≈ 0.71, providing intuition for what "good" looks like.
+
+2. **`scripts/iteration9_analyses.py`** — Added event_ticker assertion at the PIT-to-event merge point to catch silent misalignment (reproducibility improvement).
+
+### Paper Restructuring (the main deliverable)
+The paper was completely reorganized from a ~5,000+ word research diary into a clean blog-publishable format:
+
+- **Main text**: ~2,320 words (target: ~2,500) — Sections 1-5 covering methodology, main results, CPI/decoupling, overconcentration, and monitoring protocol
+- **Technical Supplement**: ~1,376 words (Appendices A-I) — full results table, simple-vs-complex forensics, per-series robustness table, drivers analysis, market design implications, downgraded findings, references, corrections log summary
+- **Total**: 3,699 words (down from 5,000+)
+
+### Key presentation fixes
+- Abstract compressed from ~350 to ~210 words (with exec summary table)
+- CRPS/MAE = 1.0 null threshold made explicit with Monte Carlo backing
+- Multiple-testing defense sentence added
+- Per-series robustness converted from ~500 words of prose to a summary table
+- Simple-vs-complex compressed from ~500 to ~100 words inline + appendix
+- 50-item corrections log replaced with 6-category summary + git history reference
+
+### No statistical content was removed
+Every finding, number, and test result is preserved — just reorganized into main text vs supplement. The paper now reads as a narrative rather than a lab notebook.
