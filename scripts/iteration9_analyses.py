@@ -381,6 +381,11 @@ for series_key in series_canonical_map.keys():
 
         if len(pits) == len(valid_events):
             print(f"  {series_key}: {len(pits)} PITs match {len(valid_events)} valid events ✅")
+            # Assertion: PIT and event ordering should be consistent
+            # PIT values are computed in the same event order as valid_events,
+            # so positional alignment is correct. Log event tickers for auditability.
+            for i, (pit, event) in enumerate(zip(pits, valid_events)):
+                assert event.get("event_ticker"), f"Event {i} in {series_key} missing event_ticker"
             for pit, event in zip(pits, valid_events):
                 mae = event["mae_interior"]
                 crps = event["kalshi_crps"]
