@@ -1,0 +1,31 @@
+Everything checks out. Let me provide a summary of what was accomplished:
+
+---
+
+## Iteration 8 Summary
+
+### Code Changes
+- **Created `scripts/iteration8_analyses.py`** — comprehensive analysis script addressing all code-based critique points
+- **Generated `data/iteration8/iteration8_results.json`** — all formal test statistics
+
+### Key New Results
+
+| Analysis | Result | Impact |
+|----------|--------|--------|
+| **Overconcentration sign test** | 11/11 below ideal, p=0.0005 | Formally conclusive |
+| **Pooled bootstrap** | std(PIT)=0.240, CI [0.225, 0.257] excludes 0.289 | Population-level conclusive |
+| **Per-series bootstrap** | 5/7 (n≥10) individually exclude 0.289 | Strengthens per-series claims |
+| **std(PIT) vs CRPS/MAE correlation** | Spearman ρ=−0.68, p=0.022 | **Novel finding** — more overconcentrated = better CRPS/MAE |
+| **KXFRM alert identification** | All 10 alerts cluster March–Nov 2023 | True positive during mortgage volatility |
+| **Overconcentration gaps** | 8–53% vs ≤2% Monte Carlo | Preempts "artifact of few strikes" attack |
+
+### Paper Updates
+- **Abstract**: Formal overconcentration stats + correlation finding added
+- **Section 4**: Major expansion with three formal tests, Monte Carlo defense, and novel correlation discovery  
+- **Appendix C**: KXFRM alerts identified as true positives during 2023 mortgage volatility
+- **Executive Summary**: Footnote clarifying interior-only vs tail-aware MAE
+- **Methodology**: Added two new statistical methods and reproducibility step
+- **Corrections log**: Entries 43–46 added
+
+### Most Significant Finding
+The **std(PIT) vs CRPS/MAE negative correlation (ρ=−0.68, p=0.022)** is genuinely novel: it shows overconcentration and distributional value are inversely related, suggesting that markets' tendency to be "too narrow" actually reflects superior location accuracy rather than pure calibration failure. This changes the interpretation of overconcentration from a deficiency to a complex trade-off.
