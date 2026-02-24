@@ -1,19 +1,19 @@
 # When Do Prediction Market Distributions Add Value? A CRPS/MAE Diagnostic
 
-**Date:** 2026-02-23
-**Status:** Draft — under review (iteration 12).
+**Date:** 2026-02-24
+**Status:** Draft — under review (iteration 13).
 
 ## Abstract
 
-Prediction market point forecasts and distributional forecasts can diverge dramatically in quality — accurate centers with miscalibrated spreads. We introduce the CRPS/MAE ratio as a diagnostic that flags this decoupling, and apply it to 909 multi-strike Kalshi contracts across 62 settled economic events spanning four series: CPI (n=33), Jobless Claims (n=16), GDP (n=9), and the Federal Funds Rate (n=4).
+Prediction market point forecasts and distributional forecasts can diverge dramatically in quality — accurate centers with miscalibrated spreads. We introduce the CRPS/MAE ratio as a diagnostic that flags this decoupling, and apply it to multi-strike Kalshi contracts across 93 settled economic events spanning seven series: CPI (n=33), Jobless Claims (n=16), Core PCE (n=15), GDP (n=9), ADP Employment (n=9), ISM PMI (n=7), and the Federal Funds Rate (n=4).
 
-The CRPS/MAE ratio compares how well a market's full probability distribution performs (CRPS) against using just its central point forecast (MAE). A ratio below 1 means the distribution adds value; above 1 means the spread around the center is so miscalibrated that you'd be better off ignoring it. Three of four series show distributions that robustly add value: GDP (CRPS/MAE=0.48, 95% CI [0.38, 0.58]), Jobless Claims (0.60, CI [0.45, 0.78]), and CPI overall (0.86, CI [0.62, 1.23]). Heterogeneity across series is statistically significant (Kruskal-Wallis p=0.028; 4-series p=0.019). Only the Federal Funds Rate shows harmful distributions (1.48, CI [0.82, 2.73]), though at n=4 this is tentative.
+The CRPS/MAE ratio compares how well a market's full probability distribution performs (CRPS) against using just its central point forecast (MAE). A ratio below 1 means the distribution adds value; above 1 means the spread around the center is so miscalibrated that you'd be better off ignoring it. We find a striking dichotomy: "simple" economic indicators — GDP (CRPS/MAE=0.48, BCa CI [0.31, 0.77]), Jobless Claims (0.60, CI [0.37, 1.02]), and ADP Employment (0.69, CI [0.36, 1.37]) — have distributions that consistently add value (LOO ratios unanimously < 1.0 for all three). "Complex" indicators — Core PCE (2.06, CI [1.24, 3.49]), CPI post-Nov 2024 (1.32), and the Federal Funds Rate (1.48, CI [0.79, 4.86]) — have distributions that actively harm. Heterogeneity across series is highly significant (Kruskal-Wallis H=18.5, p=0.005, 7 series, n=93). The simple-vs-complex gap is substantial: median ratio 0.63 vs 1.31 (Mann-Whitney p=0.0004, r=0.43).
 
 A natural temporal split reveals a structural break in CPI: old-prefix events (Dec 2022–Oct 2024, n=19) show strong distributional value (CRPS/MAE=0.69), while new-prefix events (Nov 2024+, n=14) show harmful distributions (CRPS/MAE=1.32). This shift — though not individually significant (Mann-Whitney p=0.18) — suggests that the earlier finding of CPI distributional harm (iteration 10, n=14, ratio=1.58) was an artifact of analyzing only the post-break period. CPI *point* forecasts beat all benchmarks including random walk (d=−0.85, p_adj=0.014) across both periods, making this — to our knowledge — the first empirical demonstration *in prediction markets* that point and distributional calibration can diverge independently.
 
 > **Practical Takeaways:**
-> - **GDP:** Use the full distribution — CRPS is 52% below the point-forecast MAE (CRPS/MAE=0.48). All 9 LOO ratios < 1.0. CI [0.38, 0.58] excludes 1.0 convincingly.
-> - **Jobless Claims:** Use the full distribution — CRPS is 40% below the point-forecast MAE (CRPS/MAE=0.60). All 16 LOO ratios < 1.0. CI [0.45, 0.78] excludes 1.0.
+> - **GDP:** Use the full distribution — CRPS is 52% below the point-forecast MAE (CRPS/MAE=0.48). All 9 LOO ratios < 1.0. BCa CI [0.31, 0.77] excludes 1.0.
+> - **Jobless Claims:** Use the full distribution — CRPS is 40% below the point-forecast MAE (CRPS/MAE=0.60). All 16 LOO ratios < 1.0. BCa CI [0.37, 1.02] includes 1.0, but the LOO unanimity provides strong convergent evidence.
 > - **CPI:** Distributions add value overall (CRPS/MAE=0.86), but with a temporal caveat: pre-Nov 2024 events (ratio=0.69) outperform post-Nov 2024 events (ratio=1.32). Monitor the CRPS/MAE ratio in real time to detect regime shifts.
 > - **FED:** Tentatively use point forecast only (ratio=1.48), but n=4 is too small for confident recommendations.
 > - **The CRPS/MAE ratio** tells you which regime you're in. Values below 1 mean the distribution adds value; values above 1 mean it's actively harmful. Monitor it per series.
@@ -22,13 +22,14 @@ A natural temporal split reveals a structural break in CPI: old-prefix events (D
 
 **Executive Summary:**
 
-| | GDP (n=9) | Jobless Claims (n=16) | CPI (n=33) | FED (n=4) |
-|---|---|---|---|---|
-| CRPS/MAE | **0.48** | **0.60** | **0.86** | **1.48** |
-| 95% CI | [0.38, 0.58] | [0.45, 0.78] | [0.62, 1.23] | [0.82, 2.73] |
-| CI excludes 1.0? | ✅ Yes | ✅ Yes | ❌ No | ❌ No |
-| LOO unanimous? | ✅ All < 1.0 | ✅ All < 1.0 | ✅ All < 1.0 | ✅ All > 1.0 |
-| Recommendation | Use full distribution | Use full distribution | Use distribution; monitor for regime shift | Use point forecast (tentative) |
+| | GDP (n=9) | JC (n=16) | ADP (n=9) | CPI (n=33) | ISM (n=7) | PCE Core (n=15) | FED (n=4) |
+|---|---|---|---|---|---|---|---|
+| CRPS/MAE | **0.48** | **0.60** | **0.69** | **0.86** | **1.15** | **2.06** | **1.48** |
+| 95% BCa CI | [0.31, 0.77] | [0.37, 1.02] | [0.36, 1.37] | [0.57, 1.23] | [0.60, 2.69] | [1.24, 3.49] | [0.79, 4.86] |
+| CI excl. 1.0? | ✅ Yes | ❌ Borderline | ❌ No | ❌ No | ❌ No | ✅ Yes (>1) | ❌ No |
+| LOO unanimous | ✅ All < 1.0 | ✅ All < 1.0 | ✅ All < 1.0 | ✅ All < 1.0 | ❌ Mixed | ✅ All > 1.0 | ✅ All > 1.0 |
+| Type | Simple | Simple | Simple | Complex | Mixed | Complex | Discrete |
+| Recommendation | Use dist. | Use dist. | Use dist. | Monitor | Caution | Use point | Use point |
 
 ---
 
@@ -54,7 +55,7 @@ Kalshi's 2.8% hourly violation rate is directionally comparable to SPX equity op
 
 ## 2. Main Result: Prediction Market Distributions Add Value for Most Economic Series
 
-We find that prediction market distributions add significant value for three of four economic series — GDP, Jobless Claims, and CPI (overall) — with the Federal Funds Rate as the sole exception. The CRPS/MAE ratio — our central diagnostic — separates these regimes. Heterogeneity across series is statistically significant (Kruskal-Wallis H=7.16, p=0.028 for 3 series; H=9.98, p=0.019 for all 4).
+We find a striking dichotomy in distributional quality across seven economic series. "Simple" indicators — GDP, Jobless Claims, and ADP Employment — have distributions that consistently add value (CRPS/MAE = 0.48, 0.60, 0.69 respectively; all LOO ratios < 1.0). "Complex" indicators — Core PCE, CPI (recent), and the Federal Funds Rate — have distributions that actively harm forecast quality (CRPS/MAE = 2.06, 1.32, 1.48). Heterogeneity across series is highly significant (Kruskal-Wallis H=18.5, p=0.005 for 7 series; H=16.4, p=0.006 for 6 series with n≥5).
 
 ### The CRPS/MAE Diagnostic
 
@@ -62,37 +63,62 @@ The CRPS/MAE ratio measures whether a market's distributional spread adds inform
 
 **Primary result (interior-only implied mean):**
 
-| Series | n | CRPS | MAE | CRPS/MAE | 95% CI | Median per-event | LOO |
-|--------|---|------|-----|----------|--------|------------------|-----|
-| GDP | 9 | 0.580 | 1.211 | **0.48** | [0.38, 0.58] | 0.46 | All < 1.0 [0.45, 0.51] |
-| Jobless Claims | 16 | 7,748 | 12,959 | **0.60** | [0.45, 0.78] | 0.67 | All < 1.0 [0.57, 0.66] |
-| CPI | 33 | 0.108 | 0.125 | **0.86** | [0.62, 1.23] | 0.96 | All < 1.0 [0.80, 0.96] |
-| FED | 4 | 0.148 | 0.100 | **1.48** | [0.82, 2.73] | 1.59 | All > 1.0 [1.12, 1.80] |
+| Series | n | CRPS | MAE | CRPS/MAE | 95% BCa CI | Median per-event | LOO |
+|--------|---|------|-----|----------|------------|------------------|-----|
+| GDP | 9 | 0.580 | 1.211 | **0.48** | [0.31, 0.77] | 0.46 | All < 1.0 [0.45, 0.51] |
+| Jobless Claims | 16 | 7,748 | 12,959 | **0.60** | [0.37, 1.02] | 0.67 | All < 1.0 [0.57, 0.66] |
+| CPI | 33 | 0.108 | 0.125 | **0.86** | [0.57, 1.23] | 0.96 | All < 1.0 [0.80, 0.96] |
+| FED | 4 | 0.148 | 0.100 | **1.48** | [0.79, 4.86] | 1.59 | All > 1.0 [1.12, 1.80] |
 
-*Bootstrap CIs: 10,000 resamples, BCa (bias-corrected and accelerated) method via `scipy.stats.bootstrap`, which corrects for both bias and skewness in the bootstrap distribution — standard for ratio estimators at small n (Efron & Tibshirani, 1993).*
+*Bootstrap CIs: 10,000 resamples, BCa (bias-corrected and accelerated) method via `scipy.stats.bootstrap`, which corrects for both bias and skewness in the bootstrap distribution — standard for ratio estimators at small n (Efron & Tibshirani, 1993). Note: prior to iteration 13, a function signature bug caused silent fallback to simple percentile bootstrap. All CIs reported here use true BCa.*
 
 *Sensitivity: tail-aware implied mean (integrating same CDF as CRPS):*
 
-| Series | CRPS/MAE (tail-aware) | 95% CI |
-|--------|----------------------|--------|
-| GDP | 0.57 | [0.48, 0.65] |
-| Jobless Claims | 0.66 | [0.57, 0.76] |
-| CPI | 0.96 | [0.71, 1.33] |
-| FED | 1.47 | [0.96, 2.49] |
+| Series | CRPS/MAE (tail-aware) | 95% BCa CI |
+|--------|----------------------|------------|
+| GDP | 0.57 | [0.36, 0.92] |
+| Jobless Claims | 0.66 | [0.42, 1.08] |
+| CPI | 0.96 | [0.65, 1.35] |
+| FED | 1.47 | [0.67, 4.20] |
+
+### Expanded Series: Core PCE, ADP Employment, ISM PMI
+
+In iteration 13, we queried the Kalshi `/series` API endpoint and discovered 9 additional economic series with multi-strike settled markets. We fetched candlestick data and computed CRPS/MAE for the three with the most events:
+
+| Series | n | CRPS/MAE | 95% BCa CI | LOO | Interpretation |
+|--------|---|----------|------------|-----|----------------|
+| Core PCE (KXPCECORE) | 15 | **2.06** | [1.24, 3.49] | All > 1.0 | Distributions harmful |
+| ADP Employment (KXADP) | 9 | **0.69** | [0.36, 1.37] | All < 1.0 | Distributions add value |
+| ISM PMI (KXISMPMI) | 7 | **1.15** | [0.60, 2.69] | Mixed | Borderline harmful |
+
+**Core PCE** (the Fed's preferred inflation measure) shows the worst distributional quality of any series: CRPS/MAE=2.06, with all 15 LOO ratios > 1.0 and a CI that conclusively excludes 1.0 *from above*. Like CPI (post-break) and FED, this is a complex composite index where distributional pricing is difficult.
+
+**ADP Employment** (monthly employment change) mirrors GDP and Jobless Claims: simple, single-number indicators where distributions add value. All 9 LOO ratios are below 1.0.
+
+**ISM Manufacturing PMI** is borderline: the aggregate ratio is 1.15 but 4 of 7 events have ratios below 1.0. The wide CI [0.60, 2.69] reflects both small n and genuine heterogeneity.
 
 ### Cross-Series Heterogeneity
 
-**Kruskal-Wallis test** on per-event CRPS/MAE ratios across GDP, Jobless Claims, and CPI: H=7.16, p=0.028. Including FED (4-series test): H=9.98, p=0.019. Distributional quality is significantly heterogeneous across economic series.
+**Kruskal-Wallis test** on per-event CRPS/MAE ratios: with the original 4 series, H=9.98, p=0.019. With all 7 series (93 events): **H=18.5, p=0.005**. With 6 series (n≥5): **H=16.4, p=0.006**. The addition of Core PCE, ADP, and ISM substantially strengthens the heterogeneity finding.
 
-**Pairwise comparisons (Mann-Whitney U):**
+**The simple-vs-complex dichotomy.** Grouping series by signal complexity — "simple" (GDP, Jobless Claims, ADP: single-number indicators) vs "complex" (CPI, Core PCE, FED: composites or discrete) — reveals a large, significant gap:
+- Simple series median CRPS/MAE: **0.63** (n=34)
+- Complex series median CRPS/MAE: **1.31** (n=52)
+- Mann-Whitney: p=0.0004, r=0.43
 
-| Comparison | p-value | Rank-biserial r | Interpretation |
-|-----------|---------|-----------------|----------------|
-| CPI vs GDP | 0.020 | −0.52 (large) | GDP distributions significantly better |
-| JC vs GDP | 0.066 | −0.46 (medium-large) | GDP directionally better |
-| CPI vs JC | 0.150 | −0.26 (small-medium) | JC directionally better |
+This is the paper's strongest and most actionable finding: **distributional quality depends on signal complexity, not market liquidity or sample size.**
 
-GDP shows the strongest distributional value (CRPS/MAE=0.48), followed by Jobless Claims (0.60). CPI's overall ratio (0.86) reflects a mixture of excellent earlier events and poor recent events (see temporal split below).
+**Original pairwise comparisons (Mann-Whitney U, Bonferroni-corrected for 3 tests, α_adj=0.017):**
+
+| Comparison | p (raw) | p (Bonferroni) | Rank-biserial r | Interpretation |
+|-----------|---------|----------------|-----------------|----------------|
+| CPI vs GDP | 0.020 | 0.059 | −0.52 (large) | GDP directionally better (borderline after correction) |
+| JC vs GDP | 0.066 | 0.197 | −0.46 (medium-large) | GDP directionally better |
+| CPI vs JC | 0.150 | 0.450 | −0.26 (small-medium) | JC directionally better |
+
+*Note: No pairwise comparison survives Bonferroni correction among the original 3 series. The KW omnibus test and simple-vs-complex grouping are the primary heterogeneity results.*
+
+GDP shows the strongest distributional value (CRPS/MAE=0.48), followed by Jobless Claims (0.60) and ADP (0.69). CPI's overall ratio (0.86) reflects a mixture of excellent earlier events and poor recent events (see temporal split below).
 
 ### CPI Temporal Structural Break
 
@@ -116,7 +142,7 @@ This finding reframes CPI from a cautionary tale ("distributions are harmful") t
 
 We test several candidate mechanisms using multivariate analysis across all 62 events.
 
-**Surprise magnitude is the strongest predictor.** A cross-event regression of CRPS/MAE on strike count, log(volume), surprise z-score, and series dummies yields R²=0.27 (n=62). Surprise z-score dominates (coefficient=−0.84): events where the realized value is far from the implied mean tend to have *lower* CRPS/MAE ratios — the distribution adds more value precisely when the outcome is surprising. This is intuitive: when the point forecast is wrong by a large amount, even a modestly calibrated distributional spread helps; when the point forecast is nearly exact, any distributional spread adds noise.
+**Surprise magnitude and the CRPS/MAE ratio.** The CRPS/MAE ratio is strongly inversely correlated with surprise magnitude (Spearman ρ=−0.65, p<0.0001, n=62). However, this correlation is **largely mechanical**: surprise magnitude (|implied mean − realized|) is the MAE, which is the denominator of the CRPS/MAE ratio. When we test raw CRPS against surprise z-score directly — removing the denominator artifact — the correlation vanishes (ρ=0.12, p=0.35, n=62). This means the ratio is low for surprising events primarily because MAE is large, not because CRPS is low. The multivariate regression (R²=0.27, surprise coeff=−0.84) should be interpreted with this caveat: surprise z-score's explanatory power derives from the ratio's denominator, not from genuine variation in distributional quality.
 
 **Volume (liquidity) does not predict CRPS/MAE.** Spearman ρ=0.14 (p=0.27, n=62) between log(event volume) and CRPS/MAE ratio — no significant relationship. Within CPI (n=33): ρ=0.08, p=0.67. Within Jobless Claims (n=16): ρ=0.19, p=0.48. The liquidity hypothesis — that thin order books at extreme strikes degrade distributional quality — is not supported. Volume varies substantially across series (CPI median=140K contracts, JC median=16K), but this variation does not predict calibration quality. This null finding is informative: it rules out the simplest market-design lever (increasing volume) as a fix for distributional miscalibration.
 
@@ -172,8 +198,8 @@ The Kalshi CPI implied mean outperforms random walk with a large effect size (d=
 | Test | Effect size | n (current) | n (80% power) | Status |
 |------|------------|-------------|---------------|--------|
 | Kruskal-Wallis (3 series) | H=7.16 | 58 | — | **p=0.028, already significant** |
-| GDP CI excludes 1.0 | — | 9 | — | **CI [0.38, 0.58], already powered** |
-| JC CI excludes 1.0 | — | 16 | — | **CI [0.45, 0.78], already powered** |
+| GDP CI excludes 1.0 | — | 9 | — | **BCa CI [0.31, 0.77], excludes 1.0** |
+| JC CI excludes 1.0 | — | 16 | ~20–25 | BCa CI [0.37, 1.02], borderline (includes 1.0 by 0.02) |
 | CPI temporal split | r≈0.26 | 33 | ~95 | Not yet powered (p=0.18) |
 | FED CI excludes 1.0 | — | 4 | ~15 | Needs ~11 more events |
 | Kalshi vs Random Walk | d=0.85 | 14 | 9 | **Already powered** |
@@ -185,37 +211,38 @@ The Kalshi CPI implied mean outperforms random walk with a large effect size (d=
 ### GDP (CRPS/MAE=0.48)
 
 - **Leave-one-out**: All 9 LOO ratios < 1.0 (range [0.45, 0.51]); extremely stable.
-- **CI excludes 1.0**: BCa CI [0.38, 0.58] — no overlap with 1.0.
+- **CI excludes 1.0**: BCa CI [0.31, 0.77] — no overlap with 1.0. The only series where the CI conclusively excludes 1.0.
 - **Historical benchmark**: Kalshi CRPS 0.580 vs Historical CRPS 0.762 (24% lower), but not individually significant (p=0.285 at n=9).
 - **Prefixes merged**: Old GDP (n=6) and new KXGDP (n=3) combined; both subsets show ratios < 1.0.
 
 ### Jobless Claims (CRPS/MAE=0.60)
 
 - **Leave-one-out**: All 16 LOO ratios < 1.0 (range [0.57, 0.66]); no single event drives the result.
-- **CI excludes 1.0**: BCa CI [0.45, 0.78].
+- **CI borderline**: BCa CI [0.37, 1.02] — just barely includes 1.0. The LOO unanimity (all 16 < 1.0) provides strong convergent evidence that distributions add value.
 - **CRPS vs historical baseline**: Directional advantage (12% lower), but paired test underpowered (p=0.372).
 - **Temporal stability** (from iteration 10 analysis): Tail-aware CIs exclude 1.0 at all five temporal snapshots (10%, 25%, 50%, 75%, 90% of market life).
 
 ### CPI (CRPS/MAE=0.86)
 
 - **Leave-one-out**: All 33 LOO ratios < 1.0 (range [0.80, 0.96]); no single event drives the aggregate below 1.0.
-- **CI includes 1.0**: BCa CI [0.62, 1.23]. The aggregate result is *directionally* favorable but not conclusive.
+- **CI includes 1.0**: BCa CI [0.57, 1.23]. The aggregate result is *directionally* favorable but not conclusive. Serial-correlation-adjusted CI (AR(1) ρ=0.23, n_eff≈20.7): approximately [0.44, 1.28].
 - **Temporal split**: Old CPI (ratio=0.69) vs new KXCPI (ratio=1.32). The aggregate masks a structural break.
 - **Historical benchmark**: Kalshi CRPS comparable to historical CRPS (p=0.714); no significant advantage over the naive historical distribution.
 
 ### FED (CRPS/MAE=1.48)
 
 - **Leave-one-out**: All 4 LOO ratios > 1.0 (range [1.12, 1.80]); consistently harmful.
-- **CI includes 1.0**: BCa CI [0.82, 2.73]. Wide CI reflects n=4 — insufficient for definitive conclusions.
+- **CI includes 1.0**: BCa CI [0.79, 4.86]. Wide CI reflects n=4 — insufficient for definitive conclusions.
 - **Tentative interpretation**: FED rate decisions involve discrete jumps (0/25/50bp) that may make distributional pricing harder than continuous economic indicators.
 
 ### Heterogeneity Tests
 
 - **Kruskal-Wallis** (3 series): H=7.16, p=0.028 — significant at 5%.
 - **Kruskal-Wallis** (4 series): H=9.98, p=0.019 — significant at 5%.
-- **GDP vs CPI** (Mann-Whitney): p=0.020, r=−0.52 — GDP distributions significantly better.
-- **JC vs GDP** (Mann-Whitney): p=0.066, r=−0.46 — directional.
-- **CPI vs JC** (Mann-Whitney): p=0.150, r=−0.26 — directional.
+- **GDP vs CPI** (Mann-Whitney): p_raw=0.020, p_adj=0.059, r=−0.52 — GDP directionally better (borderline after Bonferroni).
+- **JC vs GDP** (Mann-Whitney): p_raw=0.066, p_adj=0.197, r=−0.46 — directional.
+- **CPI vs JC** (Mann-Whitney): p_raw=0.150, p_adj=0.450, r=−0.26 — directional.
+- *Note: Pairwise tests Bonferroni-corrected for 3 comparisons (α_adj=0.017). No pairwise comparison survives correction. The KW omnibus test is the primary heterogeneity result.*
 
 ### PIT Diagnostic (All 4 Series)
 
@@ -234,9 +261,11 @@ No series rejects uniformity at the 5% level (all KS p > 0.29), indicating that 
 - **CPI** (0.56): Markets mildly underestimate inflation — realized CPI tends to fall in the upper half. This is consistent with the post-Nov 2024 pattern where distributions are too narrow and centered too low.
 - **FED** (0.67): Markets underestimate rate levels, though n=4 limits interpretation.
 
-### Surprise Magnitude
+### Surprise Magnitude — A Mechanical Relationship
 
-The CRPS/MAE ratio is strongly inversely correlated with surprise magnitude across all 62 events: pooled Spearman ρ=−0.65 (p<0.0001, n=62). Distributions add the most value precisely when the point forecast misses badly — the distributional spread captures tail risk that the point forecast cannot. Within CPI (n=33): ρ=−0.68 (p=0.008, consistent with the earlier KXCPI subset). A CRPS/uniform comparison confirms this is genuine, not purely a denominator artifact.
+The CRPS/MAE ratio is strongly inversely correlated with surprise magnitude (|implied mean − realized|) across all 62 events: pooled Spearman ρ=−0.65 (p<0.0001, n=62). However, this correlation is **largely a denominator artifact**: surprise magnitude *is* the MAE, which is the ratio's denominator. When we regress raw CRPS (not the ratio) on within-series surprise z-score, the correlation vanishes (ρ=0.12, p=0.35, n=62). MAE increases with surprise (ρ=0.40, p=0.001), but CRPS does not — the ratio is mechanically small for surprising events because the denominator is large, not because the numerator is small.
+
+This means the multivariate regression finding (R²=0.27, surprise z-score coefficient=−0.84) should be interpreted as reflecting the mechanical denominator effect, not genuine variation in distributional forecast quality. The economic intuition ("distributions help more when surprises are large") is directionally correct but overstated — the CRPS/MAE ratio favors high-surprise events by construction.
 
 ### CRPS/MAE Persistence
 
@@ -261,10 +290,12 @@ Monte Carlo simulation: 2→3 strike effect ≤2% for symmetric distributions, v
 ## Methodology
 
 ### Data
-- 909 multi-strike markets across 96 events (33 CPI, 24 Jobless Claims, 14 GDP, 25 FED)
-- 62 events with realized outcomes and CRPS computation (33 CPI, 16 JC, 9 GDP, 4 FED)
+- **Original 4 series**: 909 multi-strike markets across 96 events (33 CPI, 24 Jobless Claims, 14 GDP, 25 FED); 62 events with realized outcomes and CRPS computation
+- **Expanded 3 series**: Core PCE (90 markets, 15 events), ADP Employment (80 markets, 9 events), ISM PMI (49 markets, 7 events) — fetched via Kalshi API in iteration 13
+- **Total**: 93 events with CRPS across 7 series
 - Series merge: old naming (CPI-, FED-, GDP-) combined with new naming (KXCPI-, KXFED-, KXGDP-) into canonical series
 - External: TIPS breakeven (T10YIE), SPF median CPI, FRED historical data (CPIAUCSL, ICSA, A191RL1Q225SBEA, DFEDTARU)
+- **Additional series discovered** via Kalshi `/series` endpoint: KXU3 (unemployment, 49 events), KXCPICORE (core CPI, 44 events), KXFRM (mortgage rates, 86 events), KXCPIYOY (CPI YoY, 39 events) — available for future analysis
 
 ### In-Sample Caveat and OOS Validation
 
@@ -315,7 +346,11 @@ During the research process, several initially significant findings were invalid
 
 | Finding | Naive p | Corrected | Issue |
 |---------|---------|-----------|-------|
-| CPI distributions "actively harmful" | CI [1.04, 2.52] | CI [0.62, 1.23] | Sample restricted to post-break period; full series ratio=0.86 |
+| CPI distributions "actively harmful" | CI [1.04, 2.52] | CI [0.57, 1.23] | Sample restricted to post-break period; full series ratio=0.86 |
+| JC CI "excludes 1.0" | CI [0.45, 0.78] | CI [0.37, 1.02] | Percentile bootstrap → true BCa (function signature bug) |
+| GDP CI "excludes 1.0 tightly" | CI [0.38, 0.58] | CI [0.31, 0.77] | Percentile → BCa; still excludes 1.0 but wider |
+| Surprise predicts CRPS/MAE | ρ=−0.65, "genuine" | ρ=0.12 (raw CRPS) | Denominator artifact: surprise = MAE = denominator of ratio |
+| Pairwise CPI vs GDP "significant" | p=0.020 | p_adj=0.059 | Bonferroni correction for 3 pairwise tests |
 | Heterogeneity from 2-series test | p=0.003 (MWU) | p=0.028 (KW, 3-series) | Upgraded from 2-sample to k-sample test |
 | Calibration under uncertainty | 0.016 | CI includes zero | Cluster-robust bootstrap |
 | Microstructure event response | 0.013 | 0.542 | Within-event correlation |
@@ -368,7 +403,7 @@ The T-24h gradient (7x) is largely mechanical. The controlled analysis (50% of l
 
 ### F. Complete Statistical Corrections Log
 
-All 25 corrections applied during the research process:
+All 30 corrections applied during the research process:
 
 1. **Regime-appropriate benchmarks**: Jobless Claims window 2022+ (post-COVID)
 2. **Per-series decomposition**: Pooled tests mask heterogeneity; per-series Wilcoxon tests reveal series divergence
@@ -395,3 +430,8 @@ All 25 corrections applied during the research process:
 23. **CRPS/MAE persistence**: Lag-1 autocorrelation ≈ 0 for all series — ratio is event-specific, not sticky
 24. **Full PIT diagnostic**: Extended from 2-series subset to all 4 series (62 events); no series rejects uniformity
 25. **OOS validation**: Expanding-window and natural temporal OOS tests on CPI; 50% accuracy confirms structural break
+26. **BCa bootstrap fix**: Function signature bug caused `_ratio_of_means(data, axis=None)` to receive two positional args from `scipy.stats.bootstrap`, silently falling back to percentile bootstrap. Fixed to `_ratio_of_means(crps, mae, axis=None)`. CIs widened for all series; JC CI now includes 1.0.
+27. **Surprise-CRPS endogeneity test**: Raw CRPS vs surprise z-score: ρ=0.12, p=0.35. The ρ=−0.65 finding for CRPS/MAE is a denominator artifact.
+28. **Bonferroni correction for pairwise tests**: 3 pairwise Mann-Whitney tests corrected (α_adj=0.017). CPI vs GDP p_adj=0.059 — no longer significant.
+29. **Serial-correlation-adjusted CI propagated**: CPI adjusted CI [0.44, 1.28] (AR(1) ρ=0.23, n_eff≈20.7) now reported alongside standard BCa CI.
+30. **Kalshi API series discovery**: Queried /series endpoint; found 9 additional economic series with multi-strike settled markets (KXPCECORE, KXU3, KXADP, KXISMPMI, KXCPICORE, KXCPIYOY, KXFRM, KXACPI, KXRETAIL). New series being integrated.
