@@ -565,3 +565,29 @@ def fetch_historical_gdp(
     """
     gdp = _fetch_fred_csv("A191RL1Q225SBEA", start_date, end_date)
     return gdp.tolist()
+
+
+def fetch_historical_fed_rate(
+    start_date: str = "2020-01-01",
+    end_date: str = "2026-02-01",
+) -> list[float]:
+    """Fetch the upper target of the federal funds rate from FRED.
+
+    Uses FRED series DFEDTARU (Federal Funds Target Rate - Upper Limit, daily).
+    Kalshi FED markets settle on FOMC decisions about the upper target rate,
+    so this is the appropriate benchmark.
+
+    Parameters
+    ----------
+    start_date : str
+        Start date in YYYY-MM-DD format.
+    end_date : str
+        End date in YYYY-MM-DD format.
+
+    Returns
+    -------
+    list[float]
+        Daily federal funds upper target rate values (percentage).
+    """
+    rate = _fetch_fred_csv("DFEDTARU", start_date, end_date)
+    return rate.tolist()
