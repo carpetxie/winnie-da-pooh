@@ -181,16 +181,22 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
 
 $HISTORY_CONTEXT
 
-Read docs/findings.md carefully. Also review the actual experiment code — read the Python files in experiment7/, experiment8/, experiment11/, experiment12/, experiment13/ and check that the methodology described in the paper matches what the code actually does. Look at data files, check statistical tests, verify numbers. You can use Bash to run read-only commands like 'ls', 'wc', etc. to inspect outputs, but do NOT modify any files except your critique.
+Read docs/findings.md carefully. Also review the experiment code AND the Kalshi API client (kalshi/client.py, kalshi/market_data.py) to understand what additional data is available. Review Python files in experiment7/, experiment8/, experiment11/, experiment12/, experiment13/. You can use Bash to run read-only commands, but do NOT modify any files except your critique.
 
 Write your critique to docs/exchanges/critique_latest.md. Use iteration number $i in your header.
 
-Your critique should cover BOTH the paper AND the code:
-- Paper: argument structure, statistical claims, prose quality, missing analyses
-- Code: correctness, methodology gaps, untested edge cases, analyses that could be added or improved
-- Suggest specific new experiments or code changes the researcher should make
+YOUR #1 PRIORITY every iteration is DATA SUFFICIENCY:
+- Is the dataset large enough to support each claim? If not, CAN the researcher expand it by writing code?
+- Kalshi offers dozens of economic series beyond CPI and Jobless Claims. Check what's available via the API. If the paper only analyzes 2 series, that's not an 'acknowledged limitation' — it's a fixable gap.
+- Do NOT let the researcher wave off 'small n' as inherent. If they have API access to more data, expanding the dataset is the #1 recommendation.
+- Before ANY prose or methods feedback, assess: would more data make this feedback irrelevant?
 
-IMPORTANT: Do NOT set STATUS: ACCEPT. Always find concrete improvements — no matter how good the paper is, there are always ways to strengthen the argument, tighten prose, improve figures, add new analyses, or fix code issues. Be constructive but relentless. Do not manufacture fake issues, but do dig deep for real ones."
+ALSO evaluate:
+- STRENGTH: Are claims as strong as evidence allows? Where too weak? Where too strong?
+- NOVELTY: What's genuinely new? What new analyses would increase novelty?
+- ROBUSTNESS: Missing checks? Hostile reviewer attacks? Code bugs?
+
+IMPORTANT: Do NOT set STATUS: ACCEPT. A weakness is ONLY 'unfixable' if no code could address it. If the researcher could write code to fix it, it belongs in 'Must Fix' or 'Should Fix', NOT in 'Acknowledged Limitations'."
 
     PROMPT_LEN=${#CRITIQUE_PROMPT}
     log "  Prompt length: ${PROMPT_LEN} chars"
@@ -202,7 +208,7 @@ IMPORTANT: Do NOT set STATUS: ACCEPT. Always find concrete improvements — no m
     CLAUDE_START=$(date +%s)
     claude -p \
         --model "$MODEL" \
-        --system-prompt "You are the critiquer agent. Follow the instructions exactly. Always write output to docs/exchanges/critique_latest.md. Be intellectually honest — if the paper is good, say so. Do not invent problems. You may READ any file in the codebase (experiments, data, scripts) to inform your critique, but you may ONLY write to docs/exchanges/critique_latest.md. Do NOT modify any code, data, or other files." \
+        --system-prompt "You are the critiquer agent. Your #1 job every iteration is the DATA SUFFICIENCY AUDIT: is the dataset large enough? Can the researcher expand it by writing code? Check what the Kalshi API offers (read kalshi/client.py). Do NOT classify 'small n' or 'only 2 series' as inherent limitations if the researcher has API access to more data. A fixable weakness belongs in Must Fix, not Acknowledged Limitations. Also review code for correctness and suggest new experiments. Write ONLY to docs/exchanges/critique_latest.md — do NOT modify any other files." \
         --allowed-tools "Read,Write,Glob,Grep,Bash" \
         --max-turns 20 \
         --no-session-persistence \
@@ -265,30 +271,37 @@ IMPORTANT: Do NOT set STATUS: ACCEPT. Always find concrete improvements — no m
 
 This is iteration $i of a maximum $MAX_ITERATIONS. Read the critique at docs/exchanges/critique_latest.md.
 
-BEFORE making any changes, deliberate on each point. Ask yourself: Do I agree? Is this feasible? Would this actually make the paper better?
+YOUR #1 PRIORITY: If the critique identifies data insufficiency (too few series, small n, underpowered tests), FIX IT WITH CODE BEFORE DOING ANYTHING ELSE.
+- Read kalshi/client.py and kalshi/market_data.py to understand what data is available
+- Kalshi has dozens of economic series beyond CPI and Jobless Claims: nonfarm payrolls, retail sales, GDP advance, PCE, mortgage applications, housing starts, industrial production, etc.
+- Fetch new series data, compute CRPS/MAE for them, and add them to the paper
+- Check FRED for corresponding historical benchmarks for any new series
+- Adding even ONE more series that confirms or breaks the heterogeneity finding is worth more than any amount of prose polish
 
-You have FULL access to the codebase. If the critique calls for new analyses, stronger evidence, or different visualizations:
-1. Modify experiment code (experiment7/, experiment8/, experiment11/, experiment12/, experiment13/) as needed
-2. Re-run experiments with 'uv run python -m experimentN.run' (use --skip-fetch flags to avoid unnecessary API calls)
-3. Update docs/findings.md with the new results, figures, and numbers
+You have FULL access to the entire codebase. You can and should:
+- Fetch new data from the Kalshi API — add new series to the analysis
+- Fetch new benchmark data from FRED
+- Create or modify ANY file — experiments, scripts, utilities, anything
+- Run experiments: 'uv run python -m experimentN.run' (use --skip-fetch to reuse cached data)
+- Write new statistical tests, robustness checks, sensitivity analyses
 
-Do NOT just edit prose — if the critique points to a real analytical gap, write or modify code to fill it. Code changes are first-class outputs.
+PRIORITY ORDER: Data expansion > New analyses > Robustness checks > Prose edits.
+Do NOT just edit prose — if a weakness is fixable with code, write the code.
+Do NOT set STATUS: CONVERGED. Always attempt meaningful improvements.
 
-Then revise docs/findings.md — but ONLY make changes you believe in. Push back on bad suggestions. Write your full deliberation and changelog to docs/exchanges/researcher_response.md.
-
-Do NOT set STATUS: CONVERGED. You must always attempt meaningful improvements. Even small wins — tighter prose, better transitions, stronger framing, new analyses — compound across iterations."
+Write deliberation to docs/exchanges/researcher_response.md. Update docs/findings.md with new results."
 
     PROMPT_LEN=${#RESEARCHER_PROMPT}
     log "  Prompt length: ${PROMPT_LEN} chars"
-    log "  Allowed tools: Read, Write, Edit, Glob, Grep, Bash"
-    log "  Max turns: 25"
+    log "  Allowed tools: Read, Write, Edit, Glob, Grep, Bash, NotebookEdit"
+    log "  Max turns: 50"
     log "  ${MAGENTA}Invoking claude (researcher)...${NC}"
 
     cd "$REPO_ROOT"
     CLAUDE_START=$(date +%s)
     claude -p \
         --model "$MODEL" \
-        --system-prompt "You are the researcher agent. You have FULL access to the entire codebase. You can and should: create new experiment files, modify existing experiments, run analyses (uv run python -m experimentN.run), generate new plots, update the paper, and do whatever it takes to improve the work. Write code, run it, check results, iterate. Deliberate carefully on critique points but push back on bad suggestions. Always write deliberation to docs/exchanges/researcher_response.md and update docs/findings.md with any new results." \
+        --system-prompt "You are the researcher agent. You have FULL access to the entire codebase including the Kalshi API. Your #1 priority is DATA SUFFICIENCY — if the study is underpowered or uses too few series, EXPAND THE DATASET before doing anything else. Fetch new series from Kalshi, fetch benchmarks from FRED, compute CRPS/MAE on new data. Code that adds data > code that adds robustness checks > prose edits. Fix weaknesses with code, not hedging paragraphs. Write deliberation to docs/exchanges/researcher_response.md and update docs/findings.md." \
         --allowed-tools "Read,Write,Edit,Glob,Grep,Bash,NotebookEdit" \
         --max-turns 50 \
         --no-session-persistence \

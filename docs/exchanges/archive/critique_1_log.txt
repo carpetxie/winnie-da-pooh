@@ -1,13 +1,14 @@
-The critique for Iteration 11 has been written to `docs/exchanges/critique_latest.md`. Here's a summary of the key points:
+The critique has been written to `docs/exchanges/critique_latest.md`. Here's a summary of the key findings:
 
-**Overall**: The paper has comprehensively addressed all iteration 10 suggestions. It's now blog-publishable — no statistical blockers remain. Scores improved modestly (Economic Significance 8→8.5, Narrative Clarity 8→8.5, Blog Publishability 8→8.5).
+## Key Findings
 
-**The One Big Thing**: Add a **volume/liquidity correlation analysis** to empirically test one of the four proposed mechanisms for CPI-JC divergence. The `volume` field is available in the data but unused. ~15 lines of code would transform the "Why Do They Diverge?" section from four untested hypotheses to three hypotheses plus one empirical finding.
+**#1 Critical Issue: The dataset is ~30% of what's available.** The researcher's own cached data (`targeted_markets.json`) contains:
+- **23 additional CPI events** under the old `CPI-` prefix (Dec 2022 – Oct 2024), which would nearly triple the sample from 14 → 37
+- **23 FED rate events** — an entirely unused multi-strike series
+- **11 additional GDP events** under the old `GDP-` prefix, which would make GDP usable for statistical tests (3 → 14)
 
-**Key "Should Fix" items**:
-1. Sharpen the CPI CRPS/uniform > 1.0 implication — CPI distributions are worse than *random guessing*, not just worse than point forecasts
-2. Preempt specification-sensitivity objection (interior-only CI includes 1.0; tail-aware excludes it)
-3. Add chronological stability check (first 7 vs last 7 CPI events)
-4. Abstract may be long for blog format
+The fix is changing one line in `experiment7/implied_distributions.py` (`STRIKE_SERIES`) and adding a prefix-merging step.
 
-**Verdict**: Minor Revisions — publishable today, but these changes would make it distinctly stronger.
+**Scores:** Data Sufficiency 3/10, Novelty 7/10, Rigor 7/10, Economic Significance 6/10, Blog Publishability 5/10.
+
+**Verdict: MAJOR REVISIONS** — the conceptual framework is strong but the paper analyzes 14 CPI events when 37 are available, and ignores FED entirely. No methodological polish compensates for this.
