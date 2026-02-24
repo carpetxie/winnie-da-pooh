@@ -1,11 +1,11 @@
 # When Do Prediction Market Distributions Add Value? A CRPS/MAE Diagnostic
 
 **Date:** 2026-02-24
-**Status:** Draft — under review (iteration 15).
+**Status:** Draft — under review (iteration 16).
 
 ## Abstract
 
-We introduce the CRPS/MAE ratio as a diagnostic for evaluating prediction market distributional forecasts, and apply it to multi-strike Kalshi contracts across **248 settled economic events spanning 11 series**: CPI (n=33), CPI YoY (n=34), Core CPI (n=32), Unemployment (n=32), Mortgage Rates (n=59), Core PCE (n=13), Jobless Claims (n=16), ADP Employment (n=9), GDP (n=9), ISM PMI (n=7), and the Federal Funds Rate (n=4).
+We apply the CRPS/MAE ratio — adapted from forecast verification methods in weather and climate science (Gneiting & Raftery 2007, Hersbach 2000) — as a diagnostic for evaluating prediction market distributional forecasts, and compute it for multi-strike Kalshi contracts across **248 settled economic events spanning 11 series**: CPI (n=33), CPI YoY (n=34), Core CPI (n=32), Unemployment (n=32), Mortgage Rates (n=59), Core PCE (n=13), Jobless Claims (n=16), ADP Employment (n=9), GDP (n=9), ISM PMI (n=7), and the Federal Funds Rate (n=4).
 
 The CRPS/MAE ratio compares how well a market's full probability distribution performs (CRPS) against using just its central point forecast (MAE). A ratio below 1 means the distribution adds value; above 1 means the spread is so miscalibrated that you'd be better off ignoring it.
 
@@ -15,13 +15,13 @@ An initial analysis of 7 series (93 events) suggested a "simple-vs-complex" dich
 
 CPI *point* forecasts beat all benchmarks including random walk (d=−0.85, p_adj=0.014), while CPI *distributions* in the post-Nov 2024 period show CRPS/MAE=1.32. This is — to our knowledge — the first empirical demonstration in prediction markets that point and distributional calibration can diverge independently. KXFRM (Mortgage Rates) demonstrates the complementary pattern: good point forecasts (d=−0.55 vs random walk) *and* good distributions (CRPS/MAE=0.85), confirming that the CPI decoupling is genuine rather than a methodological artifact.
 
-A universal overconcentration pattern emerges as the dominant calibration failure mode: all 11 series show std(PIT) below the theoretical uniform ideal of 0.289 (binomial sign test p=0.0005; pooled std(PIT)=0.240, 95% CI [0.225, 0.257], conclusively excluding 0.289). Markets systematically understate uncertainty — they know *where* outcomes will land but underestimate *how uncertain* they are. Paradoxically, more overconcentrated series tend to have *better* distributional performance (Spearman ρ=−0.68, p=0.022 between std(PIT) and CRPS/MAE), suggesting that overconcentration reflects superior location accuracy rather than a calibration deficiency per se.
+A universal overconcentration pattern emerges as the dominant calibration failure mode: all 11 series show std(PIT) below the theoretical uniform ideal of 0.289 (binomial sign test p=0.0005; pooled std(PIT)=0.240, 95% CI [0.225, 0.257], conclusively excluding 0.289). Markets systematically understate uncertainty — they know *where* outcomes will land but underestimate *how uncertain* they are. Paradoxically, more overconcentrated series tend to have *better* distributional performance (series-level Spearman ρ=−0.68, p=0.022, n=11 series, bootstrap 95% CI [−0.96, −0.10]). A per-event analysis confirms this at n=232: events where the outcome falls closer to the distribution center (|PIT−0.5| smaller) tend to have lower CRPS/MAE ratios (ρ=−0.19, p=0.004; within-series partial ρ=−0.20, p=0.003). The per-event effect is real but much smaller — the strong series-level correlation is partly driven by between-series confounds — suggesting overconcentration reflects superior location accuracy, with the relationship operating primarily between rather than within series.
 
 > **Practical Takeaways:**
 > - **For 9 of 11 economic series: use the full distribution.** Distributions add value across GDP, Jobless Claims, CPI YoY, ADP Employment, Unemployment, Core CPI, Mortgage Rates, CPI, and ISM PMI.
 > - **GDP** is the standout: CRPS/MAE=0.48, CI excludes 1.0. Distribution reduces forecast error by 52% vs point forecast alone.
 > - **Core PCE and FED** are the exceptions: use point forecasts only for these series.
-> - **All 11 series are overconcentrated** (p=0.0005, pooled CI excludes ideal) — distributions are systematically too narrow. Paradoxically, more overconcentrated series have *better* CRPS/MAE ratios (ρ=−0.68, p=0.022).
+> - **All 11 series are overconcentrated** (p=0.0005, pooled CI excludes ideal) — distributions are systematically too narrow. Paradoxically, more overconcentrated series have *better* CRPS/MAE ratios (series-level ρ=−0.68, p=0.022, n=11; per-event ρ=−0.19, p=0.004, n=232).
 > - **Monitor the CRPS/MAE ratio per series** — the CPI structural break (ratio shifted from 0.69 to 1.32 across naming conventions) shows distributional quality can change over time. A retrospective backtest of the proposed monitoring protocol confirms it detects degradation in CPI and Core PCE while producing zero false alerts for 6 of 8 testable series.
 > - **The CRPS/MAE ratio** is a practical real-time diagnostic that Kalshi could deploy per series to flag distributional degradation.
 
@@ -88,7 +88,7 @@ Note that a high CRPS/MAE ratio does not simply reflect good point forecasts def
 
 ### The Headline Finding: Distributions Add Value Broadly
 
-**9 of 11 series** show CRPS/MAE < 1.0. Of those 9, **8 have unanimous LOO ratios below 1.0** — no single event drives any of these results. The per-event sign test is highly significant: **147 of 248 events** (59.3%) have CRPS/MAE < 1.0 (binomial test p=0.004). The sign test treats events as exchangeable across series; the per-series LOO analysis (8/9 unanimous) provides convergent evidence that the finding is not driven by any single dominant series. At the series level, 9/11 < 1.0 gives binomial p=0.065 — borderline, but the convergent evidence from LOO unanimity and per-event sign test strongly supports the conclusion.
+**9 of 11 series** show CRPS/MAE < 1.0. Of those 9, **8 have unanimous LOO ratios below 1.0** — no single event drives any of these results. The per-event sign test is highly significant: **147 of 248 events** (59.3%) have CRPS/MAE < 1.0 (binomial test p=0.004). The sign test treats events as exchangeable across series; the per-series LOO analysis (8/9 unanimous) provides convergent evidence that the finding is not driven by any single dominant series. At the series level, 9/11 < 1.0 gives binomial p=0.065 — borderline, but the convergent evidence from LOO unanimity and per-event sign test strongly supports the conclusion. Note that only GDP's BCa CI conclusively excludes 1.0; wide CIs are expected at these per-series sample sizes (n=9–59). LOO unanimity and the per-event sign test provide convergent robustness evidence independent of distributional assumptions on CI width.
 
 Only **Core PCE** (ratio=1.22, LOO all > 1.0) and **FED** (ratio=1.48, LOO all > 1.0) consistently show harmful distributions. These two series account for only 17 of 248 events (6.9%).
 
@@ -299,7 +299,11 @@ The dramatic weakening (r from 0.43 to 0.16) resulted from two corrections: (1) 
 
 This holds regardless of CRPS/MAE ratio, series type, sample size, or time period. ISM PMI shows the most extreme overconcentration (std=0.136, less than half the ideal), consistent with its borderline CRPS/MAE of 0.97. Monte Carlo simulation confirms the mechanical effect of discrete strikes on distributional variance is ≤2% (Section 4, "What Drives Distributional Quality?"), far smaller than the observed overconcentration gaps (8–53% below ideal). This means prediction markets systematically understate uncertainty: they correctly identify *where* outcomes will land (mean PIT close to 0.5 for most series) but substantially underestimate *how uncertain* they are.
 
-**Overconcentration correlates with better distributional performance.** Spearman rank correlation between std(PIT) and CRPS/MAE ratio across all 11 series: ρ=−0.68, p=0.022. More overconcentrated series tend to have *lower* (better) CRPS/MAE ratios. This counterintuitive result suggests that overconcentration reflects superior location accuracy — series where markets are most confident about the center also happen to be most accurate, even if their uncertainty ranges are too narrow. Overconcentration and CRPS/MAE thus capture distinct but related calibration dimensions: the ratio measures overall distributional value, while std(PIT) specifically measures dispersion calibration.
+**Overconcentration correlates with better distributional performance.** Spearman rank correlation between std(PIT) and CRPS/MAE ratio across all 11 series: ρ=−0.68, p=0.022 (n=11 series; bootstrap 95% CI [−0.96, −0.10]; Fisher z CI [−0.91, −0.13]). LOO sensitivity: all 11 leave-one-out ρ values remain negative (range [−0.84, −0.57]), confirming no single series drives the result.
+
+**Per-event confirmation (n=232).** To test whether this relationship holds at the individual event level, we correlate |PIT_i − 0.5| (each event's distance from ideal calibration) with per-event CRPS/MAE. The per-event Spearman correlation is ρ=−0.19 (p=0.004, bootstrap 95% CI [−0.32, −0.05]). A within-series partial correlation (rank residuals controlling for series identity) gives ρ=−0.20 (p=0.003), confirming the relationship is not an artifact of between-series confounds. However, the effect is substantially weaker per-event than per-series (−0.19 vs −0.68), indicating that the strong series-level correlation is partly amplified by between-series factors (different data types, participant bases, release frequencies). The relationship is real at both levels but operates primarily between rather than within series.
+
+Overconcentration and CRPS/MAE thus capture distinct but related calibration dimensions: the ratio measures overall distributional value, while std(PIT) specifically measures dispersion calibration.
 
 Three possible mechanisms for overconcentration: (a) bid-ask spread compression mechanically narrows midpoint-derived CDFs, making them tighter than true beliefs; (b) overconfident participants underweight tail scenarios; (c) the same overconfidence driving favorite-longshot bias makes extreme-strike contracts underpriced. The volume-independence finding (ρ=0.14, p=0.27) weakly argues against thin-market mechanics alone, but we cannot definitively distinguish these channels without order-book depth data.
 
@@ -386,7 +390,8 @@ To reproduce all reported results, run in order:
 9. **Cross-series horse race**: Kalshi vs random walk and trailing mean for CPI, Unemployment, Mortgage Rates using FRED benchmarks.
 10. **Monitoring protocol backtest**: Rolling 8-event CRPS/MAE for all 11 series with 3-consecutive-window alert detection.
 11. **Formal overconcentration test**: Binomial sign test, pooled bootstrap CI on std(PIT), per-series bootstrap CIs (n≥10).
-12. **std(PIT) vs CRPS/MAE correlation**: Spearman rank correlation across 11 series.
+12. **std(PIT) vs CRPS/MAE correlation**: Spearman rank correlation across 11 series (bootstrap CI, Fisher z CI, LOO sensitivity).
+13. **Per-event overconcentration-performance**: |PIT−0.5| vs per-event CRPS/MAE (n=232), within-series partial correlation controlling for series identity.
 
 ---
 
@@ -394,7 +399,7 @@ To reproduce all reported results, run in order:
 
 ### A. PIT Analysis — Additional Detail
 
-PIT analysis covers all 11 series (248 events). Five series show no significant deviation from uniformity (KXU3, GDP, KXADP, KXISMPMI, JC). Three series reject uniformity at the 5% level (KXFRM, KXCPICORE, KXCPIYOY) — all showing a low-bias pattern where outcomes tend to exceed the implied distribution center. The dominant calibration failure mode across all 11 series is overconcentration: std(PIT) ranges from 0.136 (ISM PMI) to 0.266 (GDP), all below the theoretical ideal of 0.289 for a uniform distribution. Formal tests: binomial sign test p=0.0005 (11/11 below ideal); pooled bootstrap CI [0.225, 0.257] conclusively excludes 0.289; 5 of 7 series with n≥10 individually exclude 0.289. Spearman correlation between std(PIT) and CRPS/MAE: ρ=−0.68 (p=0.022) — more overconcentrated series have better distributional performance. See Section 4 for the full table and discussion.
+PIT analysis covers all 11 series (248 events). Five series show no significant deviation from uniformity (KXU3, GDP, KXADP, KXISMPMI, JC). Three series reject uniformity at the 5% level (KXFRM, KXCPICORE, KXCPIYOY) — all showing a low-bias pattern where outcomes tend to exceed the implied distribution center. The dominant calibration failure mode across all 11 series is overconcentration: std(PIT) ranges from 0.136 (ISM PMI) to 0.266 (GDP), all below the theoretical ideal of 0.289 for a uniform distribution. Formal tests: binomial sign test p=0.0005 (11/11 below ideal); pooled bootstrap CI [0.225, 0.257] conclusively excludes 0.289; 5 of 7 series with n≥10 individually exclude 0.289. Spearman correlation between std(PIT) and CRPS/MAE: ρ=−0.68 (p=0.022, n=11, bootstrap CI [−0.96, −0.10]) — more overconcentrated series have better distributional performance. Per-event confirmation: ρ=−0.19 (p=0.004, n=232); within-series partial ρ=−0.20 (p=0.003). The effect is real at both levels but substantially stronger between series than within. See Section 4 for the full table and discussion.
 
 ### B. Downgraded and Invalidated Findings
 
@@ -524,3 +529,7 @@ All 33 corrections applied during the research process:
 44. **std(PIT) vs CRPS/MAE correlation**: Spearman ρ=−0.68 (p=0.022). More overconcentrated series have better distributional performance — overconcentration and CRPS/MAE are related but distinct calibration dimensions.
 45. **KXFRM monitoring alert identification**: All 10 alert clusters concentrate in March–November 2023, coinciding with peak mortgage rate volatility. True positive detection, not poor specificity.
 46. **Executive summary MAE clarification**: Added table note specifying interior-only vs tail-aware implied mean usage.
+47. **Per-event overconcentration-performance correlation**: Extended the series-level ρ=−0.68 finding to per-event level (n=232). Per-event ρ=−0.19 (p=0.004), within-series partial ρ=−0.20 (p=0.003). Confirms the relationship at individual event level but reveals it is substantially weaker — series-level correlation partly amplified by between-series confounds.
+48. **Bootstrap CI on series-level ρ**: ρ=−0.68, 95% bootstrap CI [−0.96, −0.10], Fisher z CI [−0.91, −0.13]. LOO sensitivity: all 11 ρ negative (range [−0.84, −0.57]). Robust to single-series removal.
+49. **"We introduce" → "We apply"**: Changed abstract attribution to acknowledge CRPS/MAE ratio precedent in weather/climate forecast verification literature.
+50. **CI non-exclusion defense**: Added sentence in Headline Finding noting wide CIs expected at n=9–59, with convergent LOO + sign test evidence.
