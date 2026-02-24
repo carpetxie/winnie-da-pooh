@@ -1,0 +1,22 @@
+All tasks are complete. Here's a summary of what was accomplished in iteration 9:
+
+## Summary
+
+### Code Changes
+- **`scripts/iteration9_analyses.py`** (NEW): Comprehensive per-event overconcentration-performance analysis across all 11 series (232 matched events with PIT and CRPS/MAE values)
+
+### Key New Results
+
+1. **Per-event correlation confirmed (n=232)**: ρ=−0.19, p=0.004, bootstrap CI [−0.32, −0.05]. The overconcentration-performance relationship is real at the individual event level.
+
+2. **Within-series partial correlation**: ρ=−0.20, p=0.003 — controlling for series identity confirms this isn't just a between-series artifact.
+
+3. **Ecological amplification**: The series-level ρ=−0.68 is 3.5× stronger than the per-event ρ=−0.19, revealing that between-series confounds amplify the relationship. This is itself a novel finding.
+
+4. **Series-level bootstrap CI**: [−0.96, −0.10] excludes zero; Fisher z CI [−0.91, −0.13] agrees. LOO: all 11 values negative.
+
+### Paper Changes
+- **Abstract**: "We introduce" → "We apply ... adapted from forecast verification methods" (attribution fix). Added per-event confirmation and bootstrap CIs.
+- **Headline Finding**: Added CI non-exclusion defense sentence.
+- **Section 4**: Major expansion with full multi-level analysis (series-level with CIs + per-event + within-series partial + ecological amplification discussion).
+- **Appendix A, Methodology, Corrections log**: All updated.
