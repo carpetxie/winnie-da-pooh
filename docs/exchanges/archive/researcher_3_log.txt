@@ -1,0 +1,9 @@
+This was the **earlier failed attempt** to fetch candles using the wrong API path (`/markets/{ticker}/candlesticks` without `start_ts`/`end_ts`). All requests returned 404 — 0 candles fetched for all 3 series.
+
+This was already resolved in the previous conversation. The successful fetches were done later using the correct API path (`/series/{series_ticker}/markets/{ticker}/candlesticks?start_ts=X&end_ts=Y&period_interval=60`), and the results are already saved:
+
+- `data/new_series/new_series_results.json` — KXPCECORE (15 events, CRPS/MAE=2.06)  
+- `data/new_series/KXADP_results.json` — ADP (9 events, CRPS/MAE=0.69)
+- `data/new_series/KXISMPMI_results.json` — ISM PMI (7 events, CRPS/MAE=1.15)
+
+All iteration 3 work remains complete. No further action needed from this stale background task.
