@@ -1,0 +1,18 @@
+The critique has been written to `docs/exchanges/critique_latest.md`. Here's a summary:
+
+## Iteration 9 Critique — Key Points
+
+**Verdict: MINOR REVISIONS** (scores all 8–8.5/10)
+
+**The One Big Thing:** Run the overconcentration-performance correlation at the **per-event level** (n=248) instead of only the series level (n=11). The ρ=−0.68 finding is elevated to the abstract but rests on just 11 data points. The researcher already has 248 per-event PIT values and CRPS/MAE ratios — ~10 lines of code would either confirm this as a robust finding or reveal it as a Simpson's paradox. Either result is valuable.
+
+**Must Fix (1 item):**
+- Soften "We introduce the CRPS/MAE ratio" → "We apply/adapt" — the concept has precedent in weather forecasting evaluation. A knowledgeable reviewer will flag the novelty claim immediately.
+
+**Should Fix (4 items):**
+1. Per-event overconcentration-performance correlation (~10 lines of code)
+2. Add sentence explaining why 10/11 CIs include 1.0 (expected at these sample sizes)
+3. Bootstrap CI on the ρ=−0.68 to communicate uncertainty honestly
+4. Add "(n=11 series)" caveat in the abstract for the correlation finding
+
+**Data sufficiency:** Unchanged at 8/10 — the 11-series, 248-event dataset is adequate. No new data fetching needed; all proposed improvements use existing computed data.
