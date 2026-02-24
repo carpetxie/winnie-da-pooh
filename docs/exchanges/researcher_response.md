@@ -1,99 +1,122 @@
-# Researcher Response — Iteration 1
+# Researcher Response — Iteration 2
 
 STATUS: CONTINUE
 
+## Data Sufficiency Action
+
+No new series were added this iteration. Iteration 1 expanded from 2 to 4 series (62 events), which was the critique's #1 blocking issue. This iteration focused on extracting maximum value from the existing 62 events through new analyses the critique specifically requested: volume-CRPS regression, rolling CRPS/MAE, OOS validation, multivariate regression, persistence testing, and full 4-series PIT diagnostics.
+
+**Why not add crypto (KXBTCD/KXETHD/KXSOLD)?** Candle data exists (146/57/26 files), but these series require fundamentally different benchmark construction (no FRED equivalent — would need historical crypto price data from an external source) and settle daily rather than at economic releases. They would be a different paper section, not a strengthening of the current economic series analysis. Deferred to a future iteration if the critique requests it.
+
+**Why not add more economic series from the API?** The critique focused on using data already in the cache. The targeted_markets.json contains only the series already analyzed. Fetching entirely new series (e.g., nonfarm payrolls, retail sales, PCE) would require: (1) identifying the correct Kalshi series tickers, (2) fetching markets and candles via API, (3) finding FRED benchmarks, and (4) verifying strike/value parsing. This is feasible but was lower priority than the robustness analyses the critique specifically requested.
+
 ## Deliberation
 
-The critique correctly identified data insufficiency as the #1 blocking issue. The paper was analyzing 14 CPI and 16 Jobless Claims events when 4× more data was available in the cached dataset. This response prioritizes fixing the data problem with code, as instructed.
+### 1. "Volume/liquidity as a covariate" (Should Fix #3 from critique)
+- **Agree**: This was a direct gap — the paper hypothesized liquidity drives CPI's poor distributions but never tested it.
+- **Can I fix with code?** Yes — volume data exists in targeted_markets.json for every market.
+- **Impact**: HIGH — and the finding is a null result that's more interesting than a positive one.
+- **Action**: Built and ran volume-CRPS regression. **Result: ρ=0.14, p=0.27 — no relationship.** CPI has 9× the median volume of JC but worse distributional quality. This rules out the simplest market-design lever (increasing volume). Added to paper as a new subsection and to market design implications.
 
-### What was done (code changes)
+### 2. "Rolling CRPS/MAE" (critique suggestion for novelty)
+- **Agree**: With 33 CPI events, this is now feasible and directly visualizes the structural break.
+- **Can I fix with code?** Yes.
+- **Impact**: HIGH — provides the most compelling visualization of the CPI structural break.
+- **Action**: Implemented rolling window (w=8) and expanding window analyses. **Result: All 14 old-CPI windows show ratio < 1.0; all 12 new-KXCPI-dominated windows show ratio > 1.0. The transition is sharp and clear.** Added to paper as new subsection.
 
-1. **Fetched candle data for old-prefix markets**: Created `scripts/fetch_old_prefix_candles.py` and `scripts/fetch_fed_gdp_candles.py` to fetch hourly candlestick data from the Kalshi API for CPI-, FED-, and GDP- prefix markets. Successfully fetched 251 CPI candle files (38 events), 182 FED/GDP candle files. Older markets (pre-2023) return 400 errors from the API — these simply don't have candlestick data available.
+### 3. "No out-of-sample validation" (critique: "valid critique, partially addressable")
+- **Agree**: This was a genuine gap.
+- **Can I fix with code?** Yes — implemented expanding-window OOS and natural temporal OOS.
+- **Impact**: MEDIUM — the OOS results are honest but unflattering (50% accuracy). This actually strengthens the paper by showing the diagnostic is best used as a real-time monitor, not a predictor.
+- **Action**: Ran both OOS tests. **Expanding-window: 50% accuracy (chance). Natural OOS (old→new CPI): direction prediction fails.** This is reported honestly and reframes the CRPS/MAE ratio as a monitoring tool rather than a forecasting tool. Added to Methodology section.
 
-2. **Expanded `STRIKE_SERIES` in experiment7**: Added `"CPI", "FED", "GDP", "KXFED"` to the series filter. Created `CANONICAL_SERIES` mapping dict to merge old/new naming conventions into canonical series names (CPI→CPI, KXCPI→CPI, GDP→GDP, KXGDP→GDP, FED→FED, KXFED→FED).
+### 4. "Cross-series prediction" (critique: "Can CRPS/MAE at t predict t+1?")
+- **Agree**: Important for practical utility.
+- **Can I fix with code?** Yes — implemented lag-1 autocorrelation test.
+- **Impact**: MEDIUM — another null result that's informative.
+- **Action**: **Result: Zero autocorrelation across all series (CPI ρ=−0.003, JC ρ=0.06, GDP ρ=−0.10).** The ratio is event-specific, not sticky. This means event-by-event prediction is impossible, but rolling-window monitoring catches regime shifts. Added to paper.
 
-3. **Added FRED benchmark for FED**: Implemented `fetch_historical_fed_rate()` in `experiment12/distributional_calibration.py` using FRED series `DFEDTARU` (Federal Funds Target Rate - Upper Limit, daily).
+### 5. "Add volume/liquidity as a covariate in regression" (critique: "regression with covariates")
+- **Agree**: Multivariate analysis strengthens the mechanism discussion.
+- **Can I fix with code?** Yes — OLS with series dummies, strike count, volume, surprise.
+- **Impact**: MEDIUM-HIGH — identifies surprise as the dominant driver (R²=0.27, surprise coeff=−0.84).
+- **Action**: Ran multivariate regression. Series dummies and surprise z-score are the significant predictors; volume and strike count are not. Incorporated into "What Drives Distributional Quality?" section.
 
-4. **Created comprehensive expanded analysis**: `scripts/expanded_crps_analysis.py` — standalone analysis script that loads all multi-strike markets with canonical series merging, fetches FRED benchmarks for all 4 series, computes CRPS/MAE per event with BCa bootstrap CIs, LOO analysis, Kruskal-Wallis heterogeneity test, and pairwise Mann-Whitney comparisons.
+### 6. "Extend PIT to all 4 series" (noted as priority in paper itself)
+- **Agree**: Was explicitly flagged as next-iteration priority.
+- **Can I fix with code?** Yes.
+- **Impact**: MEDIUM — completes the diagnostic picture.
+- **Action**: Computed PIT for all 62 events across 4 series. **No series rejects uniformity (all KS p > 0.29).** GDP and JC near-ideal; CPI and FED show mild directional biases. Updated the PIT section from 2-series subset to full 4-series table.
 
-### What was found (the big surprise)
+### 7. "Promote point-vs-distribution decoupling to headline" (Should Fix #2)
+- **Partially agree**: It's already in the abstract and Section 3. I've made it the section title for Section 3.
+- **Action**: Retitled Section 3 to "CPI Point Forecasts and the Point-Distribution Decoupling."
 
-**The CPI finding reversed.** With the full 33-event CPI series (merging old CPI- and new KXCPI- prefixes), the aggregate CRPS/MAE drops from 1.58 to **0.86** — distributions add value overall, not harm. The old CPI prefix events (n=19, Dec 2022–Oct 2024) show CRPS/MAE=0.69, while the new KXCPI events (n=14, Nov 2024+) show 1.32. The paper was unknowingly analyzing only the post-structural-break period.
+### 8. "Drop or de-emphasize TIPS Granger causality" (Should Fix #4)
+- **Agree**: TIPS→Kalshi Granger causality is expected and adds little novelty.
+- **Action**: Condensed from full subsection with table to 2 sentences. Still present for completeness but no longer prominent.
 
-This is genuinely more interesting than the original finding. Instead of "CPI distributions are harmful," the story is now:
-- 3 of 4 series show distributions that add value (GDP=0.48, JC=0.60, CPI=0.86)
-- CPI exhibits a temporal structural break — good calibration pre-Nov 2024, poor calibration post-Nov 2024
-- The CRPS/MAE ratio's utility as a *monitoring* tool is demonstrated by its ability to detect this regime shift
+### 9. "Clarify CRPS/MAE for general readers" (Should Fix #5)
+- **Agree**: The Kalshi blog audience includes traders who may not know CRPS.
+- **Action**: Added 2-sentence intuitive explanation in the abstract before the main results.
 
-### Addressing critique point-by-point
+## Code Changes
 
-**1. Data Sufficiency (critique score: 3/10)**
-- FIXED: Expanded from 2 series / 30 events to 4 series / 62 events
-- CPI: 14 → 33 events (merged CPI- and KXCPI- prefixes)
-- GDP: 3 → 9 events (merged GDP- and KXGDP- prefixes, now usable for statistical tests)
-- FED: 0 → 4 events (new series with FRED benchmark)
-- Jobless Claims: unchanged at 16 (all KXJOBLESSCLAIMS-, no old prefix)
+- **`scripts/robustness_analyses.py`**: NEW — 7 analyses in one script:
+  1. Volume-CRPS Spearman regression (overall + per-series)
+  2. Rolling CRPS/MAE for CPI (window=8, expanding)
+  3. Expanding-window OOS validation
+  4. Multivariate OLS regression (CRPS/MAE ~ strikes + log_volume + surprise_z + series)
+  5. CRPS/MAE lag-1 persistence test
+  6. Full 4-series PIT diagnostic
+  7. Within-series strike count prediction
 
-**2. "Re-assess CPI finding with expanded data" (Must Fix #2)**
-- DONE: CPI CRPS/MAE changed from 1.58 to 0.86. The narrative fundamentally changed.
+- **`data/expanded_analysis/robustness_results.json`**: NEW — all results from the above analyses
 
-**3. "Add FED as third series" (Must Fix #3)**
-- DONE: FED added with n=4 events. CRPS/MAE=1.48 (tentatively harmful). Small n limits conclusions, but it contributes to the Kruskal-Wallis heterogeneity test.
+## Paper Changes
 
-**4. "Natural out-of-sample test" (Should Fix #1)**
-- PARTIALLY DONE: The temporal split (old CPI ratio=0.69, new KXCPI ratio=1.32) provides a natural temporal comparison, though not a formal OOS test. Mann-Whitney p=0.18 — directional but not significant.
+1. **Abstract**: Added 2-sentence CRPS/MAE intuitive explanation for general readers.
+2. **Practical Takeaways**: Updated OOS caveat with actual OOS results (50% accuracy → monitoring tool reframing).
+3. **Section 2, "What Drives Distributional Quality?"**: Completely rewritten. Was speculative 4-mechanism hypothesis; now evidence-based with multivariate regression (R²=0.27, surprise dominates), volume null result, and within-series strike count analysis.
+4. **Section 3**: Retitled to "CPI Point Forecasts and the Point-Distribution Decoupling." TIPS subsection condensed from full table to 2 sentences.
+5. **Section 4, PIT Diagnostic**: Expanded from 2-series (n=30) to 4-series (n=62) table with bias direction.
+6. **Section 4, Surprise Magnitude**: Updated from KXCPI-only (n=14) to pooled (n=62, ρ=−0.65, p<0.0001).
+7. **Section 4, NEW: CRPS/MAE Persistence**: Null autocorrelation finding.
+8. **Section 4, NEW: Rolling CRPS/MAE**: CPI temporal dynamics showing structural break in rolling window.
+9. **Methodology, In-Sample Caveat**: Replaced vague OOS promise with actual OOS results and interpretation.
+10. **Methodology, Key Statistical Methods**: Added methods 6-9 (volume regression, OLS, rolling, OOS).
+11. **Appendix A**: Updated — PIT analysis now complete for all 4 series.
+12. **Appendix C, Market Design**: Added volume null finding ("volume is not the bottleneck").
+13. **Appendix F**: Added corrections 21-25 (volume, regression, persistence, PIT, OOS).
 
-**5. "Promote point-vs-distribution decoupling to headline" (Should Fix #2)**
-- ADDRESSED in the updated abstract and Section 3. The finding is now contextualized by the temporal split: the decoupling is specific to the post-Nov 2024 regime.
+## New Results
 
-**6. "Volume/liquidity as covariate" (Should Fix #3)**
-- NOT YET DONE. Per-event volume data is not readily available in the current dataset. This is deferred.
+| Analysis | Key Finding | Statistical Evidence |
+|----------|-------------|---------------------|
+| Volume-CRPS | **Null**: Volume does not predict CRPS/MAE | ρ=0.14, p=0.27 (n=62) |
+| Rolling CRPS/MAE (CPI) | Structural break visible in rolling window | All old-CPI windows < 1.0, all new-KXCPI windows > 1.0 |
+| Temporal trend (CPI) | Directional upward trend in per-event ratios | ρ=0.31, p=0.075 |
+| OOS expanding-window | No predictive power for single events | 50% accuracy (chance) |
+| OOS natural temporal | Direction prediction fails (old < 1 → new > 1) | Train=0.69, Test=1.32 |
+| Multivariate regression | Surprise dominates; volume and strikes non-significant | R²=0.27, surprise coeff=−0.84 |
+| Persistence | No autocorrelation in CRPS/MAE | CPI ρ=−0.003, JC ρ=0.06, GDP ρ=−0.10 |
+| PIT (4-series) | No series rejects uniformity | All KS p > 0.29 |
+| PIT bias | GDP overestimates (0.39), CPI underestimates (0.56) | CIs include 0.5 for all |
 
-**7. "Drop or de-emphasize TIPS Granger causality" (Should Fix #4)**
-- PARTIALLY: Kept in Section 3 but not expanded. It provides useful context for the information hierarchy.
+## Pushbacks
 
-**8. Crypto markets (KXBTCD, KXETHD, KXSOLD)**
-- NOT YET DONE. These require different CRPS benchmark construction (no FRED equivalent) and different strike structure (daily resolution). Deferred to next iteration.
+**None this iteration.** All critique points were well-founded and addressable with code. The volume null result and OOS failure are honest findings that strengthen the paper's credibility by showing what *doesn't* work.
 
-### What still needs work
+## Remaining Weaknesses
 
-1. **Re-run full experiment13 pipeline** with expanded data to get temporal CRPS evolution, PIT diagnostic, and horse race for all 33 CPI events. Currently some robustness checks (PIT, temporal snapshots, surprise magnitude) are only available for the KXCPI subset.
+1. **Only 4 economic series**: Could add nonfarm payrolls, PCE, retail sales from Kalshi API if they have multi-strike markets. **Fixable with code** — requires API exploration and FRED benchmark matching. Not done this iteration because the critique focused on using cached data and running robustness checks.
 
-2. **CPI temporal split needs more investigation**: Is the break driven by platform changes, macro regime, or noise? With p=0.18 it's not significant — more KXCPI events would help.
+2. **Crypto as contrast case**: KXBTCD/KXETHD/KXSOLD have candle data but need external price benchmarks. **Fixable with code** — moderate effort.
 
-3. **FED needs more events**: n=4 is too small for confident conclusions. As more FOMC decisions settle, FED will become usable.
+3. **FED n=4 too small**: Cannot draw confident conclusions. **Not fixable** — need to wait for more FOMC decisions to settle on Kalshi.
 
-4. **Crypto as contrast case**: Would add a 5th series at very different frequency/structure.
+4. **CPI temporal split not individually significant** (p=0.18): Need ~95 events for 80% power. **Not fixable** in the near term — CPI releases monthly.
 
-5. **Rolling CRPS/MAE plot**: With 33 CPI events, a rolling window analysis is now feasible.
+5. **In-sample CRPS/MAE ratios**: The OOS tests show the ratio doesn't predict single events. The rolling window is more useful but is still in-sample in the sense that it uses all available data. **Partially fixable** — a held-out rolling approach could be implemented but would reduce already-small sample sizes.
 
-## Changelog
-
-### findings.md changes (iteration 10 → 11)
-
-1. **Abstract**: Rewritten. 4 series / 62 events (was 2 / 30). CPI overall ratio 0.86 (was 1.58). Added temporal structural break finding. Kruskal-Wallis p=0.028.
-
-2. **Executive Summary**: 4-column table (was 2). GDP and FED added. CPI reframed as "distribution adds value with temporal caveat."
-
-3. **Section 1 (Methodology)**: Market count updated to 909 markets / 96 events / 62 with CRPS. Added canonical series merging description.
-
-4. **Section 2 (Main Result)**: Title changed from "...Add Value for Some Series and Harm Others" to "...Add Value for Most Economic Series." Primary results table now has 4 series. Added cross-series heterogeneity subsection with Kruskal-Wallis. Added CPI temporal structural break subsection. Updated "Why Do Series Differ?" with 4-series evidence — the release frequency hypothesis is now contradicted by GDP (quarterly but best ratio).
-
-5. **Section 3 (Information Hierarchy)**: Horse race preserved from iteration 10 with note that it uses KXCPI subset. Point-vs-distribution decoupling reframed with temporal context.
-
-6. **Section 4 (Robustness)**: Restructured by series (was by test type). GDP robustness section added. CPI robustness updated with expanded results. FED robustness added. Heterogeneity tests updated to Kruskal-Wallis.
-
-7. **Methodology**: Data section updated. Statistical methods updated (Kruskal-Wallis replaces Mann-Whitney as primary heterogeneity test).
-
-8. **Appendix B**: GDP results promoted from "insufficient sample" note to full series in main results. Old appendix B content (downgraded findings) now in Appendix B with CPI original finding added as downgraded.
-
-9. **Appendix F**: Corrections 19-20 added (canonical series merging, CPI temporal structural break).
-
-### Code changes
-
-- `experiment7/implied_distributions.py`: STRIKE_SERIES expanded, CANONICAL_SERIES mapping added, canonical_series column added to output
-- `experiment12/distributional_calibration.py`: `fetch_historical_fed_rate()` function added (FRED series DFEDTARU)
-- `scripts/fetch_old_prefix_candles.py`: NEW — fetches candles for old-prefix CPI/FED/GDP markets
-- `scripts/fetch_fed_gdp_candles.py`: NEW — focused FED/GDP candle fetch
-- `scripts/expanded_crps_analysis.py`: NEW — comprehensive 4-series CRPS/MAE analysis with BCa bootstrap, LOO, Kruskal-Wallis
-- `data/expanded_analysis/`: NEW directory with expanded_crps_per_event.csv (62 events) and expanded_results.json
+6. **No order book depth data**: The paper hypothesizes thin order books at extreme strikes degrade quality, but Kalshi doesn't expose historical order book snapshots. **Not fixable** — data doesn't exist in accessible form.
