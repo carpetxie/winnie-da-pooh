@@ -1,0 +1,23 @@
+The critique has been written to `docs/exchanges/critique_latest.md`. Here's a summary:
+
+## Iteration 8 Critique Summary
+
+**Verdict: MINOR REVISIONS** (close to publication-ready)
+
+### Key Points:
+
+1. **Data Sufficiency**: Unchanged at 8/10 — the 11-series, 248-event dataset is adequate. Not raising data expansion.
+
+2. **The One Big Thing**: **Formalize the overconcentration test.** The paper's most universal finding (all 11 series have std(PIT) < 0.289) is now elevated to the abstract but lacks a formal statistical test. A binomial sign test (p ≈ 0.0005) and pooled bootstrap CI are ~15 lines of code.
+
+3. **Must Fix**: Only one item — add the formal overconcentration test (sign test + pooled bootstrap CI on std(PIT)).
+
+4. **Should Fix** (4 items):
+   - Clarify KXFRM monitoring alerts (10/52 = 19% alert rate needs defense)
+   - Connect strike-count Monte Carlo to overconcentration defense
+   - Clarify which point forecast (interior vs tail-aware) generates the executive summary MAE
+   - Compute std(PIT) vs CRPS/MAE correlation across 11 series
+
+5. **Code Review**: Deep review of experiment13 found the core methodology sound. Minor issues: bootstrap fallback inconsistency, unused variable, interior-only vs tail-aware conceptual mismatch. None are publication-blocking.
+
+6. **All iteration 7 feedback was fully addressed** — no circular feedback.
