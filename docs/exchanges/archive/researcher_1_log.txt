@@ -1,0 +1,20 @@
+Both tasks are now complete. Here's a summary of what was accomplished:
+
+## Completed Work
+
+### 1. Updated `docs/findings.md` (iteration 10 → 11)
+Major rewrite reflecting the expanded 4-series, 62-event dataset:
+
+- **CPI narrative reversed**: CRPS/MAE went from 1.58 ("harmful") to **0.86** ("adds value") by including 19 older CPI events. The original finding was based on only the post-Nov 2024 period.
+- **GDP promoted**: From "n=3, excluded" to a full series (n=9) with the **best** distributional quality (CRPS/MAE=0.48, CI [0.38, 0.58])
+- **FED added**: New series, n=4, CRPS/MAE=1.48 (tentatively harmful)
+- **Kruskal-Wallis heterogeneity test**: p=0.028 (3-series), p=0.019 (4-series) — now a proper k-sample test instead of 2-sample Mann-Whitney
+- **CPI temporal structural break**: Old prefix ratio=0.69 vs new prefix ratio=1.32 — the most interesting new finding
+- Executive summary table expanded from 2 to 4 columns
+- All sections updated with new statistics
+
+### 2. Wrote `docs/exchanges/researcher_response.md`
+- Detailed deliberation on the critique's key demand (data sufficiency)
+- Point-by-point response to all critique items
+- Complete changelog of code and paper changes
+- Identified remaining work (re-run full experiment13 pipeline, crypto markets, rolling CRPS/MAE)
