@@ -1,0 +1,14 @@
+The critique for iteration 10 has been written to `docs/exchanges/critique_latest.md`. Here's a summary:
+
+**Key shift this iteration:** The binding constraint has moved from methodology/statistics to **presentation**. All iteration 9 statistical items were well-addressed (per-event correlation, bootstrap CIs, attribution fix, ecological amplification). The scores reflect this: Methodological Rigor and Novelty both rose to 9/10, but Blog Publishability dropped to 6.5/10.
+
+**The One Big Thing:** Restructure the paper for blog readability. The paper is 5,000+ words with 50 corrections and reads like a research diary. It needs to be compressed to ~2,500 words main text + technical supplement.
+
+**Must Fix (3 items):**
+1. Paper length — restructure into streamlined narrative + technical appendix
+2. Abstract — compress from ~350 to ~150 words
+3. Make the CRPS/MAE=1.0 null hypothesis explicit (one sentence)
+
+**No new data or experiments recommended.** The statistical content is complete. All effort should go to presentation.
+
+**Verdict: MINOR REVISIONS** — content is publication-ready, presentation is not.
