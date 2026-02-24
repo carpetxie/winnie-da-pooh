@@ -1,0 +1,19 @@
+The critique has been written to `docs/exchanges/critique_latest.md`. Here's a summary:
+
+**Iteration 7 — MINOR REVISIONS**
+
+**Key finding this iteration:** The paper's biggest underplayed result is the **universal overconcentration pattern** — all 11 series show std(PIT) < 0.289, meaning prediction markets systematically understate uncertainty. This is buried in Section 4 but deserves headline treatment in the abstract and practical takeaways.
+
+**Scores:** All criteria at 8/10 (+1 each from iteration 6). Data sufficiency is no longer the binding constraint.
+
+**Must Fix (2 items):**
+1. Elevate overconcentration to abstract/takeaways + add mechanism discussion (presentation change, no new code)
+2. Add std(PIT) column to the PIT table (trivially computable)
+
+**Should Fix (4 items):**
+1. Document reproducibility path (iteration6_analyses.py not integrated into main pipeline)
+2. Use KXFRM as counterexample to strengthen the point-distribution decoupling story
+3. Acknowledge sign test pooling assumption
+4. Address the CRPS/MAE "double-counting" concern with one sentence
+
+**New experiment suggested:** Backtest the monitoring protocol on all 11 series (not just CPI) to validate it with real detection rates.
