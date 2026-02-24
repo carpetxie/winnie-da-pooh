@@ -427,17 +427,12 @@ def main():
             mae_arr = valid["point_crps"].values
             paired_data = np.column_stack([crps_arr, mae_arr])
 
-            def _ratio_of_means(data, axis=None):
+            def _ratio_of_means(crps, mae, axis=None):
                 """Compute ratio of means for BCa bootstrap."""
-                if axis is not None:
-                    # scipy.stats.bootstrap passes (data,) where data has shape (n_resamples, n)
-                    crps_means = np.mean(data[0], axis=axis)
-                    mae_means = np.mean(data[1], axis=axis)
-                    # Avoid division by zero
-                    with np.errstate(divide='ignore', invalid='ignore'):
-                        result = crps_means / mae_means
-                    return result
-                return np.mean(data[:, 0]) / np.mean(data[:, 1])
+                crps_means = np.mean(crps, axis=axis)
+                mae_means = np.mean(mae, axis=axis)
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    return crps_means / mae_means
 
             try:
                 bca_result = stats.bootstrap(
@@ -503,13 +498,11 @@ def main():
             crps_arr = valid["kalshi_crps"].values
             mae_ta_arr = valid["point_crps_tail_aware"].values
 
-            def _ratio_of_means_ta(data, axis=None):
-                if axis is not None:
-                    crps_means = np.mean(data[0], axis=axis)
-                    mae_means = np.mean(data[1], axis=axis)
-                    with np.errstate(divide='ignore', invalid='ignore'):
-                        return crps_means / mae_means
-                return np.mean(data[:, 0]) / np.mean(data[:, 1])
+            def _ratio_of_means_ta(crps, mae, axis=None):
+                crps_means = np.mean(crps, axis=axis)
+                mae_means = np.mean(mae, axis=axis)
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    return crps_means / mae_means
 
             try:
                 bca_result_ta = stats.bootstrap(
