@@ -1,0 +1,27 @@
+Everything looks coherent. Let me do a final summary of what was accomplished in this iteration:
+
+## Iteration 2 Summary
+
+### Code Written & Executed
+- **`scripts/robustness_analyses.py`** — New 300-line analysis script with 7 independent analyses, all run successfully on the 62-event dataset
+
+### Key New Findings (all from code, not prose)
+
+| Analysis | Finding | Implication |
+|----------|---------|-------------|
+| **Volume-CRPS** | No relationship (ρ=0.14, p=0.27) | Liquidity hypothesis refuted; volume is not the bottleneck |
+| **Multivariate regression** | R²=0.27; surprise dominates (coeff=−0.84) | Distributions add most value on surprising outcomes |
+| **Rolling CRPS/MAE** | Clean structural break: all old-CPI windows <1.0, all new-KXCPI windows >1.0 | Break is sharp and detectable via monitoring |
+| **OOS validation** | 50% accuracy (chance level); natural OOS fails | CRPS/MAE is a monitoring tool, not a predictor |
+| **Persistence** | Zero autocorrelation across all series | Ratio is event-specific, not sticky |
+| **PIT (4-series)** | No series rejects uniformity; GDP/JC near-ideal, CPI/FED mild biases | Distributions aren't severely biased, even when CRPS/MAE > 1 |
+| **Strike count** | Not significant within CPI; counterintuitive positive for JC | Strike count doesn't explain quality differences |
+
+### Paper Changes (14 targeted edits)
+- Added CRPS/MAE intuitive explanation in abstract
+- Rewrote "What Drives Distributional Quality?" with evidence from regression
+- Expanded PIT from 2 to 4 series
+- Added persistence and rolling CRPS/MAE sections
+- De-emphasized TIPS (condensed to 2 sentences)
+- Added OOS validation results to methodology
+- Updated corrections log (21-25)
