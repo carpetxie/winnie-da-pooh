@@ -1,0 +1,20 @@
+All tasks completed. Here's a summary of what was accomplished in iteration 6:
+
+## Summary of Changes
+
+### Code-Based Improvements (Priority Order)
+
+1. **Full 11-Series PIT Analysis** (was 4/11 = 36% coverage → now 100%): Created `scripts/iteration6_analyses.py` that computes PIT for all 7 new series. Key discovery: **universal overconcentration** — all 11 series have std(PIT) below the ideal 0.289, meaning markets systematically understate uncertainty. 3 series (KXFRM, KXCPICORE, KXCPIYOY) formally reject uniformity. KXU3 is near-perfectly calibrated (mean PIT=0.502).
+
+2. **Cross-Series Horse Race** (was CPI-only → now 3 series): Fetched UNRATE and MORTGAGE30US from FRED. **KXFRM beats random walk with d=−0.55, p<0.001 (n=61)** — the paper's most statistically powerful point forecast result. KXU3 matches RW but strongly beats trailing mean.
+
+3. **Serial Correlation for 8 Series** (was 3 → now 8): 7/8 series show no autocorrelation, validating bootstrap CIs. KXU3 is mean-reverting (ρ=−0.54, p=0.002).
+
+4. **KXPCECORE Discrepancy Explained**: The 2.06→1.22 change was caused by a near-zero-MAE outlier (KXPCECORE-25JUL where implied mean exactly matched realized value) and low-snapshot early events.
+
+### Prose Improvements
+
+5. Added defensive sentence in Section 2 preempting "good point forecasts inflate ratio" attack
+6. Added "retrospective monitoring diagnostic" clarification for OOS concern
+7. Added monitoring protocol specification in Appendix C
+8. Enhanced volume null result discussion in Appendix C
