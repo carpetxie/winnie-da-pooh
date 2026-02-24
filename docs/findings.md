@@ -15,13 +15,13 @@ An initial analysis of 7 series (93 events) suggested a "simple-vs-complex" dich
 
 CPI *point* forecasts beat all benchmarks including random walk (d=−0.85, p_adj=0.014), while CPI *distributions* in the post-Nov 2024 period show CRPS/MAE=1.32. This is — to our knowledge — the first empirical demonstration in prediction markets that point and distributional calibration can diverge independently. KXFRM (Mortgage Rates) demonstrates the complementary pattern: good point forecasts (d=−0.55 vs random walk) *and* good distributions (CRPS/MAE=0.85), confirming that the CPI decoupling is genuine rather than a methodological artifact.
 
-A universal overconcentration pattern emerges as the dominant calibration failure mode: all 11 series show std(PIT) below the theoretical uniform ideal of 0.289. Markets systematically understate uncertainty — they know *where* outcomes will land but underestimate *how uncertain* they are.
+A universal overconcentration pattern emerges as the dominant calibration failure mode: all 11 series show std(PIT) below the theoretical uniform ideal of 0.289 (binomial sign test p=0.0005; pooled std(PIT)=0.240, 95% CI [0.225, 0.257], conclusively excluding 0.289). Markets systematically understate uncertainty — they know *where* outcomes will land but underestimate *how uncertain* they are. Paradoxically, more overconcentrated series tend to have *better* distributional performance (Spearman ρ=−0.68, p=0.022 between std(PIT) and CRPS/MAE), suggesting that overconcentration reflects superior location accuracy rather than a calibration deficiency per se.
 
 > **Practical Takeaways:**
 > - **For 9 of 11 economic series: use the full distribution.** Distributions add value across GDP, Jobless Claims, CPI YoY, ADP Employment, Unemployment, Core CPI, Mortgage Rates, CPI, and ISM PMI.
 > - **GDP** is the standout: CRPS/MAE=0.48, CI excludes 1.0. Distribution reduces forecast error by 52% vs point forecast alone.
 > - **Core PCE and FED** are the exceptions: use point forecasts only for these series.
-> - **All 11 series are overconcentrated** — distributions are systematically too narrow. Markets capture the correct central tendency but understate tail risk.
+> - **All 11 series are overconcentrated** (p=0.0005, pooled CI excludes ideal) — distributions are systematically too narrow. Paradoxically, more overconcentrated series have *better* CRPS/MAE ratios (ρ=−0.68, p=0.022).
 > - **Monitor the CRPS/MAE ratio per series** — the CPI structural break (ratio shifted from 0.69 to 1.32 across naming conventions) shows distributional quality can change over time. A retrospective backtest of the proposed monitoring protocol confirms it detects degradation in CPI and Core PCE while producing zero false alerts for 6 of 8 testable series.
 > - **The CRPS/MAE ratio** is a practical real-time diagnostic that Kalshi could deploy per series to flag distributional degradation.
 
@@ -35,6 +35,8 @@ A universal overconcentration pattern emerges as the dominant calibration failur
 | CI excl. 1.0? | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | LOO | All<1 | All<1 | All<1 | All<1 | All<1 | All<1 | All<1 | All<1 | Mixed | All>1 | All>1 |
 | Verdict | ✅ Dist. | ✅ Dist. | ✅ Dist. | ✅ Dist. | ✅ Dist. | ✅ Dist. | ✅ Dist. | ✅ Monitor | ⚠️ Borderline | ❌ Point | ❌ Point |
+
+*Table note: CRPS/MAE uses the interior-only implied mean for the MAE denominator (primary specification). The tail-aware alternative is reported as a sensitivity check in Section 4. The CPI horse race (Section 3) uses the tail-aware implied mean, which is the theoretically consistent choice for comparing against external benchmarks.*
 
 ---
 
@@ -293,7 +295,13 @@ The dramatic weakening (r from 0.43 to 0.16) resulted from two corrections: (1) 
 - **3 series reject uniformity** at the 5% level via KS test (KXFRM, KXCPICORE, KXCPIYOY). All three show a low-bias pattern (mean PIT > 0.5 or distributions shifted high), suggesting markets slightly underestimate these indicators. Despite this miscalibration, all three still have CRPS/MAE < 1 — the distributions add value even though they could be better calibrated.
 - **Core PCE** (mean PIT=0.600) shows the expected pattern: distributions biased low (outcomes tend to exceed the distribution center), consistent with its CRPS/MAE > 1.
 
-**Universal overconcentration — the paper's most universal finding.** All 11 series show std(PIT) below the theoretical ideal of 0.289 for a uniform distribution (range: 0.136 to 0.266). This holds regardless of CRPS/MAE ratio, series type, sample size, or time period. ISM PMI shows the most extreme overconcentration (std=0.136, less than half the ideal), consistent with its borderline CRPS/MAE of 0.97. This means prediction markets systematically understate uncertainty: they correctly identify *where* outcomes will land (mean PIT close to 0.5 for most series) but substantially underestimate *how uncertain* they are. Three possible mechanisms: (a) bid-ask spread compression mechanically narrows midpoint-derived CDFs, making them tighter than true beliefs; (b) overconfident participants underweight tail scenarios; (c) the same overconfidence driving favorite-longshot bias makes extreme-strike contracts underpriced. The volume-independence finding (ρ=0.14, p=0.27) weakly argues against thin-market mechanics alone, but we cannot definitively distinguish these channels without order-book depth data.
+**Universal overconcentration — the paper's most universal finding.** All 11 series show std(PIT) below the theoretical ideal of 0.289 for a uniform distribution (range: 0.136 to 0.266). **Formal tests:** (1) Binomial sign test: 11/11 below 0.289, p=0.5^11=0.0005. (2) Pooled bootstrap (247 PIT values): std(PIT)=0.240, 95% BCa CI [0.225, 0.257] — conclusively excluding the ideal of 0.289. (3) Per-series bootstrap (7 series with n≥10): 5 of 7 individually exclude 0.289 (CPI, Core CPI, CPI YoY, Mortgage Rates, Core PCE); Jobless Claims and Unemployment do not individually exclude it, consistent with their std(PIT) values being closest to ideal.
+
+This holds regardless of CRPS/MAE ratio, series type, sample size, or time period. ISM PMI shows the most extreme overconcentration (std=0.136, less than half the ideal), consistent with its borderline CRPS/MAE of 0.97. Monte Carlo simulation confirms the mechanical effect of discrete strikes on distributional variance is ≤2% (Section 4, "What Drives Distributional Quality?"), far smaller than the observed overconcentration gaps (8–53% below ideal). This means prediction markets systematically understate uncertainty: they correctly identify *where* outcomes will land (mean PIT close to 0.5 for most series) but substantially underestimate *how uncertain* they are.
+
+**Overconcentration correlates with better distributional performance.** Spearman rank correlation between std(PIT) and CRPS/MAE ratio across all 11 series: ρ=−0.68, p=0.022. More overconcentrated series tend to have *lower* (better) CRPS/MAE ratios. This counterintuitive result suggests that overconcentration reflects superior location accuracy — series where markets are most confident about the center also happen to be most accurate, even if their uncertainty ranges are too narrow. Overconcentration and CRPS/MAE thus capture distinct but related calibration dimensions: the ratio measures overall distributional value, while std(PIT) specifically measures dispersion calibration.
+
+Three possible mechanisms for overconcentration: (a) bid-ask spread compression mechanically narrows midpoint-derived CDFs, making them tighter than true beliefs; (b) overconfident participants underweight tail scenarios; (c) the same overconfidence driving favorite-longshot bias makes extreme-strike contracts underpriced. The volume-independence finding (ρ=0.14, p=0.27) weakly argues against thin-market mechanics alone, but we cannot definitively distinguish these channels without order-book depth data.
 
 The PIT analysis is mechanistically informative: it reveals *how* distributions fail (overconfident and directionally biased), complementing the CRPS/MAE ratio which tells *whether* they fail.
 
@@ -364,6 +372,7 @@ To reproduce all reported results, run in order:
 3. `uv run python scripts/expanded_crps_analysis.py` — CRPS/MAE for all 11 series
 4. `uv run python scripts/iteration6_analyses.py` — full PIT for 7 new series, serial correlation, cross-series horse race
 5. `uv run python scripts/iteration7_analyses.py` — monitoring backtest, std(PIT) for GDP/FED/CPI
+6. `uv run python scripts/iteration8_analyses.py` — formal overconcentration test, std(PIT) vs CRPS/MAE correlation, KXFRM alert identification
 
 ### Key Statistical Methods
 1. **BCa bootstrap**: 10,000 resamples, bias-corrected and accelerated CIs (Efron & Tibshirani, 1993).
@@ -376,6 +385,8 @@ To reproduce all reported results, run in order:
 8. **PIT diagnostic**: All 11 series. KS and Cramér-von Mises tests for uniformity; bootstrap CI on mean PIT; std(PIT) for overconcentration.
 9. **Cross-series horse race**: Kalshi vs random walk and trailing mean for CPI, Unemployment, Mortgage Rates using FRED benchmarks.
 10. **Monitoring protocol backtest**: Rolling 8-event CRPS/MAE for all 11 series with 3-consecutive-window alert detection.
+11. **Formal overconcentration test**: Binomial sign test, pooled bootstrap CI on std(PIT), per-series bootstrap CIs (n≥10).
+12. **std(PIT) vs CRPS/MAE correlation**: Spearman rank correlation across 11 series.
 
 ---
 
@@ -383,7 +394,7 @@ To reproduce all reported results, run in order:
 
 ### A. PIT Analysis — Additional Detail
 
-PIT analysis covers all 11 series (248 events). Five series show no significant deviation from uniformity (KXU3, GDP, KXADP, KXISMPMI, JC). Three series reject uniformity at the 5% level (KXFRM, KXCPICORE, KXCPIYOY) — all showing a low-bias pattern where outcomes tend to exceed the implied distribution center. The dominant calibration failure mode across all 11 series is overconcentration: std(PIT) ranges from 0.136 (ISM PMI) to 0.266 (GDP), all below the theoretical ideal of 0.289 for a uniform distribution. This indicates markets systematically understate uncertainty. See Section 4 for the full table with std(PIT) column.
+PIT analysis covers all 11 series (248 events). Five series show no significant deviation from uniformity (KXU3, GDP, KXADP, KXISMPMI, JC). Three series reject uniformity at the 5% level (KXFRM, KXCPICORE, KXCPIYOY) — all showing a low-bias pattern where outcomes tend to exceed the implied distribution center. The dominant calibration failure mode across all 11 series is overconcentration: std(PIT) ranges from 0.136 (ISM PMI) to 0.266 (GDP), all below the theoretical ideal of 0.289 for a uniform distribution. Formal tests: binomial sign test p=0.0005 (11/11 below ideal); pooled bootstrap CI [0.225, 0.257] conclusively excludes 0.289; 5 of 7 series with n≥10 individually exclude 0.289. Spearman correlation between std(PIT) and CRPS/MAE: ρ=−0.68 (p=0.022) — more overconcentrated series have better distributional performance. See Section 4 for the full table and discussion.
 
 ### B. Downgraded and Invalidated Findings
 
@@ -438,7 +449,9 @@ We document findings that were invalidated or substantially weakened during the 
 | ISM PMI | 7 | — | — | — | — | Too few events |
 | FED | 4 | — | — | — | — | Too few events |
 
-The backtest validates the monitoring protocol: **6 of 8 testable series produce zero 3-consecutive alerts**, confirming the protocol has low false-alarm rates for well-calibrated series. CPI triggers alerts corresponding to the documented structural break. Core PCE is correctly flagged as persistently problematic. Mortgage Rates — despite an aggregate ratio of 0.85 — triggers alerts during a period of elevated volatility, demonstrating the protocol's ability to detect *temporary* degradation even in generally well-calibrated series. This transforms the monitoring protocol from a theoretical proposal into retrospectively validated evidence.
+The backtest validates the monitoring protocol: **6 of 8 testable series produce zero 3-consecutive alerts**, confirming the protocol has low false-alarm rates for well-calibrated series. CPI triggers alerts corresponding to the documented structural break. Core PCE is correctly flagged as persistently problematic.
+
+**KXFRM alert analysis.** Mortgage Rates trigger 10 3-consecutive alerts despite an aggregate CRPS/MAE of 0.85. All 10 alert clusters concentrate in the **March–November 2023** period (events FRM-23MAR through FRM-23NOV), coinciding with peak mortgage rate volatility as the Fed funds rate reached its terminal level (5.25–5.50%) and 30-year fixed rates spiked above 7%. The alerts disappear entirely in 2024, when mortgage rates stabilized. Alert-period events show mean per-event ratio of 2.90 vs 1.46 for non-alert events. This is a true positive — the protocol correctly detected a genuine period of degraded distributional quality during an unusual volatility regime — rather than poor specificity. The alerts' temporal clustering and economic coherence confirm the monitoring protocol's validity.
 
 ### D. Market Maturity and Binary Contract Calibration
 
@@ -507,3 +520,7 @@ All 33 corrections applied during the research process:
 40. **GDP/FED PIT recomputed**: Fresh PIT computation from candle data. GDP: mean=0.516, std=0.266 (n=9). FED: mean=0.710, std=0.226 (n=4). Minor numerical differences from prior computation due to snapshot selection; overconcentration finding unchanged.
 41. **CRPS/MAE double-counting defense**: Explicit sentence added clarifying ratio measures marginal distributional value beyond point forecast.
 42. **Sign test pooling note**: Added sentence noting exchangeability assumption and convergent LOO evidence.
+43. **Formal overconcentration test**: Binomial sign test (p=0.0005), pooled bootstrap CI [0.225, 0.257] excludes 0.289, per-series bootstrap (5/7 exclude 0.289). Transforms descriptive finding into formal statistical result.
+44. **std(PIT) vs CRPS/MAE correlation**: Spearman ρ=−0.68 (p=0.022). More overconcentrated series have better distributional performance — overconcentration and CRPS/MAE are related but distinct calibration dimensions.
+45. **KXFRM monitoring alert identification**: All 10 alert clusters concentrate in March–November 2023, coinciding with peak mortgage rate volatility. True positive detection, not poor specificity.
+46. **Executive summary MAE clarification**: Added table note specifying interior-only vs tail-aware implied mean usage.
