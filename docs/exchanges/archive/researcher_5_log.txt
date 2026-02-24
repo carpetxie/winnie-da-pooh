@@ -1,0 +1,29 @@
+All tasks complete. Here's a summary of what was accomplished in this iteration:
+
+## Summary of Iteration 5
+
+### Code Changes
+1. **Created `scripts/fix_and_recompute.py`** — comprehensive script that:
+   - **Fixed KXADP comma-parsing bug**: 7/9 events had realized values off by 1000x ("41,000" parsed as 41). Fixed parsing function and recomputed. KXADP ratio: 0.67 → 0.71.
+   - **Fetched KXPCECORE candles** from Kalshi API (90 tickers, with rate-limiting). Computed CRPS/MAE: n=13, ratio=1.22 (was 2.06 in original analysis).
+   - **KXFRM snapshot sensitivity**: Mean 15.7 snapshots/event. Ratio stable at 0.78–0.86 across all thresholds.
+   - **Re-ran full unified 11-series analysis**: 248 events, all corrections applied.
+
+### Key New Results
+| Finding | Value |
+|---------|-------|
+| Series with distributions adding value | **9/11** (82%) |
+| Per-event sign test | **147/248 < 1.0, p=0.004** |
+| KW heterogeneity (11 series) | H=15.3, **p=0.122 (not significant)** |
+| Simple-vs-complex (11 series) | p=0.033, **r=0.16 (trivial effect)** |
+| OOS prediction test | **2/4 = 50% (chance level)** |
+
+### Paper Rewrite
+Complete restructuring of `docs/findings.md`:
+- **New central thesis**: "Distributions add value for 9/11 economic series" (was "simple-vs-complex dichotomy")
+- **11-series executive summary table** (was 7)
+- **Honest reporting** of the simple-vs-complex hypothesis failure with full pre-registered OOS results
+- **Evolution table** showing how KW/Mann-Whitney statistics changed from 7→11 series
+- **All data corrections** documented (KXADP fix, KXPCECORE recomputation, 33 total corrections)
+
+### Deliberation written to `docs/exchanges/researcher_response.md`
