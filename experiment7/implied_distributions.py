@@ -28,8 +28,19 @@ CANDLE_DIR = "data/exp2/raw/candles"
 TARGETED_MARKETS_PATH = "data/exp2/raw/targeted_markets.json"
 DATA_DIR = "data/exp7"
 
-# Series that have multiple strike levels
-STRIKE_SERIES = {"KXCPI", "KXGDP", "KXJOBLESSCLAIMS"}
+# Series that have multiple strike levels (includes old-prefix variants)
+STRIKE_SERIES = {"KXCPI", "CPI", "KXGDP", "GDP", "KXJOBLESSCLAIMS", "FED", "KXFED"}
+
+# Mapping from old/new prefixes to canonical series names for analysis
+CANONICAL_SERIES = {
+    "KXCPI": "CPI",
+    "CPI": "CPI",
+    "KXGDP": "GDP",
+    "GDP": "GDP",
+    "KXJOBLESSCLAIMS": "JOBLESS_CLAIMS",
+    "FED": "FED",
+    "KXFED": "FED",
+}
 
 
 def load_targeted_markets() -> pd.DataFrame:
@@ -44,8 +55,8 @@ def extract_strike_markets(markets_df: pd.DataFrame) -> pd.DataFrame:
     """Filter to multi-strike markets and parse strike levels.
 
     Returns DataFrame with columns:
-        ticker, event_ticker, series_prefix, floor_strike, strike_type,
-        result, title, expiration_value
+        ticker, event_ticker, series_prefix, canonical_series, floor_strike,
+        strike_type, result, title, expiration_value
     """
     # Extract series prefix
     markets_df = markets_df.copy()
@@ -53,6 +64,9 @@ def extract_strike_markets(markets_df: pd.DataFrame) -> pd.DataFrame:
 
     # Filter to strike series
     strike_df = markets_df[markets_df["series_prefix"].isin(STRIKE_SERIES)].copy()
+
+    # Add canonical series name (merges old/new prefixes)
+    strike_df["canonical_series"] = strike_df["series_prefix"].map(CANONICAL_SERIES)
 
     # Parse floor_strike
     strike_df["floor_strike"] = pd.to_numeric(strike_df["floor_strike"], errors="coerce")
@@ -64,9 +78,10 @@ def extract_strike_markets(markets_df: pd.DataFrame) -> pd.DataFrame:
     # Filter to markets with valid floor_strike
     strike_df = strike_df.dropna(subset=["floor_strike"]).copy()
 
-    return strike_df[["ticker", "event_ticker", "series_prefix", "floor_strike",
-                       "strike_type", "result", "title", "expiration_value",
-                       "volume", "open_time", "close_time", "settlement_ts"]].copy()
+    return strike_df[["ticker", "event_ticker", "series_prefix", "canonical_series",
+                       "floor_strike", "strike_type", "result", "title",
+                       "expiration_value", "volume", "open_time", "close_time",
+                       "settlement_ts"]].copy()
 
 
 def group_by_event(strike_df: pd.DataFrame) -> dict[str, pd.DataFrame]:
