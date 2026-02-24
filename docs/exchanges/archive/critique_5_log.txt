@@ -1,0 +1,17 @@
+The critique has been written to `docs/exchanges/critique_latest.md`. Here's a summary of the key findings:
+
+## Iteration 5 Critique — Critical Discovery
+
+**The paper's central thesis is contradicted by the researcher's own computed data.**
+
+The researcher has already fetched and analyzed 4 additional series (KXU3, KXCPICORE, KXFRM, KXCPIYOY), bringing the total to **10 series and 235 events** — but the paper still only reports 7 series (93 events). The expanded data reveals:
+
+1. **The simple-vs-complex dichotomy collapses**: p goes from 0.0004 (r=0.43) → 0.044 (r=0.16). The pre-registered OOS test fails 2/4 — both "complex" predictions were wrong (KXCPICORE=0.82, KXCPIYOY=0.67 both show distributions *adding* value).
+
+2. **Kruskal-Wallis becomes non-significant**: H=18.5, p=0.005 → H=12.4, p=0.133.
+
+3. **The actual finding is stronger than the current framing**: 8 of 10 series show CRPS/MAE < 1.0 with LOO unanimity. Only KXPCECORE and FED are outliers.
+
+**Verdict: MAJOR REVISIONS** — The paper must incorporate all computed data and rewrite its central thesis. The revised finding ("distributions add value for 80%+ of series") is arguably more interesting for Kalshi than the current dichotomy claim.
+
+I also flagged data quality concerns (KXFRM has only 15.5 mean snapshots, KXADP has a potential comma-parsing bug in realized values) and noted that KXPCECORE is missing from the unified analysis.
