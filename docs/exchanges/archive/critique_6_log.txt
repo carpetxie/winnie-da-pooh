@@ -1,0 +1,19 @@
+The critique has been written to `docs/exchanges/critique_latest.md`. Here's a summary:
+
+## Iteration 6 Critique Summary
+
+**Verdict: MINOR REVISIONS** (upgraded from Major Revisions in iteration 5)
+
+**Scores:** All 7/10 (up +1 to +3 from iteration 5)
+
+The researcher addressed all 8 points from iteration 5 — incorporating all 11 series, rewriting the simple-vs-complex thesis honestly, and reframing the paper around the stronger finding ("9/11 series add value"). The paper is now fundamentally sound.
+
+**Two Must-Fix items remain:**
+1. **Extend PIT analysis to all 11 series** — the paper is a "distributional calibration" study that validates calibration for only 4/11 series (36%). The code infrastructure exists; it requires changing one hard-coded list in experiment13/run.py.
+2. **Add one sentence addressing the "good point forecast inflates ratio" concern** — the CPI evidence (best point forecasts AND highest ratio) is the perfect defense, but the paper doesn't deploy it.
+
+**Key Should-Fix items:**
+- Extend the horse race to KXU3 (Unemployment) and KXFRM (Mortgage Rates) — FRED mappings already exist
+- Extend serial correlation analysis to all 11 series
+- GDP temporal snapshot sensitivity analysis
+- Brief real-time monitoring specification
