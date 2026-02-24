@@ -169,14 +169,11 @@ def compute_crps_mae_ratio_with_ci(crps_arr, mae_arr, n_boot=10000, seed=42):
     mean_mae = mae_arr.mean()
     ratio = mean_crps / mean_mae if mean_mae > 0 else float("inf")
 
-    def _ratio_of_means(data, axis=None):
-        if axis is not None:
-            crps_means = np.mean(data[0], axis=axis)
-            mae_means = np.mean(data[1], axis=axis)
-            with np.errstate(divide='ignore', invalid='ignore'):
-                return crps_means / mae_means
-            return result
-        return np.mean(data[:, 0]) / np.mean(data[:, 1])
+    def _ratio_of_means(crps, mae, axis=None):
+        crps_means = np.mean(crps, axis=axis)
+        mae_means = np.mean(mae, axis=axis)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            return crps_means / mae_means
 
     try:
         bca_result = stats.bootstrap(
